@@ -41,7 +41,7 @@ to `hermes-vault`. The vault PAT (`HERMES_VAULT_GIT_TOKEN`) MUST NOT have any ac
 ### III. Volume-Only Persistence
 
 All persistent application state MUST live under the Railway volume mounted at
-`/root/.hermes`. No application state MUST be written outside this path. This ensures
+`/data/.hermes`. No application state MUST be written outside this path. This ensures
 data survives container restarts without additional storage services.
 
 ### IV. No Secrets in Repository
