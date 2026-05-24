@@ -69,6 +69,11 @@ COPY templates/ /app/templates/
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
+# Bundle skills into the image. These are copied into /data/.hermes/skills/
+# so Hermes auto-discovers them on startup. The volume mount at /data means
+# users can also add skills at runtime without rebuilding the image.
+COPY skills/ /data/.hermes/skills/
+
 ENV HOME=/data
 ENV HERMES_HOME=/data/.hermes
 
