@@ -59,8 +59,8 @@ RUN git clone --depth 1 --branch ${HERMES_REF} https://github.com/NousResearch/h
 # - We keep ui-tui/ entirely (node_modules + dist + src) so HERMES_TUI_DIR
 #   can point at it (see below).
 
-COPY requirements.txt /app/requirements.txt
-RUN uv pip install --system --no-cache -r /app/requirements.txt
+COPY pyproject.toml uv.lock /app/
+RUN cd /app && UV_SYSTEM_PYTHON=1 uv sync --frozen --no-install-project
 
 RUN mkdir -p /data/.hermes
 
