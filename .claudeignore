@@ -1,0 +1,6 @@
+# Lockfile — not useful to read
+uv.lock
+
+# Build artifacts
+__pycache__/
+*.pyc
