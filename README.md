@@ -40,6 +40,15 @@ The two repos are separate so the vault (which may contain personal notes) stays
 | `HERMES_GITHUB_PAT` | PAT for `sova-claw/hermes-agent` — enables GitHub MCP |
 | `HERMES_VAULT_GIT_TOKEN` | PAT for `sova-claw/hermes-vault` — enables vault skill |
 | `HERMES_VAULT_ALLOW_DIRS` | Optional; default `agent-inbox,daily` |
+| `RAILWAY_API_TOKEN` | **Required** — Railway API token for MCP server. Get it at [railway.app/account](https://railway.app/account) → **Create API Token**. Enables agent to trigger deploys, check service status, and manage Railway resources. |
+
+### Railway API Token Setup
+
+1. Go to [railway.app/account](https://railway.app/account)
+2. Click **Create API Token**
+3. Copy the token (format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+4. Add it as `RAILWAY_API_TOKEN` in Railway service environment variables
+5. The agent auto-configures the Railway MCP server on startup
 
 ## Adding a New Feature
 
