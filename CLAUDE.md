@@ -2,8 +2,6 @@
 
 This file provides guidance to Claude Code when working in this repository.
 
-> Identity and style guidelines are in `SOUL.md`. Read it.
-
 ## Purpose
 
 Hermes is Nazar's personal AI agent — a self-contained assistant that can read and write his Obsidian notes, manage Notion, reply on Telegram and Slack, and propose improvements to its own codebase via GitHub PRs.

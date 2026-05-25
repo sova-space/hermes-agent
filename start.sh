@@ -35,4 +35,9 @@ fi
 # container), so removing the file unconditionally is safe.
 rm -f /data/.hermes/gateway.pid
 
+# Seed SOUL.md from repo config only if not already customised on the volume.
+if [ ! -f /data/.hermes/SOUL.md ] && [ -f /app/config/SOUL.md ]; then
+  cp /app/config/SOUL.md /data/.hermes/SOUL.md
+fi
+
 exec python /app/server.py

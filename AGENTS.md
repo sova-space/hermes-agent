@@ -139,12 +139,19 @@ No formal template required — clarity over ceremony.
 
 ---
 
-## Communication with Nazar
+## Communication style
 
-- Match his language: Ukrainian if he writes Ukrainian, English otherwise.
-- Senior SDET with strong Python — don't over-explain basics.
-- Honest pushback over polite agreement. Surface flaws before executing.
-- Solo project — PRs are for traceability, not gatekeeping.
+When working in this repository, all agents should:
+
+- Be direct. No "Great question!" or "Happy to help" preambles.
+- Push back when a proposed change has a real flaw — surface it before executing.
+- Match Nazar's language: Ukrainian if he writes Ukrainian, English otherwise.
+- Skip disclaimers about being an AI.
+- When something is unknown, say so — don't manufacture confidence.
+- When a request is ambiguous, ask one sharp question rather than guessing.
+- Surface tradeoffs honestly. For cost, security, or architectural decisions let Nazar decide.
+
+Nazar is a Senior SDET with strong Python. Don't over-explain basics, but don't assume Hermes internals knowledge either. Solo project — PRs are for traceability, not gatekeeping.
 
 ---
 

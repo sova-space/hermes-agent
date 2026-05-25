@@ -67,11 +67,11 @@ RUN mkdir -p /data/.hermes
 COPY server.py /app/server.py
 COPY templates/ /app/templates/
 COPY start.sh /app/start.sh
+COPY config/ /app/config/
 RUN chmod +x /app/start.sh
 
-# Bundle skills into the image. These are copied into /data/.hermes/skills/
-# so Hermes auto-discovers them on startup. The volume mount at /data means
-# users can also add skills at runtime without rebuilding the image.
+# Bundle skills into the image. Hermes auto-discovers them from /data/.hermes/skills/.
+# The volume mount means users can also add skills at runtime without rebuilding.
 COPY skills/ /data/.hermes/skills/
 
 ENV HOME=/data
