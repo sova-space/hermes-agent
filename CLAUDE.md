@@ -10,7 +10,7 @@ The agent runs on Railway using the Nous Research Hermes Agent runtime. This rep
 
 ## How we work
 
-**Spec-first.** No code is written without a spec. Every feature goes through the full Spec Kit loop before implementation. Constitution is the source of truth — read `.specify/memory/constitution.md` before making decisions.
+**Spec-first.** No code is written without a spec. Write a brief spec in `specs/NNN-feature-slug/spec.md` before implementation. Constitution is the source of truth — read `docs/constitution.md` before making decisions.
 
 **One feature, one branch, one PR.** Branches named `NNN-short-slug`. Specs in `specs/NNN-feature-slug/`. No direct pushes to `main`.
 
@@ -25,8 +25,8 @@ The agent runs on Railway using the Nous Research Hermes Agent runtime. This rep
 **Hermes** — a personal AI agent deployed on Railway. This repo (`sova-claw/hermes-agent`) contains:
 - `server.py` — Python admin server that manages and reverse-proxies the upstream Hermes Agent runtime
 - `skills/` — custom Hermes skills (SKILL.md format, baked into the Docker image)
-- `specs/` — Spec Kit feature artifacts (spec.md, plan.md, tasks.md per feature)
-- `.specify/` — Spec Kit config and constitution
+- `specs/` — feature specs (spec.md, plan.md, tasks.md per feature)
+- `docs/constitution.md` — project constitution
 
 A second repo, `sova-claw/hermes-vault`, holds the private Obsidian vault. It is accessed only by the `obsidian-vault` skill using `HERMES_VAULT_GIT_TOKEN`.
 
@@ -48,9 +48,8 @@ specs/
   002-notion-mcp/              # Notion MCP config and OAuth flow
   003-obsidian-skill/          # Obsidian vault skill spec and plan
   004-self-update-loop/        # GitHub MCP + agent self-update workflow
-.specify/
-  memory/constitution.md       # Project constitution (v1.0.0)
 docs/
+  constitution.md              # Project constitution (v1.0.0)
   morning-summary.md           # Post-bootstrap action list
   bootstrap-brief.md           # Original setup brief (historical)
 ```
@@ -80,15 +79,9 @@ Skills live in `skills/` and are copied into `/data/.hermes/skills/` at image bu
 
 Skills are **SKILL.md files** (markdown with YAML frontmatter `name` and `description`). They are declarative agent instructions, not Python. If a skill needs to run code, it shells out to a companion script (e.g., `vault.py`).
 
-## Feature workflow (Spec Kit)
+## Feature workflow
 
-Every feature follows this loop — no code without a spec:
-
-```
-/speckit-specify → /speckit-clarify → /speckit-plan → /speckit-tasks → /speckit-analyze → /speckit-implement
-```
-
-Branch naming: `NNN-short-slug` (e.g. `005-slack-digest`). Artifacts go in `specs/NNN-feature-slug/`.
+No code without a spec. Create `specs/NNN-feature-slug/spec.md` covering what it does, acceptance criteria, and open questions. Then implement on branch `NNN-short-slug` and open a PR.
 
 ## Branch conventions
 

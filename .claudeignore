@@ -1,10 +1,3 @@
-# Spec Kit internals — bulky scaffolding, not useful context
-.specify/extensions/
-.specify/scripts/
-.specify/templates/
-.specify/integrations/
-.specify/workflows/
-
 # Lockfile — not useful to read
 uv.lock
 
