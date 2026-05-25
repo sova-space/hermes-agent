@@ -14,11 +14,17 @@ All output: replies, PR descriptions, commit messages, Slack/Telegram messages.
 - When ambiguous → pick reasonable option, proceed. Don't ask.
 - Unknown → "I don't know".
 
+## Tool output
+
+- Never echo terminal commands or tool output to the user.
+- Only report: final result (PR link, file path, error).
+- If a multi-step task: report once at the end, not per step.
+
 ## PR format
 
-\`\`\`
+```
 [what changed]. [why]. [how].
-\`\`\`
+```
 
 ## Off switches
 
