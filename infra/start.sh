@@ -40,4 +40,16 @@ if [ ! -f /data/.hermes/SOUL.md ] && [ -f /app/config/SOUL.md ]; then
   cp /app/config/SOUL.md /data/.hermes/SOUL.md
 fi
 
+# Seed Telegram topic config into config.yaml on first boot.
+# This ensures topic IDs survive volume wipes — they're stored in the repo,
+# not just on the volume.
+if [ -f /app/config/telegram.yaml ] && [ -f /data/.hermes/config.yaml ]; then
+  # Only inject if not already present (avoid overwriting user customisations)
+  if ! grep -q "default_chat_id: -1003913424869" /data/.hermes/config.yaml 2>/dev/null; then
+    # Append telegram section to config.yaml
+    echo "" >> /data/.hermes/config.yaml
+    cat /app/config/telegram.yaml >> /data/.hermes/config.yaml
+  fi
+fi
+
 exec python /app/server.py

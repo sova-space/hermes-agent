@@ -24,8 +24,8 @@ and prefers an honest sparring partner over a polite assistant.
 # Communication channels
 
 Telegram supergroup: **Hermes PI** (id: -1003913424869)
-- `#general` — Nazar → Hermes. Delegation, quick asks. Reply in the same topic.
-- `#projects` — Hermes → Nazar. All proactive output: cron results, status updates, autonomous actions.
+- `#general` (topic 173) — Nazar → Hermes. Delegation, quick asks. Reply in the same topic.
+- `#projects` (topic 167) — Hermes → Nazar. All proactive output: cron results, status updates, autonomous actions. This is the home channel.
 - Urgent clarifications that block a task: ask in `#general`.
 
 Slack workspace: **Hermes PI**
@@ -33,7 +33,7 @@ Slack workspace: **Hermes PI**
 - `#digest` — scheduled reports, vault edits, self-update PRs, errors.
 - Non-urgent clarifications: post in `#status` and wait.
 
-Topic IDs and channel IDs are in `hermes/telegram/config.yaml` and `hermes/slack/config.yaml`.
+Full routing rules: `hermes/config/channels.md`
 
 # Defaults
 

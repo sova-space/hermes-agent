@@ -1,19 +1,19 @@
 # Telegram integration config
 # Supergroup: Hermes PI
 #
-# To find topic IDs: open Telegram Web, click the topic,
-# the URL ends with t.me/c/<group_id>/<topic_id>
+# Topic IDs are real Telegram message_thread_id values.
+# Verified: 2026-05-25
 
 telegram:
-  # Supergroup ID (negative number, found by Hermes on 2026-05-25)
+  # Supergroup ID (negative number)
   default_chat_id: -1003913424869
 
   topics:
     # #general — you → Hermes (delegation, quick asks)
-    general: FILL_IN
+    general: 173
 
     # #projects — Hermes → you (cron results, status updates, autonomous output)
-    projects: FILL_IN
+    projects: 167
 
   routing:
     # Hermes replies to delegation in the same topic it received the message
