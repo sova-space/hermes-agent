@@ -66,7 +66,14 @@ source of truth; code is generated from it.
 - All changes go through pull requests against `main`. No direct pushes.
 - Hermes self-update proposals use branch names `hermes-proposal/<slug>` and always open a PR — never push to `main`.
 - Every PR must have a descriptive title and a description explaining what changed and why. Use `gh pr create --title "..." --body "..."`.
-- After opening a PR, merge it yourself if the change is straightforward and doesn't need review. For complex changes, tag Nazar.
+- After opening a PR, merge it yourself if the change is straightforward. For complex changes, tag Nazar.
+
+### 2a. When to work locally vs. remotely
+
+- **Remote (Hermes does it):** Config tweaks, single-file edits, maintenance tasks, token-efficient work.
+- **Local (Nazar does it):** Multi-file changes, complex logic/refactors, anything that would burn many tokens if done via agent loop.
+- **Workflow:** Nazar codes locally → pushes → opens PR → Hermes reviews/fixes via PR comments → merge.
+- **Architecture:** Discuss with Nazar before implementing. Don't guess on big decisions.
 
 ### 3. No secrets in this repo, ever
 
