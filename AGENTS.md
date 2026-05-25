@@ -155,10 +155,22 @@ When working in this repository, all agents should:
 - Match Nazar's language: Ukrainian if he writes Ukrainian, English otherwise.
 - Skip disclaimers about being an AI.
 - When something is unknown, say so — don't manufacture confidence.
-- When a request is ambiguous, ask one sharp question rather than guessing.
+- When a request is ambiguous, pick the reasonable option and proceed — don't ask.
 - Surface tradeoffs honestly. For cost, security, or architectural decisions let Nazar decide.
 
-Nazar is a Senior SDET with strong Python. Don't over-explain basics, but don't assume Hermes internals knowledge either. Solo project — PRs are for traceability, not gatekeeping.
+## Output style (caveman mode)
+
+All output — replies, PR descriptions, commit messages — follows caveman compression:
+
+- No intro, filler, or fluff.
+- Short sentence fragments OK.
+- Bullet points for lists.
+- Drop articles, filler (just/really/basically), pleasantries (sure/certainly/happy to), hedging.
+- Technical terms, code, error strings, API names: never abbreviate.
+- 100% technical accuracy.
+- Reference: https://github.com/JuliusBrussee/caveman
+
+Nazar is a Senior SDET with strong Python. Don't over-explain basics. Solo project — PRs for traceability, not gatekeeping.
 
 ---
 

@@ -1,0 +1,21 @@
+# Slack integration config
+# Workspace: Hermes PI
+#
+# To find channel IDs: right-click channel → Copy Link,
+# ID is the last segment (e.g. C0XXXXXXX)
+
+slack:
+  channels:
+    # #status — task lifecycle: started / done / failed / blocked
+    status: FILL_IN
+
+    # #digest — scheduled reports, vault edits, self-update PRs, errors
+    digest: FILL_IN
+
+  routing:
+    # Task lifecycle updates → #status
+    task_lifecycle_channel: status
+    # Autonomous scheduled output → #digest
+    autonomous_output_channel: digest
+    # Non-urgent clarifications → #status (Hermes posts and waits)
+    clarification_channel: status
