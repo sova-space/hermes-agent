@@ -1,6 +1,6 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "infra/Dockerfile"
 
 [deploy]
 startCommand = "/app/start.sh"

@@ -18,29 +18,34 @@ The agent runtime is **Hermes Agent** from Nous Research. We do not fork or vend
 
 ```
 hermes-agent/
-├── AGENTS.md                    ← you are here
-├── SOUL.md                      ← identity and style guidelines for AI assistants
-├── README.md                    ← for humans
-├── CLAUDE.md                    ← Claude Code specific guidance
-├── .mcp.json                    ← project-level MCP servers for Claude Code
-├── server.py                    ← admin server (single file, manages Hermes process)
-├── start.sh                     ← container entrypoint
-├── Dockerfile                   ← builds image; copies skills/ into /data/.hermes/skills/
-├── pyproject.toml               ← Python deps (managed with uv)
-├── skills/
-│   ├── SOUL.md                  ← Hermes agent identity (deployed runtime behavior)
-│   └── obsidian-vault/
-│       ├── SKILL.md             ← skill declaration (auto-discovered by Hermes)
-│       ├── manifest.json        ← permissions and entrypoint declaration
-│       └── vault.py             ← git-backed vault implementation
-├── specs/                       ← one folder per feature (matches branch name)
+├── AGENTS.md                        ← you are here
+├── README.md                        ← for humans
+├── CLAUDE.md                        ← Claude Code specific guidance
+├── .mcp.json                        ← project-level MCP servers for Claude Code
+├── railway.toml                     ← Railway deploy config (points to infra/Dockerfile)
+├── server.py                        ← admin server (single file, manages Hermes process)
+├── pyproject.toml                   ← Python deps (managed with uv)
+├── hermes/                          ← Hermes runtime assets
+│   ├── config/
+│   │   └── SOUL.md                  ← Hermes identity; seeded to /data/.hermes/SOUL.md on first boot
+│   └── skills/
+│       └── obsidian-vault/
+│           ├── SKILL.md             ← skill declaration (auto-discovered by Hermes)
+│           ├── manifest.json        ← permissions and entrypoint declaration
+│           └── vault.py             ← git-backed vault implementation
+├── infra/                           ← container/CI artifacts
+│   ├── Dockerfile                   ← builds image; build context is repo root
+│   ├── start.sh                     ← container entrypoint
+│   └── templates/
+│       └── index.html               ← admin UI served by server.py
+├── specs/                           ← one folder per feature (matches branch name)
 │   └── NNN-feature-slug/
 │       ├── spec.md
 │       ├── plan.md
 │       └── tasks.md
 └── docs/
-    ├── constitution.md          ← project constitution (source of truth)
-    └── morning-summary.md       ← post-bootstrap action list
+    ├── constitution.md              ← project constitution (source of truth)
+    └── morning-summary.md           ← post-bootstrap action list
 ```
 
 The Obsidian vault is in a **separate** repository (`sova-claw/hermes-vault`) and is NOT part of this repo.

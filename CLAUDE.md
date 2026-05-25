@@ -24,7 +24,9 @@ The agent runs on Railway using the Nous Research Hermes Agent runtime. This rep
 
 **Hermes** — a personal AI agent deployed on Railway. This repo (`sova-claw/hermes-agent`) contains:
 - `server.py` — Python admin server that manages and reverse-proxies the upstream Hermes Agent runtime
-- `skills/` — custom Hermes skills (SKILL.md format, baked into the Docker image)
+- `hermes/skills/` — custom Hermes skills (SKILL.md format, baked into the Docker image)
+- `hermes/config/` — config files seeded into the volume on first boot (SOUL.md)
+- `infra/` — Dockerfile, start.sh, and HTML templates
 - `specs/` — feature specs (spec.md, plan.md, tasks.md per feature)
 - `docs/constitution.md` — project constitution
 
@@ -33,25 +35,30 @@ A second repo, `sova-claw/hermes-vault`, holds the private Obsidian vault. It is
 ## Repository structure
 
 ```
-server.py                      # Admin server (single file)
-start.sh                       # Container entrypoint
-Dockerfile                     # Builds the image; copies skills/ into /data/.hermes/skills/
-pyproject.toml / uv.lock       # Python deps (managed with uv)
-.mcp.json                      # Project-level MCP servers for Claude Code
-skills/
-  SOUL.md                      # Agent identity — PR-only self-update rules
-  obsidian-vault/
-    SKILL.md                   # Skill declaration (auto-discovered by Hermes)
-    vault.py                   # Git-backed vault implementation (stdlib only)
+server.py                          # Admin server (single file)
+railway.toml                       # Railway deploy config (dockerfilePath = "infra/Dockerfile")
+pyproject.toml / uv.lock           # Python deps (managed with uv)
+.mcp.json                          # Project-level MCP servers for Claude Code
+hermes/
+  config/
+    SOUL.md                        # Agent identity; seeded to /data/.hermes/SOUL.md on first boot
+  skills/
+    obsidian-vault/
+      SKILL.md                     # Skill declaration (auto-discovered by Hermes)
+      vault.py                     # Git-backed vault implementation (stdlib only)
+infra/
+  Dockerfile                       # Builds the image; build context is repo root
+  start.sh                         # Container entrypoint
+  templates/
+    index.html                     # Admin UI HTML
 specs/
-  001-railway-bootstrap/       # Existing Railway setup documentation
-  002-notion-mcp/              # Notion MCP config and OAuth flow
-  003-obsidian-skill/          # Obsidian vault skill spec and plan
-  004-self-update-loop/        # GitHub MCP + agent self-update workflow
+  001-railway-bootstrap/           # Existing Railway setup documentation
+  002-notion-mcp/                  # Notion MCP config and OAuth flow
+  003-obsidian-skill/              # Obsidian vault skill spec and plan
+  004-self-update-loop/            # GitHub MCP + agent self-update workflow
 docs/
-  constitution.md              # Project constitution (v1.0.0)
-  morning-summary.md           # Post-bootstrap action list
-  bootstrap-brief.md           # Original setup brief (historical)
+  constitution.md                  # Project constitution (v1.0.0)
+  morning-summary.md               # Post-bootstrap action list
 ```
 
 ## Development workflow
@@ -75,7 +82,7 @@ docker run --rm -it -p 8080:8080 -e PORT=8080 -e ADMIN_PASSWORD=changeme -v herm
 
 ## Hermes skills
 
-Skills live in `skills/` and are copied into `/data/.hermes/skills/` at image build time (see Dockerfile). Hermes auto-discovers them — no `config.yaml` registration needed.
+Skills live in `hermes/skills/` and are copied into `/data/.hermes/skills/` at image build time (see `infra/Dockerfile`). Hermes auto-discovers them — no `config.yaml` registration needed.
 
 Skills are **SKILL.md files** (markdown with YAML frontmatter `name` and `description`). They are declarative agent instructions, not Python. If a skill needs to run code, it shells out to a companion script (e.g., `vault.py`).
 
@@ -91,7 +98,7 @@ No code without a spec. Create `specs/NNN-feature-slug/spec.md` covering what it
 
 ## Upgrading Hermes
 
-Bump `HERMES_REF` in `Dockerfile`, then rebuild. See `/upgrade-hermes` for the full workflow.
+Bump `HERMES_REF` in `infra/Dockerfile`, then rebuild. See `/upgrade-hermes` for the full workflow.
 
 ## Environment variables
 
@@ -133,7 +140,3 @@ Add new MCPs to `.mcp.json`. Restart Claude Code after changes.
 
 **Reverse proxy headers**: Proxy preserves `Authorization` and `Cookie` intentionally — Hermes dashboard relies on them.
 
-<!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
-<!-- SPECKIT END -->

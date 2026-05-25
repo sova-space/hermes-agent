@@ -65,14 +65,14 @@ RUN cd /app && UV_SYSTEM_PYTHON=1 uv sync --frozen --no-install-project
 RUN mkdir -p /data/.hermes
 
 COPY server.py /app/server.py
-COPY templates/ /app/templates/
-COPY start.sh /app/start.sh
-COPY config/ /app/config/
+COPY infra/templates/ /app/templates/
+COPY infra/start.sh /app/start.sh
+COPY hermes/config/ /app/config/
 RUN chmod +x /app/start.sh
 
 # Bundle skills into the image. Hermes auto-discovers them from /data/.hermes/skills/.
 # The volume mount means users can also add skills at runtime without rebuilding.
-COPY skills/ /data/.hermes/skills/
+COPY hermes/skills/ /data/.hermes/skills/
 
 ENV HOME=/data
 ENV HERMES_HOME=/data/.hermes
