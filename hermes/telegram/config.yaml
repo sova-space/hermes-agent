@@ -1,0 +1,24 @@
+# Telegram integration config
+# Supergroup: Hermes PI
+#
+# Topic IDs are real Telegram message_thread_id values.
+# Verified: 2026-05-25
+
+telegram:
+  # Supergroup ID (negative number)
+  default_chat_id: -1003913424869
+
+  topics:
+    # #general — you → Hermes (delegation, quick asks)
+    general: 173
+
+    # #projects — Hermes → you (cron results, status updates, autonomous output)
+    projects: 167
+
+  routing:
+    # Hermes replies to delegation in the same topic it received the message
+    reply_in_thread: true
+    # All proactive/scheduled output goes to #projects
+    proactive_output_topic: projects
+    # Urgent clarifications (blocking a task) go to #general
+    urgent_clarification_topic: general
