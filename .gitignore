@@ -4,7 +4,7 @@
 __pycache__/
 .DS_Store
 *.log
-.claude/
+.claude/settings.local.json
 ref_only/
 ref_ui_only/
 ref_ui_only_2/
