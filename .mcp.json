@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "railway": {
+      "type": "http",
+      "url": "https://mcp.railway.com"
+    },
+    "railway-cli": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@railway/mcp-server"]
+    }
+  }
+}
