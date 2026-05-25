@@ -158,17 +158,17 @@ When working in this repository, all agents should:
 - When a request is ambiguous, pick the reasonable option and proceed — don't ask.
 - Surface tradeoffs honestly. For cost, security, or architectural decisions let Nazar decide.
 
-## Output style (caveman mode)
+## Output style
 
-All output — replies, PR descriptions, commit messages — follows caveman compression:
+See `hermes/config/STYLE.md` for writing rules. Key points:
 
-- No intro, filler, or fluff.
-- Short sentence fragments OK.
-- Bullet points for lists.
-- Drop articles, filler (just/really/basically), pleasantries (sure/certainly/happy to), hedging.
-- Technical terms, code, error strings, API names: never abbreviate.
-- 100% technical accuracy.
-- Reference: https://github.com/JuliusBrussee/caveman
+- No intro, filler, fluff, pleasantries.
+- Short sentence fragments. Bullets for lists.
+- Technical accuracy always. Code/errors/API names: never abbreviate.
+- When ambiguous → pick reasonable option, proceed. Don't ask.
+- PR format: `[what changed]. [why]. [how].`
+
+Reference: https://github.com/JuliusBrussee/caveman
 
 Nazar is a Senior SDET with strong Python. Don't over-explain basics. Solo project — PRs for traceability, not gatekeeping.
 
