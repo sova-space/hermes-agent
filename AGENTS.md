@@ -65,6 +65,8 @@ source of truth; code is generated from it.
 - One feature per branch. Branch names: `NNN-short-slug` (zero-padded three-digit ordinal).
 - All changes go through pull requests against `main`. No direct pushes.
 - Hermes self-update proposals use branch names `hermes-proposal/<slug>` and always open a PR — never push to `main`.
+- Every PR must have a descriptive title and a description explaining what changed and why. Use `gh pr create --title "..." --body "..."`.
+- After opening a PR, merge it yourself if the change is straightforward and doesn't need review. For complex changes, tag Nazar.
 
 ### 3. No secrets in this repo, ever
 
