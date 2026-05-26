@@ -26,6 +26,12 @@ if [ ! -f /data/.hermes/auth.json ] && [ -n "${HERMES_AUTH_JSON_BOOTSTRAP}" ]; t
   chmod 600 /data/.hermes/auth.json
 fi
 
+# Prune old logs and sessions to keep volume usage in check.
+find /data/.hermes/logs    -type f -mtime +7  -delete 2>/dev/null || true
+find /data/.hermes/sessions -type f -mtime +30 -delete 2>/dev/null || true
+find /data/.hermes/audio_cache -type f -mtime +3 -delete 2>/dev/null || true
+find /data/.hermes/image_cache -type f -mtime +7 -delete 2>/dev/null || true
+
 # Clear any stale gateway PID file left over from the previous container.
 # `hermes gateway` writes /data/.hermes/gateway.pid on start but does not
 # remove it on SIGTERM. Since /data is a persistent volume, the file
