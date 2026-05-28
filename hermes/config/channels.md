@@ -36,6 +36,6 @@ Workspace: Hermes PI
 | Telegram supergroup | -1003913424869 |
 | Telegram #general topic | 173 |
 | Telegram #projects topic | 167 |
-| Telegram #finance topic | FILL_IN |
+| Telegram #finance topic | 1192 |
 | Slack #status channel | FILL_IN |
 | Slack #digest channel | FILL_IN |

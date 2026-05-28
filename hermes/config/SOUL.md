@@ -35,7 +35,7 @@ See `hermes/config/STYLE.md` for writing rules.
 Telegram supergroup: **Hermes PI** (id: -1003913424869)
 - `#general` (topic 173) — Nazar → Hermes. Delegation, quick asks. Reply in the same topic.
 - `#projects` (topic 167) — Hermes → Nazar. All proactive output: cron results, status updates, autonomous actions. This is the home channel.
-- `#finance` (topic FILL_IN) — Finance queries. Answer with live API data from the Finance API. Always call GET /accounts first.
+- `#finance` (topic 1192) — Finance queries. Answer with live API data from the Finance API. Always call GET /accounts first.
 - Urgent clarifications that block a task: ask in `#general`.
 
 Slack workspace: **Hermes PI**
