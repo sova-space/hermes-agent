@@ -1,0 +1,15 @@
+line-length = 88
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "RUF"]
+ignore = [
+    "E501",   # line length enforced by formatter
+    "E701",   # single-line guard pattern: `if err: return err`
+    "E402",   # mid-module imports (deferred auth imports in server.py are intentional)
+    "E741",   # ambiguous var names in short comprehensions
+    "RUF006", # fire-and-forget asyncio.create_task is intentional
+]
+
+[lint.per-file-ignores]
+"infra/**" = ["F", "E"]

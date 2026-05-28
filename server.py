@@ -561,7 +561,8 @@ def unmask(new: dict[str, str], existing: dict[str, str]) -> dict[str, str]:
 # change via Railway → redeploy → all existing cookies invalidate → users re-login.
 import hashlib as _hashlib
 import hmac as _hmac
-from urllib.parse import quote as _url_quote, urlparse as _urlparse
+from urllib.parse import quote as _url_quote
+from urllib.parse import urlparse as _urlparse
 
 COOKIE_NAME = "hermes_auth"
 COOKIE_MAX_AGE = 7 * 86400  # 7 days
@@ -766,7 +767,7 @@ class Gateway:
         self.proc.terminate()
         try:
             await asyncio.wait_for(self.proc.wait(), timeout=10)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.proc.kill()
             await self.proc.wait()
         self.state = "stopped"
@@ -862,7 +863,7 @@ class Dashboard:
             if rc is not None and rc != 0:
                 print(f"[dashboard] EXITED with code {rc} — reverse proxy will return 503 until restart", flush=True)
             elif rc == 0:
-                print(f"[dashboard] exited cleanly (code 0)", flush=True)
+                print("[dashboard] exited cleanly (code 0)", flush=True)
 
     async def stop(self):
         if not self.proc or self.proc.returncode is not None:
@@ -870,7 +871,7 @@ class Dashboard:
         self.proc.terminate()
         try:
             await asyncio.wait_for(self.proc.wait(), timeout=5)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.proc.kill()
             await self.proc.wait()
 
@@ -1088,26 +1089,26 @@ BACK_TO_SETUP_WIDGET = (
     '</div>'
 )
 
-DASHBOARD_UNAVAILABLE_HTML = """<!DOCTYPE html>
+DASHBOARD_UNAVAILABLE_HTML = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>Dashboard starting…</title>
-<style>body{background:#0d0f14;color:#c9d1d9;font-family:ui-monospace,Menlo,monospace;
-display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
-.card{max-width:480px;padding:32px;border:1px solid #252d3d;border-radius:12px;
-background:#14181f;text-align:center}
-h1{font-size:16px;color:#d29922;margin:0 0 12px;font-weight:600}
-p{font-size:13px;color:#6b7688;line-height:1.6;margin:0 0 16px}
-a{color:#6272ff;text-decoration:none;border:1px solid #252d3d;border-radius:6px;
-padding:7px 14px;font-size:12px;display:inline-block}
-a:hover{border-color:#6272ff}</style></head>
+<style>body{{background:#0d0f14;color:#c9d1d9;font-family:ui-monospace,Menlo,monospace;
+display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
+.card{{max-width:480px;padding:32px;border:1px solid #252d3d;border-radius:12px;
+background:#14181f;text-align:center}}
+h1{{font-size:16px;color:#d29922;margin:0 0 12px;font-weight:600}}
+p{{font-size:13px;color:#6b7688;line-height:1.6;margin:0 0 16px}}
+a{{color:#6272ff;text-decoration:none;border:1px solid #252d3d;border-radius:6px;
+padding:7px 14px;font-size:12px;display:inline-block}}
+a:hover{{border-color:#6272ff}}</style></head>
 <body><div class="card">
 <h1>⚠ Hermes dashboard unavailable</h1>
-<p>The native Hermes dashboard is not responding on port %d.<br>
+<p>The native Hermes dashboard is not responding on port {HERMES_DASHBOARD_PORT}.<br>
 It may still be starting up, or it may have crashed.</p>
 <p>Try refreshing in a few seconds, or head back to setup.</p>
 <a href="/setup">← Back to Setup</a>
 </div>
 <script>setTimeout(()=>location.reload(),4000);</script>
-</body></html>""" % HERMES_DASHBOARD_PORT
+</body></html>"""
 
 
 async def _proxy_to_dashboard(request: Request) -> Response:
@@ -1337,7 +1338,7 @@ async def ws_proxy(websocket: WebSocket) -> None:
             # purely token-based via the URL, and forwarding random
             # headers risks future upstream surprises.
         )
-    except (asyncio.TimeoutError, OSError, websockets.exceptions.WebSocketException) as e:
+    except (TimeoutError, OSError, websockets.exceptions.WebSocketException) as e:
         # Hermes dashboard down, restarting, or rejected the upgrade
         # (e.g. bad/missing session token).
         print(f"[ws-proxy] upstream connect failed for {path}: {e!r}", flush=True)
@@ -1353,7 +1354,7 @@ async def ws_proxy(websocket: WebSocket) -> None:
 
     try:
         # First side to finish wins; cancel the other.
-        done, pending = await asyncio.wait(
+        _done, pending = await asyncio.wait(
             (pump_in, pump_out),
             return_when=asyncio.FIRST_COMPLETED,
         )
