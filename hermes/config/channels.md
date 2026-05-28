@@ -9,6 +9,7 @@ Home channel: #projects topic
 |---|---|---|
 | #general    | Quick asks, delegation, ad-hoc requests | You → Hermes |
 | #projects   | Cron results, status updates, autonomous output | Hermes → you |
+| #finance    | Balance checks, spending queries, sync triggers | Both |
 
 ## Slack (execution tracking)
 
@@ -35,5 +36,6 @@ Workspace: Hermes PI
 | Telegram supergroup | -1003913424869 |
 | Telegram #general topic | 173 |
 | Telegram #projects topic | 167 |
+| Telegram #finance topic | FILL_IN |
 | Slack #status channel | FILL_IN |
 | Slack #digest channel | FILL_IN |

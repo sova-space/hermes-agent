@@ -2,5 +2,25 @@
   "enabledPlugins": {
     "github@claude-plugins-official": true,
     "code-review@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(uv run ruff*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit*)",
+            "command": "uv run --dev ruff check . && uv run --dev ruff format --check .",
+            "statusMessage": "Ruff check…"
+          }
+        ]
+      }
+    ]
   }
 }
