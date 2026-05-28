@@ -16,7 +16,7 @@ telegram:
     projects: 167
 
     # #finance — finance queries and balance checks (bidirectional)
-    finance: FILL_IN  # create topic in Hermes PI supergroup, then paste thread_id here
+    finance: 1192
 
   routing:
     # Hermes replies to delegation in the same topic it received the message

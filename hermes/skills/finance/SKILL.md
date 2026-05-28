@@ -156,11 +156,11 @@ If `GET /accounts` returns `[]`, tell Nazar to trigger `/sync` first.
 
 ## Telegram topic
 
-All finance replies go to `#finance` (topic `FILL_IN` in supergroup `-1003913424869`).
+All finance replies go to `#finance` (topic `1192` in supergroup `-1003913424869`).
 Reply in-thread.
 
 ---
 
 ## Phase 2 (not yet implemented)
 - Proactive budget-exceeded alerts after each sync (needs `TELEGRAM_BOT_TOKEN` in Railway)
-- `#finance` topic thread ID — create topic in Hermes PI, then update `FILL_IN` in this file and in `hermes/config/telegram.yaml`
+- `#finance` topic: thread ID 1192 ✅
