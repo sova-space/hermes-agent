@@ -70,9 +70,10 @@ COPY infra/start.sh /app/start.sh
 COPY hermes/config/ /app/config/
 RUN chmod +x /app/start.sh
 
-# Bundle skills into the image. Hermes auto-discovers them from /data/.hermes/skills/.
-# The volume mount means users can also add skills at runtime without rebuilding.
-COPY hermes/skills/ /data/.hermes/skills/
+# Skills are stored at /app/skills/ (not under /data) so the persistent volume
+# does not shadow them. start.sh copies them to /data/.hermes/skills/ on every
+# boot, ensuring every redeploy picks up SKILL.md changes immediately.
+COPY hermes/skills/ /app/skills/
 
 ENV HOME=/data
 ENV HERMES_HOME=/data/.hermes
