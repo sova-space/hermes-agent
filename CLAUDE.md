@@ -100,6 +100,20 @@ docker build -t hermes-agent .
 docker run --rm -it -p 8080:8080 -e PORT=8080 -e ADMIN_PASSWORD=changeme -v hermes-data:/data hermes-agent
 ```
 
+## Python project boundaries
+
+Two independent Python projects live in this repo — never mix their commands:
+
+| Project | Root | Key commands |
+|---------|------|-------------|
+| Hermes orchestrator | `/` (repo root) | `uv run --dev ruff check .` |
+| Finance sub-agent | `agents/finance/` | `cd agents/finance && uv run ruff check finance_api/` |
+| | | `cd agents/finance && uv run pytest tests/` |
+
+Each has its own `pyproject.toml`, `uv.lock`, and `ruff.toml`. Never run `uv` or `pytest` for finance from the repo root — it picks up the wrong lockfile and misses finance-specific deps.
+
+Adding a new agent: create `agents/<name>/pyproject.toml` with its own deps and lockfile. Keep it isolated.
+
 ## Sub-agent development
 
 Each agent under `agents/<name>/` is independent:
