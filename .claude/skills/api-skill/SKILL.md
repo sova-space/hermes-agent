@@ -4,7 +4,7 @@ description: MUST invoke before any edit or review inside finance_api/. Enforces
 version: 1.0.0
 ---
 
-# hermes-finance Backend Guidelines
+# agents/finance Backend Guidelines
 
 Concise rules for agents working inside `finance_api/`. **These override generic FastAPI/aiogram advice where they differ.**
 

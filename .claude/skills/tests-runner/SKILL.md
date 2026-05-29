@@ -4,11 +4,11 @@ description: Use when running tests, checking test output, debugging failures, o
 version: 1.0.0
 ---
 
-# Test Runner — hermes-finance
+# Test Runner — agents/finance
 
 ## Where to run from
 
-Always run pytest from the **repo root** (`/path/to/hermes-finance/`), never from `api/`. The root `pyproject.toml` owns the authoritative pytest config:
+Always run pytest from the **repo root (`agents/finance/`), never from a subdirectory. The `pyproject.toml` there owns the pytest config:
 
 ```toml
 [tool.pytest.ini_options]

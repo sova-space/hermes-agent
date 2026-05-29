@@ -5,7 +5,19 @@
   },
   "permissions": {
     "allow": [
-      "Bash(uv run ruff*)"
+      "Bash(uv run ruff*)",
+      "Bash(uv run --dev ruff*)",
+      "Bash(uv run pytest*)",
+      "Bash(railway *)",
+      "Bash(gh auth switch --user sova-claw)",
+      "Bash(gh pr *)",
+      "Bash(gh issue *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git status)",
+      "Bash(git status --short)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   },
   "hooks": {
@@ -16,7 +28,7 @@
           {
             "type": "command",
             "if": "Bash(git commit*)",
-            "command": "uv run --dev ruff check . && uv run --dev ruff format --check .",
+            "command": "uv run --dev ruff check . && uv run --dev ruff format --check . && (cd agents/finance && uv run ruff check finance_api/ && uv run ruff format --check finance_api/)",
             "statusMessage": "Ruff check…"
           }
         ]

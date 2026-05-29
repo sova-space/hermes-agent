@@ -4,7 +4,7 @@ description: Use when writing any test in this repo — new queries, bot handler
 version: 1.0.0
 ---
 
-# Test Writer — hermes-finance
+# Test Writer — agents/finance
 
 Rules for writing tests inside `tests/`. These override generic pytest advice where they differ.
 

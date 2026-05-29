@@ -1,10 +1,10 @@
 ---
 name: best-practices
-description: Python best practices for hermes-finance. Covers FastAPI patterns, Pydantic v2, async rules, SQLModel, structlog, and aiogram conventions. Load during implementation or review.
+description: Python best practices for agents/finance. Covers FastAPI patterns, Pydantic v2, async rules, SQLModel, structlog, and aiogram conventions. Load during implementation or review.
 version: 1.0.0
 ---
 
-# Python Best Practices — hermes-finance
+# Python Best Practices — agents/finance
 
 Rules for this repo's stack. Repo conventions always win over generic advice.
 
