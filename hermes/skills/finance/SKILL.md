@@ -15,6 +15,12 @@ Base URL: `https://finance-api-production-4d72.up.railway.app`
 
 ---
 
+## Routing
+
+If the incoming message contains `@sova_finance_bot` (e.g. `/balance@sova_finance_bot`), **do not respond** — the finance bot handles it directly. Only respond to commands that are not explicitly addressed to another bot.
+
+---
+
 ## Commands
 
 ### /balance
