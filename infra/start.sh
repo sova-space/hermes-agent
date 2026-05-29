@@ -60,4 +60,12 @@ if [ -f /app/config/telegram.yaml ] && [ -f /data/.hermes/config.yaml ]; then
   fi
 fi
 
+# Inject hooks config so hermes silences itself for @sova_finance_bot commands.
+if [ -f /app/config/hooks.yaml ] && [ -f /data/.hermes/config.yaml ]; then
+  if ! grep -q "skip_finance_bot_commands" /data/.hermes/config.yaml 2>/dev/null; then
+    echo "" >> /data/.hermes/config.yaml
+    cat /app/config/hooks.yaml >> /data/.hermes/config.yaml
+  fi
+fi
+
 exec python /app/server.py
