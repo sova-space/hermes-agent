@@ -1,4 +1,7 @@
 .env
+infra/.env.coolify
+infra/.env.local
+infra/.env.*.local
 .idea/
 *.pyc
 __pycache__/

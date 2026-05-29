@@ -22,22 +22,30 @@ The agent runs on Railway using the Nous Research Hermes Agent runtime. This rep
 
 ## What this repo is
 
-**Hermes** — a personal AI agent deployed on Railway. This repo (`sova-claw/hermes-agent`) contains:
+**Monorepo** for Nazar's personal agent ecosystem. One git history, separate Railway services per agent.
+
+**Hermes orchestrator** (`sova-claw/hermes-agent`, `sova_hermes_bot`) — the main conversational AI:
 - `server.py` — Python admin server that manages and reverse-proxies the upstream Hermes Agent runtime
 - `hermes/skills/` — custom Hermes skills (SKILL.md format, baked into the Docker image)
 - `hermes/config/` — config files seeded into the volume on first boot (SOUL.md)
-- `infra/` — Dockerfile, start.sh, and HTML templates
-- `specs/` — feature specs (spec.md, plan.md, tasks.md per feature)
+- `infra/` — Dockerfile, start.sh, HTML templates, docker-compose for local dev
+
+**Sub-agents** (`agents/`) — each is its own Railway service, owns its database, has its own Dockerfile:
+- `agents/finance/` — `@sova_finance_bot`, Monobank integration, REST API, budget tracking
+
+**Shared infrastructure:**
+- One Railway PostgreSQL service (`hermes-db`), one database per agent (`finance`, `travel`, …)
+- `specs/` — feature specs (spec.md per feature, spec-first policy)
 - `docs/constitution.md` — project constitution
 
-A second repo, `sova-claw/hermes-vault`, holds the private Obsidian vault. It is accessed only by the `obsidian-vault` skill using `HERMES_VAULT_GIT_TOKEN`.
+A separate repo, `sova-claw/hermes-vault`, holds the private Obsidian vault. Accessed only by the `obsidian-vault` skill using `HERMES_VAULT_GIT_TOKEN`.
 
 ## Repository structure
 
 ```
-server.py                          # Admin server (single file)
-railway.toml                       # Railway deploy config (dockerfilePath = "infra/Dockerfile")
-pyproject.toml / uv.lock           # Python deps (managed with uv)
+server.py                          # Hermes admin server (single file)
+railway.toml                       # Railway deploy config for hermes orchestrator
+pyproject.toml / uv.lock           # Hermes Python deps (managed with uv)
 .mcp.json                          # Project-level MCP servers for Claude Code
 hermes/
   config/
@@ -46,19 +54,31 @@ hermes/
     obsidian-vault/
       SKILL.md                     # Skill declaration (auto-discovered by Hermes)
       vault.py                     # Git-backed vault implementation (stdlib only)
+    finance/
+      SKILL.md                     # Finance skill — calls agents/finance REST API
+    project-context/
+      SKILL.md                     # Tracks active project context
 infra/
-  Dockerfile                       # Builds the image; build context is repo root
+  Dockerfile                       # Builds hermes image; build context is repo root
   start.sh                         # Container entrypoint
+  docker-compose.yml               # Local dev: hermes + finance + shared postgres
   templates/
     index.html                     # Admin UI HTML
+agents/
+  finance/                         # @sova_finance_bot — deployed as separate Railway service
+    Dockerfile                     # Build context: agents/finance/ (Railway root dir)
+    railway.toml                   # Finance service deploy config
+    finance_api/                   # FastAPI + aiogram + APScheduler
+    alembic/                       # DB migrations (runs against finance database)
 specs/
-  001-railway-bootstrap/           # Existing Railway setup documentation
-  002-notion-mcp/                  # Notion MCP config and OAuth flow
-  003-obsidian-skill/              # Obsidian vault skill spec and plan
-  004-self-update-loop/            # GitHub MCP + agent self-update workflow
+  001-railway-bootstrap/
+  002-notion-mcp/
+  003-obsidian-skill/
+  004-self-update-loop/
+  008-finance-hermes-integration/
 docs/
   constitution.md                  # Project constitution (v1.0.0)
-  morning-summary.md               # Post-bootstrap action list
+  morning-summary.md
 ```
 
 ## Development workflow
@@ -78,6 +98,29 @@ docker build -t hermes-agent .
 **Run locally:**
 ```
 docker run --rm -it -p 8080:8080 -e PORT=8080 -e ADMIN_PASSWORD=changeme -v hermes-data:/data hermes-agent
+```
+
+## Sub-agent development
+
+Each agent under `agents/<name>/` is independent:
+- Has its own `Dockerfile`, `railway.toml`, and `pyproject.toml`
+- Deployed as a separate Railway service with **Root Directory** set to `agents/<name>/`
+- Owns one PostgreSQL database on the shared `hermes-db` Railway service
+
+**Database pattern — one host, one DB per agent:**
+
+| Agent | DB name | `DATABASE_URL` format |
+|-------|---------|----------------------|
+| finance | `finance` | `postgresql+psycopg://…@host:5432/finance` |
+| travel (future) | `travel` | `postgresql+psycopg://…@host:5432/travel` |
+
+Connection strings differ only in the database name. To add a new agent: create the database in `hermes-db`, set `DATABASE_URL` in the new service's Railway variables.
+
+**Local dev** — `infra/docker-compose.yml` runs all services with a shared Postgres container. Each agent service gets its own `DATABASE_URL` env var in `infra/.env.<agent>.local`.
+
+**Building a finance image locally:**
+```
+docker build -f agents/finance/Dockerfile agents/finance/
 ```
 
 ## Hermes skills
