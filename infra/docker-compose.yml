@@ -1,0 +1,57 @@
+services:
+  hermes:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    restart: on-failure:10
+    ports:
+      - "8080:8080"
+    volumes:
+      - hermes-data:/data
+    env_file: .env.local
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+  finance:
+    build:
+      context: ../agents/finance
+      dockerfile: Dockerfile
+    restart: on-failure:5
+    ports:
+      - "8000:8000"
+    env_file: .env.finance.local
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hermes
+      POSTGRES_PASSWORD: hermes
+      POSTGRES_DB: postgres
+    volumes:
+      - hermes-db:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hermes"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  hermes-data:
+  hermes-db:
