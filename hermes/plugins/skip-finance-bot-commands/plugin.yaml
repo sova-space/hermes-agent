@@ -1,5 +1,0 @@
-name: skip-finance-bot-commands
-version: 2.0.0
-description: "Silently drop finance slash commands so @sova_finance_bot handles them exclusively."
-hooks:
-  - pre_gateway_dispatch
