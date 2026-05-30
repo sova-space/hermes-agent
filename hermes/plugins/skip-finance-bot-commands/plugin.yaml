@@ -1,0 +1,5 @@
+name: skip-finance-bot-commands
+version: 1.0.0
+description: "Silently drop messages addressed to @sova_finance_bot so Hermes does not respond with 'Unknown command'."
+hooks:
+  - pre_gateway_dispatch

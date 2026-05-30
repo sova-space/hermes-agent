@@ -70,10 +70,10 @@ COPY infra/start.sh /app/start.sh
 COPY hermes/config/ /app/config/
 RUN chmod +x /app/start.sh /app/config/skip_finance_bot_commands.sh
 
-# Skills are stored at /app/skills/ (not under /data) so the persistent volume
-# does not shadow them. start.sh copies them to /data/.hermes/skills/ on every
-# boot, ensuring every redeploy picks up SKILL.md changes immediately.
+# Skills and plugins are stored under /app/ so the persistent volume does not
+# shadow them. start.sh copies them to /data/.hermes/ on every boot.
 COPY hermes/skills/ /app/skills/
+COPY hermes/plugins/ /app/plugins/
 
 ENV HOME=/data
 ENV HERMES_HOME=/data/.hermes

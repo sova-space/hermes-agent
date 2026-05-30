@@ -41,11 +41,15 @@ find /data/.hermes/image_cache -type f -mtime +7 -delete 2>/dev/null || true
 # container), so removing the file unconditionally is safe.
 rm -f /data/.hermes/gateway.pid
 
-# Always overwrite SOUL.md and skills from the image so every redeploy picks
-# up changes without needing to wipe the volume.
+# Always overwrite SOUL.md, skills, and plugins from the image so every
+# redeploy picks up changes without needing to wipe the volume.
 [ -f /app/config/SOUL.md ] && cp /app/config/SOUL.md /data/.hermes/SOUL.md
 if [ -d /app/skills ]; then
   cp -rf /app/skills/. /data/.hermes/skills/
+fi
+if [ -d /app/plugins ]; then
+  mkdir -p /data/.hermes/plugins
+  cp -rf /app/plugins/. /data/.hermes/plugins/
 fi
 
 # Seed Telegram topic config into config.yaml on first boot.
@@ -60,36 +64,5 @@ if [ -f /app/config/telegram.yaml ] && [ -f /data/.hermes/config.yaml ]; then
   fi
 fi
 
-# Pre-approve the skip_finance_bot_commands shell hook in the allowlist so the
-# gateway registers it automatically without a TTY prompt.
-# The hooks: block is injected into config.yaml by write_config_yaml() in server.py.
-ALLOWLIST=/data/.hermes/shell-hooks-allowlist.json
-HOOK_CMD="/app/config/skip_finance_bot_commands.sh"
-if ! grep -q "skip_finance_bot_commands" "$ALLOWLIST" 2>/dev/null; then
-  python3 - <<'EOF'
-import json, os
-p = os.environ.get("ALLOWLIST", "/data/.hermes/shell-hooks-allowlist.json")
-hook_cmd = os.environ.get("HOOK_CMD", "/app/config/skip_finance_bot_commands.sh")
-try:
-    d = json.load(open(p))
-except Exception:
-    d = {"approvals": []}
-if not isinstance(d.get("approvals"), list):
-    d["approvals"] = []
-# Remove stale entry if any, then add fresh
-d["approvals"] = [
-    e for e in d["approvals"]
-    if not (isinstance(e, dict) and e.get("command") == hook_cmd)
-]
-d["approvals"].append({
-    "event": "pre_gateway_dispatch",
-    "command": hook_cmd,
-    "approved_at": "2026-05-30T00:00:00Z",
-    "script_mtime_at_approval": None,
-})
-json.dump(d, open(p, "w"), indent=2)
-print(f"[start.sh] pre-approved shell hook: {hook_cmd}", flush=True)
-EOF
-fi
 
 exec python /app/server.py
