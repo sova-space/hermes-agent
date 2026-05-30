@@ -7,5 +7,6 @@
 # raw JSON if the message was directed at the finance bot.
 input=$(cat)
 if echo "$input" | grep -q "@sova_finance_bot"; then
-    printf '{"action":"skip","reason":"command addressed to sova_finance_bot"}'
+    echo '{"action":"skip","reason":"command addressed to sova_finance_bot"}'
+    exit 0
 fi
