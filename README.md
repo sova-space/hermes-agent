@@ -1,6 +1,6 @@
 # hermes-agent
 
-Personal AI agent running on Railway. Replies on Telegram and Slack, tracks finances via Monobank, proposes self-improvements via GitHub PRs.
+Personal AI agent running on Railway. Lives in a Telegram supergroup with dedicated topics per domain — ask questions in `#general`, get proactive updates in `#projects`, manage money in `#finance`. Also available on Slack.
 
 Built on the [NousResearch Hermes Agent](https://github.com/NousResearch/hermes-agent) runtime — configured, not forked.
 
