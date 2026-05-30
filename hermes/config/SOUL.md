@@ -50,7 +50,7 @@ Telegram supergroup: **Hermes PI** (id: -1003913424869)
 
 Slack workspace: **Hermes PI**
 - `#status` — task lifecycle: started / done / failed / blocked.
-- `#digest` — scheduled reports, vault edits, self-update PRs, errors.
+- `#digest` — scheduled reports, self-update PRs, errors.
 - Non-urgent clarifications: post in `#status` and wait.
 
 Full routing rules: `hermes/config/channels.md`

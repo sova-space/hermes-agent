@@ -6,15 +6,6 @@ Deploy [Hermes Agent](https://github.com/NousResearch/hermes-agent) on [Railway]
 
 Hermes Agent is an autonomous AI agent by [Nous Research](https://nousresearch.com/) that lives on your server, connects to your messaging channels (Telegram, Discord, Slack, etc.), and gets more capable the longer it runs. This repo wraps Hermes in a lightweight admin server and packages it for one-click Railway deployment.
 
-## Two-Repo Structure
-
-| Repo | Purpose |
-|---|---|
-| [`sova-claw/hermes-agent`](https://github.com/sova-claw/hermes-agent) | Docker image, admin server, skills, specs — the code you deploy |
-| [`sova-claw/hermes-vault`](https://github.com/sova-claw/hermes-vault) | Private Obsidian-format note vault — the agent reads and writes here |
-
-The two repos are separate so the vault (which may contain personal notes) stays private and isolated from the deployment codebase. The agent accesses the vault at runtime via a dedicated GitHub PAT (`HERMES_VAULT_GIT_TOKEN`) that has no access to the deployment repo.
-
 ## Deploy to Railway
 
 1. Click **Deploy on Railway** above
@@ -38,8 +29,6 @@ The two repos are separate so the vault (which may contain personal notes) stays
 | `TELEGRAM_BOT_TOKEN` | From @BotFather — enables Telegram channel |
 | `TELEGRAM_ALLOWED_USER_IDS` | Comma-separated Telegram user IDs that skip pairing |
 | `HERMES_GITHUB_PAT` | PAT for `sova-claw/hermes-agent` — enables GitHub MCP |
-| `HERMES_VAULT_GIT_TOKEN` | PAT for `sova-claw/hermes-vault` — enables vault skill |
-| `HERMES_VAULT_ALLOW_DIRS` | Optional; default `agent-inbox,daily` |
 | `RAILWAY_API_TOKEN` | **Required** — Railway API token for MCP server. Get it at [railway.app/account](https://railway.app/account) → **Create API Token**. Enables agent to trigger deploys, check service status, and manage Railway resources. |
 
 ### Railway API Token Setup
@@ -52,7 +41,7 @@ The two repos are separate so the vault (which may contain personal notes) stays
 
 ## Adding a New Feature
 
-This repo uses a lightweight Spec Kit loop:
+This repo uses a lightweight spec-first loop:
 
 1. Create a branch: `feature/<name>` for new work, `fix/<name>` for bug fixes
 2. Write `specs/<NNN>-<slug>/spec.md`, `plan.md`, `tasks.md`
@@ -62,8 +51,6 @@ This repo uses a lightweight Spec Kit loop:
 All designed features are documented under `specs/`:
 
 - [`specs/001-railway-bootstrap/`](specs/001-railway-bootstrap/) — Railway env vars, volume setup, verification checklist
-- [`specs/002-notion-mcp/`](specs/002-notion-mcp/) — Notion MCP OAuth flow and config
-- [`specs/003-obsidian-skill/`](specs/003-obsidian-skill/) — Obsidian vault skill (vault.py + SKILL.md)
 - [`specs/004-self-update-loop/`](specs/004-self-update-loop/) — GitHub MCP config + SOUL.md agent identity
 
 Agent-proposed changes use branches named `hermes-proposal/<slug>` and always go through a PR (see `skills/SOUL.md`).

@@ -27,16 +27,12 @@ vendored, or patched. Configuration only. When Hermes behavior is uncertain, the
 MUST consult https://hermes-agent.nousresearch.com/docs rather than relying on prior
 knowledge or assumptions.
 
-### II. Two-Repo, Two-Token Separation
+### II. Single Repo, Scoped Token
 
-The system MUST use exactly two GitHub repositories:
-- `sova-claw/hermes-agent` — code, specs, Dockerfile, Railway config
-- `sova-claw/hermes-vault` — Obsidian vault (private)
+The system uses one GitHub repository: `sova-claw/hermes-agent` — code, specs, Dockerfile, Railway config.
 
-Each repository MUST be accessed by a separate fine-grained Personal Access Token with
-non-overlapping scopes. The agent's PAT (`HERMES_GITHUB_PAT`) MUST NOT have any access
-to `hermes-vault`. The vault PAT (`HERMES_VAULT_GIT_TOKEN`) MUST NOT have any access to
-`hermes-agent`. A compromise of one token MUST NOT be able to affect the other repository.
+The agent's PAT (`HERMES_GITHUB_PAT`) MUST be scoped to `sova-claw/hermes-agent` only with
+`contents:write` and `pull_requests:write`. No token stored in the repo or committed to git.
 
 ### III. Volume-Only Persistence
 
@@ -53,10 +49,10 @@ permitted in documentation.
 
 ### V. MCP-First Integrations
 
-All external integrations (Notion, GitHub, Slack, etc.) MUST be added as MCP servers
-configured through the Hermes dashboard or `config.yaml`. Bespoke Python integrations are
-forbidden. Exception: when no MCP server exists for a required capability, a Hermes skill
-MUST be written instead (current exception: Obsidian vault access via Git).
+All external integrations (GitHub, Slack, etc.) MUST be added as MCP servers configured
+through the Hermes dashboard or `config.yaml`. Bespoke Python integrations are forbidden.
+Exception: when no MCP server exists for a required capability, a Hermes skill MUST be
+written instead.
 
 ### VI. PR-Only Changes — No Direct Pushes
 
@@ -66,19 +62,11 @@ branch protection. When the agent proposes changes to the repository, it MUST cr
 branch named `hermes-proposal/<short-slug>` and open a PR. It MUST NOT push to `main`
 directly, even if the branch protection rule is temporarily disabled.
 
-### VII. Spec-Driven Development Loop
+### VII. Spec-First Development
 
-No code MUST be written outside the Spec Kit loop. Every feature MUST follow this order:
-
-1. `/speckit-specify` — baseline specification
-2. `/speckit-clarify` — resolve ambiguities (mandatory before plan)
-3. `/speckit-plan` — implementation plan
-4. `/speckit-tasks` — actionable task list
-5. `/speckit-analyze` — cross-artifact consistency gate (blocking)
-6. `/speckit-implement` — execute tasks
-
-Every feature MUST produce its artifacts under `specs/NNN-feature-slug/` on a branch
-named `NNN-short-slug` (zero-padded three-digit ordinal). One feature per branch, per PR.
+Every feature MUST have a `specs/NNN-feature-slug/spec.md` written and reviewed before any
+code is written. The spec covers what it does, acceptance criteria, and open questions.
+One feature per branch (`NNN-short-slug`), one PR per branch.
 
 ### VIII. Python Quality Gates
 
@@ -94,11 +82,10 @@ additional paid add-ons.
 
 ## Development Workflow
 
-- Feature branches: `NNN-short-slug` (e.g., `003-obsidian-skill`)
+- Feature branches: `NNN-short-slug`
 - Agent proposal branches: `hermes-proposal/<slug>`
-- Spec artifacts: `specs/NNN-feature-slug/` (spec.md, plan.md, tasks.md, research.md)
+- Spec: `specs/NNN-feature-slug/spec.md` (one file, required before code)
 - All PRs require at least one human review before merge
-- `/speckit-analyze` output MUST be reviewed and pass before `/speckit-implement` runs
 
 ## Governance
 

@@ -18,7 +18,7 @@ Workspace: Hermes PI
 | Channel | Purpose | Direction |
 |---|---|---|
 | #status   | Task lifecycle: started / done / failed / blocked | Hermes → you |
-| #digest   | Scheduled reports, vault edits, self-update PRs, errors | Hermes → you |
+| #digest   | Scheduled reports, self-update PRs, errors | Hermes → you |
 
 ## Routing rules
 

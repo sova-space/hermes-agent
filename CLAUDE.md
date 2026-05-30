@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Hermes is Nazar's personal AI agent — reads/writes Obsidian notes, manages Notion, replies on Telegram and Slack, proposes self-improvements via GitHub PRs. Runs on Railway using the Nous Research Hermes Agent runtime.
+Hermes is Nazar's personal AI agent — replies on Telegram and Slack, tracks finances, and proposes self-improvements via GitHub PRs. Runs on Railway using the Nous Research Hermes Agent runtime.
 
 ## Rules
 
@@ -15,7 +15,8 @@ Hermes is Nazar's personal AI agent — reads/writes Obsidian notes, manages Not
 server.py                  # Hermes admin server
 hermes/
   config/SOUL.md           # Agent identity (seeded to /data/.hermes/ on first boot)
-  skills/                  # SKILL.md files (auto-discovered by Hermes)
+  skills/finance/          # Finance skill — calls agents/finance REST API
+  skills/project-context/  # Tracks active project context
 infra/
   Dockerfile               # Build context: repo root
   start.sh                 # Container entrypoint
@@ -65,7 +66,6 @@ Skills are SKILL.md files in `hermes/skills/` — markdown only, no Python modul
 - `OPENROUTER_API_KEY` · `LLM_MODEL` — LLM provider
 - `TELEGRAM_BOT_TOKEN` · `TELEGRAM_ALLOWED_USER_IDS`
 - `SLACK_BOT_TOKEN` · `SLACK_APP_TOKEN`
-- `HERMES_VAULT_GIT_TOKEN` — GitHub PAT for `sova-claw/hermes-vault`
 - `HERMES_GITHUB_PAT` — GitHub PAT for self-update PRs
 
 Volume `/data` — state lives at `/data/.hermes`.
