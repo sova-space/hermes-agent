@@ -221,6 +221,19 @@ def write_config_yaml(data: dict[str, str]) -> None:
 
     merged["data_dir"] = HERMES_HOME
 
+    # Gateway hooks — always injected so updates take effect on every deploy.
+    # pre_gateway_dispatch: silence hermes for commands addressed to @sova_finance_bot.
+    merged["hooks_auto_accept"] = True
+    merged_hooks = dict(merged.get("hooks") if isinstance(merged.get("hooks"), dict) else {})
+    finance_hook = {"command": "/app/config/skip_finance_bot_commands.sh"}
+    existing_dispatch = merged_hooks.get("pre_gateway_dispatch", [])
+    if not isinstance(existing_dispatch, list):
+        existing_dispatch = []
+    if not any(h.get("command") == finance_hook["command"] for h in existing_dispatch if isinstance(h, dict)):
+        existing_dispatch = [finance_hook] + existing_dispatch
+    merged_hooks["pre_gateway_dispatch"] = existing_dispatch
+    merged["hooks"] = merged_hooks
+
     # Custom OpenAI-compatible endpoint — write custom_providers block when configured,
     # remove it when not (safe on Railway where users don't hand-edit config.yaml).
     custom_base_url = data.get("CUSTOM_PROVIDER_BASE_URL", "").strip()
