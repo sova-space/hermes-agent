@@ -221,18 +221,13 @@ def write_config_yaml(data: dict[str, str]) -> None:
 
     merged["data_dir"] = HERMES_HOME
 
-    # Gateway hooks — always injected so updates take effect on every deploy.
-    # pre_gateway_dispatch: silence hermes for commands addressed to @sova_finance_bot.
-    merged["hooks_auto_accept"] = True
-    merged_hooks = dict(merged.get("hooks") if isinstance(merged.get("hooks"), dict) else {})
-    finance_hook = {"command": "/app/config/skip_finance_bot_commands.sh"}
-    existing_dispatch = merged_hooks.get("pre_gateway_dispatch", [])
-    if not isinstance(existing_dispatch, list):
-        existing_dispatch = []
-    if not any(h.get("command") == finance_hook["command"] for h in existing_dispatch if isinstance(h, dict)):
-        existing_dispatch = [finance_hook] + existing_dispatch
-    merged_hooks["pre_gateway_dispatch"] = existing_dispatch
-    merged["hooks"] = merged_hooks
+    # Enable the skip-finance-bot-commands plugin (user plugins are opt-in).
+    merged_plugins = dict(merged.get("plugins") if isinstance(merged.get("plugins"), dict) else {})
+    enabled_plugins = list(merged_plugins.get("enabled") if isinstance(merged_plugins.get("enabled"), list) else [])
+    if "skip-finance-bot-commands" not in enabled_plugins:
+        enabled_plugins.append("skip-finance-bot-commands")
+    merged_plugins["enabled"] = enabled_plugins
+    merged["plugins"] = merged_plugins
 
     # Custom OpenAI-compatible endpoint — write custom_providers block when configured,
     # remove it when not (safe on Railway where users don't hand-edit config.yaml).
