@@ -48,8 +48,10 @@ if [ -d /app/skills ]; then
   cp -rf /app/skills/. /data/.hermes/skills/
 fi
 if [ -d /app/plugins ]; then
-  mkdir -p /data/.hermes/plugins
-  cp -rf /app/plugins/. /data/.hermes/plugins/
+  rm -rf /data/.hermes/plugins
+  cp -rf /app/plugins /data/.hermes/plugins
+else
+  rm -rf /data/.hermes/plugins
 fi
 
 # Seed Telegram topic config into config.yaml on first boot.
