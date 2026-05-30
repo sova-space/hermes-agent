@@ -1,6 +1,0 @@
-
-hooks_auto_accept: true
-
-hooks:
-  pre_gateway_dispatch:
-    - command: "/app/config/skip_finance_bot_commands.sh"

@@ -68,7 +68,7 @@ COPY server.py /app/server.py
 COPY infra/templates/ /app/templates/
 COPY infra/start.sh /app/start.sh
 COPY hermes/config/ /app/config/
-RUN chmod +x /app/start.sh /app/config/skip_finance_bot_commands.sh
+RUN chmod +x /app/start.sh
 
 # Skills and plugins are stored under /app/ so the persistent volume does not
 # shadow them. start.sh copies them to /data/.hermes/ on every boot.
