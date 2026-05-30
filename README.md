@@ -4,6 +4,46 @@ Personal AI agent running on Railway. Replies on Telegram and Slack, tracks fina
 
 Built on the [NousResearch Hermes Agent](https://github.com/NousResearch/hermes-agent) runtime — configured, not forked.
 
+## Vision
+
+Hermes is a single personal AI that knows your life — money, notes, projects, tasks — and you talk to it naturally on Telegram or Slack. No app switching, no dashboards to remember: one conversation interface backed by structured data.
+
+Sub-agents handle domains where dedicated persistence, bots, or data pipelines are needed. The orchestrator stays small by delegating to them over HTTP rather than absorbing their complexity. Finance is the first sub-agent: it syncs Monobank accounts, tracks spending, enforces budgets, and exposes a REST API that the orchestrator queries on your behalf.
+
+The goal is an agent that knows enough about your financial position, current projects, and personal notes that you can ask it anything and trust the answer.
+
+## How it works
+
+```text
+Telegram / Slack
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│  Hermes orchestrator  (Railway service)  │
+│  ─────────────────────────────────────  │
+│  NousResearch Hermes runtime             │
+│  server.py — admin server + rev proxy    │
+│  hermes/skills/ — declarative skills     │
+│    finance/SKILL.md ──► HTTP             │
+└──────────────────────┬──────────────────┘
+                       │ REST
+                       ▼
+┌─────────────────────────────────────────┐
+│  Finance sub-agent  (Railway service)    │
+│  ─────────────────────────────────────  │
+│  @sova_finance_bot (aiogram)             │
+│  FastAPI REST API                        │
+│  Monobank sync (APScheduler, hourly)     │
+│  PostgreSQL — finance database           │
+└─────────────────────────────────────────┘
+```
+
+**Orchestrator** — the brain. Handles all conversations, routes intent, and calls skills. Skills (`hermes/skills/<name>/SKILL.md`) are declarative markdown; if a skill needs to run code it shells out to a companion script. The orchestrator never owns domain data directly.
+
+**Sub-agents** — independent Railway services, each with its own database, bot token, and deployment lifecycle. They expose a REST API the orchestrator's skills call over HTTP. No shared code, no shared state. Adding a new domain (travel, health, …) means adding a new sub-agent under `agents/<name>/`.
+
+**Finance sub-agent** (`agents/finance/`) — the first sub-agent. Syncs all Monobank accounts hourly, categorizes transactions, tracks budgets, and answers slash commands (`/balance`, `/stats`, `/budget`) directly on Telegram via `@sova_finance_bot`. The orchestrator reaches it through `hermes/skills/finance/SKILL.md` for conversational money questions.
+
 ## Table of Contents
 
 - [Project structure](#project-structure)
