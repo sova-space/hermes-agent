@@ -1,110 +1,185 @@
 # hermes-agent
 
-Nazar's personal AI agent running on Railway. Replies on Telegram and Slack, tracks finances via Monobank, proposes self-improvements via GitHub PRs.
+Personal AI agent running on Railway. Replies on Telegram and Slack, tracks finances via Monobank, proposes self-improvements via GitHub PRs.
 
 Built on the [NousResearch Hermes Agent](https://github.com/NousResearch/hermes-agent) runtime — configured, not forked.
 
-## Architecture
+## Table of Contents
 
-Two services, one repo, one PostgreSQL host:
+- [Project structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Run locally](#run-locally)
+- [Logging](#logging)
+- [Tests](#tests)
+- [Lint & Format](#lint--format)
+- [Development setup](#development-setup)
 
+## Project structure
+
+```text
+.
+├── server.py                     # Hermes admin server — manages + reverse-proxies the runtime
+├── hermes/
+│   ├── config/                   # SOUL.md, STYLE.md, channels.md, telegram.yaml, slack.yaml
+│   └── skills/
+│       ├── finance/SKILL.md      # Calls finance REST API to answer money questions
+│       └── project-context/      # Tracks active project context
+├── agents/
+│   └── finance/                  # @sova_finance_bot — separate Railway service
+│       ├── finance_api/
+│       │   ├── core/             # config, logging, db
+│       │   ├── domains/
+│       │   │   ├── accounts/     # Account model
+│       │   │   ├── bot/          # aiogram handlers, formatter, runner
+│       │   │   ├── budgets/      # Budget model + queries
+│       │   │   ├── insights/     # Analytics queries (spending, trend, transactions)
+│       │   │   ├── sync/         # Monobank client, sync pipeline, MCC mapping
+│       │   │   └── transactions/ # Transaction model + category mapping
+│       │   ├── routers/          # REST endpoints called by hermes finance skill
+│       │   └── schemas.py        # Shared response schemas
+│       ├── alembic/              # DB migrations
+│       └── tests/                # pytest unit tests
+├── infra/
+│   ├── Dockerfile                # Hermes image (build context: repo root)
+│   ├── start.sh                  # Container entrypoint
+│   ├── docker-compose.yml        # Local dev: all services + shared postgres
+│   └── postgres-init/            # DB init scripts
+├── specs/                        # Feature specs (spec.md per feature)
+└── docs/
+    └── constitution.md
 ```
+
+### Architecture
+
+```text
 Telegram / Slack
-       │
-       ▼
-  Hermes runtime  (hermes-orchestrator Railway service)
-  server.py           admin server + reverse proxy
-  hermes/skills/      finance skill → HTTP → finance REST API
-                      project-context skill
-       │ HTTP
-       ▼
-  Finance API     (@sova_finance_bot Railway service)
-  finance_api/        FastAPI REST API  ← called by hermes skill
-  domains/bot/        aiogram bot       ← @sova_finance_bot Telegram commands
-  domains/sync/       Monobank sync     ← APScheduler hourly
-  PostgreSQL          accounts, transactions, budgets
+      │
+      ▼
+Hermes runtime         (hermes-orchestrator — Railway service)
+server.py              admin server + reverse proxy
+hermes/skills/         finance skill ──► HTTP ──► finance REST API
+                       project-context skill
+      │ HTTP
+      ▼
+Finance API            (@sova_finance_bot — Railway service)
+routers/               REST API  ◄── called by hermes finance skill
+domains/bot/           aiogram   ◄── @sova_finance_bot Telegram commands
+domains/sync/          APScheduler hourly Monobank sync
+PostgreSQL             accounts, transactions, budgets
 ```
 
-The hermes skill (`hermes/skills/finance/SKILL.md`) is the integration point. Hermes resolves finance questions by calling the REST API; `@sova_finance_bot` handles direct bot commands in the `#finance` Telegram topic.
+### Finance API layer
 
-## Services
+The request flow is always:
 
-| Service | Railway root | Bot |
-|---------|-------------|-----|
-| hermes-orchestrator | `/` (repo root) | `@sova_hermes_bot` |
-| hermes-finance | `agents/finance/` | `@sova_finance_bot` |
+| Layer      | Responsibility                                         |
+|------------|--------------------------------------------------------|
+| `routers`  | Parse HTTP request, validate input, return response    |
+| `domains`  | Business logic, queries, sync, formatting              |
+| `core`     | Config, DB engine, logging setup                       |
 
-Shared PostgreSQL: `hermes-db`. Finance uses the `finance` database.
+Handlers are Telegram boundary only — no analytics logic inline. Queries take a `Session`, return plain dicts — no HTTP, no AI.
 
-## Repo structure
+## Prerequisites
 
-```
-server.py                   # Hermes admin server (single file)
-hermes/
-  config/                   # SOUL.md, STYLE.md, channels.md, telegram.yaml, slack.yaml
-  skills/
-    finance/SKILL.md        # Calls agents/finance REST API
-    project-context/SKILL.md
-infra/
-  Dockerfile                # Builds hermes image (build context: repo root)
-  start.sh                  # Container entrypoint
-  docker-compose.yml        # Local dev: all services + shared postgres
-agents/
-  finance/                  # @sova_finance_bot — separate Railway service
-    finance_api/            # FastAPI + aiogram + APScheduler
-    alembic/                # DB migrations
-specs/                      # Feature specs (spec.md only — one per feature)
-docs/
-  constitution.md
-```
+- [Docker](https://docs.docker.com/get-docker/) with Compose plugin
+- `infra/.env.finance.local` with real values (copy from `infra/.env.finance.local.example`)
 
-## Development
-
-Docker-only. No local virtualenvs.
+## Run locally
 
 ```bash
-# Build hermes
-docker build -t hermes-agent .
+# all services (hermes + finance + postgres)
+docker compose -f infra/docker-compose.yml up
 
-# Run hermes locally
+# hermes only
+docker build -t hermes-agent .
 docker run --rm -it -p 8080:8080 -e PORT=8080 -e ADMIN_PASSWORD=changeme -v hermes-data:/data hermes-agent
 
-# Build finance
+# finance only
 docker build -f agents/finance/Dockerfile agents/finance/
-
-# All services (local dev)
-docker compose -f infra/docker-compose.yml up
 ```
 
-## Python projects
+## Logging
 
-Two independent projects — never mix their commands:
+Both services use [structlog](https://www.structlog.org/) to stdout. No file logging.
 
-| Project | Root | Commands |
-|---------|------|----------|
-| Hermes orchestrator | repo root | `uv run --dev ruff check .` |
-| Finance agent | `agents/finance/` | `uv run ruff check finance_api/` · `uv run pytest tests/` |
+```text
+Request
+  -> Handler  →  event logged with domain context
+  -> structlog → stdout → Railway logs
+```
 
-## Key env vars
+Sample output:
 
-| Variable | Service | Notes |
-|----------|---------|-------|
-| `ADMIN_PASSWORD` | hermes | Dashboard auth |
-| `LLM_MODEL` | hermes | e.g. `openai/gpt-4o-mini` |
-| `OPENROUTER_API_KEY` | hermes | LLM provider |
-| `TELEGRAM_BOT_TOKEN` | hermes | `@sova_hermes_bot` |
-| `TELEGRAM_ALLOWED_USER_IDS` | hermes | Comma-separated IDs |
-| `SLACK_BOT_TOKEN` / `SLACK_APP_TOKEN` | hermes | Socket Mode |
-| `HERMES_GITHUB_PAT` | hermes | Self-update PRs (scoped to this repo only) |
-| `DATABASE_URL` | finance | `postgresql+psycopg://…/finance` |
-| `TELEGRAM_BOT_TOKEN` | finance | `@sova_finance_bot` |
-| `MONOBANK_TOKEN` | finance | Personal token |
-| `FINANCE_API_URL` | hermes | URL of the finance REST API |
+```text
+{"event": "scheduler_started",      "interval_hours": 1}
+{"event": "telegram_bot_started"}
+{"event": "sync.started",           "account_id": "abc123"}
+{"event": "sync.completed",         "fetched": 42, "duration_ms": 380}
+```
 
-All secrets in Railway Variables — never committed.
+### Configuration
 
-## Adding a feature
+| Variable     | Default | Options                                          |
+|--------------|---------|--------------------------------------------------|
+| `LOG_LEVEL`  | `INFO`  | `DEBUG` · `INFO` · `WARNING` · `ERROR`           |
+| `environment`| `local` | `local` (console format) · `production` (JSON)   |
 
-1. Create branch `NNN-short-slug`
-2. Write `specs/NNN-feature-slug/spec.md` (what, acceptance criteria, open questions)
-3. Implement → PR → merge
+### View logs
+
+```bash
+docker compose -f infra/docker-compose.yml logs -f finance   # finance logs
+docker compose -f infra/docker-compose.yml logs -f hermes    # hermes logs
+```
+
+On Railway: service → **Deployments** → active deployment → **Logs** tab.
+
+## Tests
+
+Finance unit tests use `.env.test` (loaded automatically).
+
+```bash
+cd agents/finance
+uv run pytest tests/ -v
+
+# short output
+uv run pytest tests/ --tb=short
+```
+
+Tests cover MCC category mapping, period math, and transaction categorization. All mocked — no real API calls.
+
+## Lint & Format
+
+Two independent Python projects — run from their own roots:
+
+```bash
+# hermes orchestrator (repo root)
+uv run --dev ruff check .
+uv run --dev ruff format .
+
+# finance sub-agent
+cd agents/finance
+uv run ruff check finance_api/
+uv run ruff format finance_api/
+```
+
+After editing `pyproject.toml` in either project, run `uv lock` from that project's root.
+
+## Development setup
+
+| Service        | Local                   | Production                                          |
+|----------------|-------------------------|-----------------------------------------------------|
+| Hermes admin   | http://localhost:8080   | Railway service URL                                 |
+| Finance API    | http://localhost:8001   | https://finance-api-production-4d72.up.railway.app  |
+| Finance docs   | http://localhost:8001/docs | https://finance-api-production-4d72.up.railway.app/docs |
+| Finance health | http://localhost:8001/health | https://finance-api-production-4d72.up.railway.app/health |
+
+### Deploy
+
+Railway does **not** auto-deploy on push. After merging to `main`:
+
+```bash
+railway up --detach
+```
+
+Run from the correct service context (link with `railway link` first).
