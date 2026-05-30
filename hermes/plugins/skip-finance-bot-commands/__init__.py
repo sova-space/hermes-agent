@@ -16,8 +16,6 @@ def _on_pre_gateway_dispatch(event, **kwargs):
 
 
 def _balance_handler(args: str) -> Optional[str]:
-    if _current_thread_id != FINANCE_THREAD_ID:
-        return None
     try:
         req = urllib.request.Request(f"{FINANCE_API_URL}/accounts")
         with urllib.request.urlopen(req, timeout=10) as resp:
