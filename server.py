@@ -221,14 +221,6 @@ def write_config_yaml(data: dict[str, str]) -> None:
 
     merged["data_dir"] = HERMES_HOME
 
-    # Enable the skip-finance-bot-commands plugin (user plugins are opt-in).
-    merged_plugins = dict(merged.get("plugins") if isinstance(merged.get("plugins"), dict) else {})
-    enabled_plugins = list(merged_plugins.get("enabled") if isinstance(merged_plugins.get("enabled"), list) else [])
-    if "skip-finance-bot-commands" not in enabled_plugins:
-        enabled_plugins.append("skip-finance-bot-commands")
-    merged_plugins["enabled"] = enabled_plugins
-    merged["plugins"] = merged_plugins
-
     # Custom OpenAI-compatible endpoint — write custom_providers block when configured,
     # remove it when not (safe on Railway where users don't hand-edit config.yaml).
     custom_base_url = data.get("CUSTOM_PROVIDER_BASE_URL", "").strip()
