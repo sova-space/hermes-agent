@@ -8,23 +8,31 @@ from sqlmodel import Session, func, select
 
 from finance_api.core.db.engine import engine
 from finance_api.domains.accounts.models import Account
+from finance_api.domains.insights.periods import (
+    LAST_7D,
+    LAST_30D,
+    LAST_90D,
+    LAST_MONTH,
+    SALARY_ANCHORED,
+    THIS_MONTH,
+)
 from finance_api.domains.sync.models import SyncRun
 from finance_api.domains.transactions.models import Transaction
 
 
 def _period_dates(period: str) -> tuple[date, date]:
     today = date.today()
-    if period == "this_month":
+    if period == THIS_MONTH:
         return today.replace(day=1), today
-    if period == "last_month":
+    if period == LAST_MONTH:
         first_this = today.replace(day=1)
         last_prev = first_this - timedelta(days=1)
         return last_prev.replace(day=1), last_prev
-    if period == "last_7d":
+    if period == LAST_7D:
         return today - timedelta(days=7), today
-    if period == "last_30d":
+    if period == LAST_30D:
         return today - timedelta(days=30), today
-    if period == "last_90d":
+    if period == LAST_90D:
         return today - timedelta(days=90), today
     return today.replace(day=1), today
 
@@ -49,6 +57,27 @@ def _months_ago(n: int) -> tuple[int, int]:
     return year, month
 
 
+def _salary_anchored_start(calendar_start: date, session: Session) -> date:
+    """Return earliest FOP income date in the calendar month, or calendar_start."""
+    fop_ids = session.exec(select(Account.id).where(Account.is_fop == True)).all()  # noqa: E712
+    if not fop_ids:
+        return calendar_start
+    if calendar_start.month == 12:
+        month_end = date(calendar_start.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = (
+            date(calendar_start.year, calendar_start.month + 1, 1) - timedelta(days=1)
+        )
+    first = session.exec(
+        select(func.min(Transaction.date))
+        .where(Transaction.account_id.in_(fop_ids))
+        .where(Transaction.amount > 0)
+        .where(Transaction.date >= calendar_start)
+        .where(Transaction.date <= month_end)
+    ).first()
+    return first or calendar_start
+
+
 def get_account_balances() -> list[dict[str, Any]]:
     """Return current balances for all synced accounts."""
     with Session(engine) as session:
@@ -60,6 +89,7 @@ def get_account_balances() -> list[dict[str, Any]]:
                 "currency": a.currency,
                 "balance": a.balance,
                 "type": a.account_type,
+                "is_fop": a.is_fop,
                 "synced_at": a.synced_at.isoformat() if a.synced_at else None,
             }
             for a in accounts
@@ -69,11 +99,14 @@ def get_account_balances() -> list[dict[str, Any]]:
 def get_spending_by_category(
     period: str = "this_month",
     account_id: UUID | None = None,
+    mode: str | None = None,
     exclude_uncategorized: bool = False,
 ) -> dict[str, float]:
     """Return total spending grouped by category for the given period."""
     start, end = _period_dates(period)
     with Session(engine) as session:
+        if period in SALARY_ANCHORED:
+            start = _salary_anchored_start(start, session)
         q = (
             select(Transaction.category, func.sum(Transaction.amount))
             .where(Transaction.date >= start)
@@ -83,6 +116,8 @@ def get_spending_by_category(
         )
         if account_id:
             q = q.where(Transaction.account_id == account_id)
+        if mode is not None:
+            q = q.where(Transaction.mode == mode)
         if exclude_uncategorized:
             q = q.where(Transaction.category.is_not(None))  # type: ignore[union-attr]
         q = q.group_by(Transaction.category)
@@ -93,6 +128,7 @@ def get_spending_by_category(
 def get_monthly_trend(
     months: int = 3,
     account_id: UUID | None = None,
+    mode: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return month-by-month income and expense totals."""
     result = []
@@ -110,11 +146,14 @@ def get_monthly_trend(
             )
             if account_id:
                 base = base.where(Transaction.account_id == account_id)
+            if mode is not None:
+                base = base.where(Transaction.mode == mode)
             return session.exec(base).first() or 0
 
         with Session(engine) as session:
-            income = _sum(session, first, last, Transaction.amount > 0)
-            expenses = _sum(session, first, last, Transaction.amount < 0)
+            anchored_first = _salary_anchored_start(first, session) if i == 0 else first
+            income = _sum(session, anchored_first, last, Transaction.amount > 0)
+            expenses = _sum(session, anchored_first, last, Transaction.amount < 0)
 
         result.append({
             "month": first.strftime("%b %Y"),
@@ -128,8 +167,9 @@ def get_recent_transactions(
     limit: int = 20,
     period: str | None = None,
     account_id: UUID | None = None,
+    mode: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return recent transactions, optionally filtered by period and account."""
+    """Return recent transactions, optionally filtered by period, account, and mode."""
     with Session(engine) as session:
         q = (
             select(Transaction)
@@ -138,9 +178,13 @@ def get_recent_transactions(
         )
         if period:
             start, end = _period_dates(period)
+            if period in SALARY_ANCHORED:
+                start = _salary_anchored_start(start, session)
             q = q.where(Transaction.date >= start).where(Transaction.date <= end)
         if account_id:
             q = q.where(Transaction.account_id == account_id)
+        if mode is not None:
+            q = q.where(Transaction.mode == mode)
         txs = session.exec(q).all()
         return [
             {
@@ -149,6 +193,7 @@ def get_recent_transactions(
                 "amount": t.amount,
                 "currency": t.currency,
                 "category": t.category,
+                "mode": t.mode,
                 "is_pending": t.is_pending,
             }
             for t in txs

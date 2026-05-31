@@ -13,16 +13,17 @@ from finance_api.domains.bot.formatter import (
     format_sync_status,
 )
 from finance_api.domains.budgets.queries import list_budgets_vs_spending, upsert_budget
+from finance_api.domains.insights.periods import ALL as ALL_PERIODS
+from finance_api.domains.insights.periods import THIS_MONTH
 from finance_api.domains.insights.queries import (
     get_account_balances,
     get_spending_by_category,
     get_sync_health,
 )
 from finance_api.domains.sync.monobank import run_sync
+from finance_api.domains.transactions.modes import ALL as ALL_MODES
 
 log = structlog.get_logger(__name__)
-
-_VALID_PERIODS = {"this_month", "last_month", "last_7d", "last_30d", "last_90d"}
 
 
 async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -36,12 +37,18 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /stats [period] command."""
+    """Handle /stats [period] [mode] command.
+
+    Examples: /stats this_month solo  /stats last_month couple
+    """
     try:
-        period = (
-            ctx.args[0] if ctx.args and ctx.args[0] in _VALID_PERIODS else "this_month"
+        args = ctx.args or []
+        period = args[0] if args and args[0] in ALL_PERIODS else THIS_MONTH
+        raw_mode = args[1] if len(args) > 1 else None
+        mode = raw_mode if raw_mode in ALL_MODES else None
+        spending = get_spending_by_category(
+            period=period, mode=mode, exclude_uncategorized=False
         )
-        spending = get_spending_by_category(period=period, exclude_uncategorized=False)
         await update.message.reply_html(format_stats(spending, period))
     except Exception as e:
         log.error("stats_failed", error=str(e))

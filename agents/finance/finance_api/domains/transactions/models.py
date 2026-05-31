@@ -25,6 +25,7 @@ class Transaction(SQLModel, table=True):
     category: str | None = None
     mcc: int | None = None
     notes: str | None = None
+    mode: str | None = None  # "solo" | "couple" | None (income/cashback)
     extra: dict[str, Any] | None = Field(default=None, sa_column=Column(JSONB))
 
     is_pending: bool = False

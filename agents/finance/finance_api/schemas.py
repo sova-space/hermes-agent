@@ -21,6 +21,10 @@ class AccountBalance(BaseModel):
             "Monobank account type: black | white | fop | platinum | iron | yellow"
         )
     )
+    is_fop: bool = Field(
+        default=False,
+        description="True if account receives salary; used to anchor month start",
+    )
     synced_at: str | None = Field(
         default=None,
         description="ISO timestamp of the last successful sync for this account",
@@ -43,6 +47,10 @@ class TransactionItem(BaseModel):
     category: str | None = Field(
         default=None,
         description="Spending category inferred from MCC code",
+    )
+    mode: str | None = Field(
+        default=None,
+        description="'solo' (personal), 'couple' (shared), or None (income/cashback)",
     )
     is_pending: bool = Field(
         default=False,
