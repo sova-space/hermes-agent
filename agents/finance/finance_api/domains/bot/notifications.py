@@ -43,6 +43,31 @@ def set_notification_context(
     log.info("notification_context_set")
 
 
+def send_finance_app_button() -> None:
+    """Send the Mini App WebApp button to the #finance topic.
+
+    Called via POST /bot/open when Hermes sees /finance_app.
+    """
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
+    if _application is None or _loop is None or not settings.mini_app_url:
+        log.warning("send_finance_app_button_skipped")
+        return
+    btn = InlineKeyboardButton(
+        "Open Finance", web_app=WebAppInfo(url=settings.mini_app_url)
+    )
+    keyboard = InlineKeyboardMarkup([[btn]])
+    asyncio.run_coroutine_threadsafe(
+        _application.bot.send_message(
+            chat_id=settings.telegram_chat_id,
+            message_thread_id=settings.telegram_finance_topic_id,
+            text="💰 Hermes Finance",
+            reply_markup=keyboard,
+        ),
+        _loop,
+    )
+
+
 def send_notification(text: str, thread_id: int | None = None) -> None:
     """Send a Telegram message from a sync APScheduler thread.
 

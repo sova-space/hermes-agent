@@ -3,6 +3,7 @@
 from telegram import (
     BotCommand,
     BotCommandScopeAllGroupChats,
+    BotCommandScopeChat,
     MenuButtonWebApp,
     WebAppInfo,
 )
@@ -20,9 +21,12 @@ _COMMANDS = [
 
 async def _post_init(app: Application) -> None:
     """Register commands and Mini App button with Telegram on every startup."""
+    settings = get_settings()
     await app.bot.set_my_commands(_COMMANDS)
     await app.bot.set_my_commands(_COMMANDS, scope=BotCommandScopeAllGroupChats())
-    settings = get_settings()
+    await app.bot.set_my_commands(
+        _COMMANDS, scope=BotCommandScopeChat(chat_id=settings.telegram_chat_id)
+    )
     if settings.mini_app_url:
         await app.bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(

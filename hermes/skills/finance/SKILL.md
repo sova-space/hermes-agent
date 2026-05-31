@@ -17,7 +17,9 @@ Base URL: `https://finance-api-production-4d72.up.railway.app`
 
 ## Routing — read this first
 
-**Slash commands** (`/balance`, `/stats`, `/budget`, `/sync`) — handled exclusively by `@sova_finance_bot`. **Do not respond.** Stay completely silent if you see any of these.
+**`/finance_app`** — call `POST /bot/open` immediately, no text reply. This sends the Mini App button to the #finance topic via the finance bot.
+
+**Other slash commands** (`/balance`, `/stats`, `/budget`, `/sync`) — handled exclusively by `@sova_finance_bot`. **Do not respond.** Stay completely silent if you see any of these.
 
 **Commands addressed to another bot** (e.g. `/balance@sova_finance_bot`) — **do not respond**. That bot handles it.
 
