@@ -247,6 +247,7 @@ uv run ruff check finance_api/
 | `PARTNER_NAME_PATTERN` | no | Regex to match partner name in transfer descriptions |
 | `SYNC_INTERVAL_HOURS` | no | Sync frequency (default: 1) |
 | `MONOBANK_FETCH_DAYS` | no | How far back initial sync reaches (default: 90) |
+| `MINI_APP_URL` | no | Public URL of the Mini App — set to `https://finance-api-production-4d72.up.railway.app/miniapp` |
 
 ---
 

@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta property="og:title" content="Sova Family — Personal Finance for Telegram">
+<meta property="og:description" content="Connect Monobank, track spending with visual pockets, manage debt, goals and trips — all from a Telegram Mini App. Open source, self-hosted.">
+<meta property="og:image" content="https://nkhimin.github.io/hermes-agent/assets/logo-main.png">
+<meta property="og:type" content="website">
+<meta name="description" content="Connect Monobank, track spending with visual pockets, manage debt, goals and trips — all from a Telegram Mini App. Open source, self-hosted.">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sova Family — Personal Finance for Telegram</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-main: #060b18;
+  --bg-card: #0c1428;
+  --bg-finance: #040e06;
+  --bg-finance-card: #081a0c;
+  --accent-blue: #4da6ff;
+  --accent-cyan: #00d4ff;
+  --accent-green: #00ff88;
+  --accent-gold: #f5c842;
+  --text-primary: #e8edf5;
+  --text-secondary: #6b7a99;
+  --text-muted: #3a4560;
+  --border-blue: rgba(77,166,255,0.12);
+  --border-green: rgba(0,255,136,0.12);
+  --glow-blue: 0 0 40px rgba(77,166,255,0.15);
+  --glow-green: 0 0 40px rgba(0,255,136,0.15);
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── SCROLL PROGRESS ── */
+#scroll-progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+  z-index: 200;
+  transition: width 0.1s linear;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-main);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── NOISE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── PARTICLES ── */
+.particle {
+  position: absolute;
+  width: 2px; height: 2px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  opacity: 0;
+  animation: particleFloat linear infinite;
+  pointer-events: none;
+}
+@keyframes particleFloat {
+  0%   { opacity: 0; transform: translateY(0) scale(1); }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.2; }
+  100% { opacity: 0; transform: translateY(-120px) scale(0.4); }
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: rgba(6,11,24,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 0.5px solid var(--border-blue);
+}
+.nav-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
+.nav-brand img { width: 32px; height: 32px; border-radius: 50%; }
+.nav-links { display: flex; gap: 2rem; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 13px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; transition: color 0.2s; }
+.nav-links a:hover { color: var(--accent-blue); }
+.nav-cta { background: transparent; border: 0.5px solid var(--accent-blue); color: var(--accent-blue); padding: 8px 18px; border-radius: 6px; font-family: var(--font-display); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+.nav-cta:hover { background: rgba(77,166,255,0.1); }
+
+/* ── HERO ── */
+#hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: 6rem 2rem 4rem;
+  position: relative;
+  overflow: hidden;
+}
+.hero-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+.hero-orb {
+  position: absolute;
+  width: 700px; height: 700px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(77,166,255,0.10) 0%, transparent 68%);
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+  animation: orbPulse 6s ease-in-out infinite;
+}
+@keyframes orbPulse {
+  0%,100% { opacity:0.7; transform:translate(-50%,-50%) scale(1); }
+  50% { opacity:1; transform:translate(-50%,-50%) scale(1.08); }
+}
+.hero-grid-bg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(77,166,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(77,166,255,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+}
+.hero-logo {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  margin-bottom: 1.5rem;
+  filter: drop-shadow(0 0 24px rgba(77,166,255,0.5));
+  animation: floatLogo 4s ease-in-out infinite;
+}
+@keyframes floatLogo {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.hero-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  border: 0.5px solid rgba(0,212,255,0.3);
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 1.25rem;
+}
+h1 {
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+h1 span { color: var(--accent-blue); }
+.hero-sub {
+  font-size: 17px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  max-width: 440px;
+}
+.hero-buttons { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 2rem; }
+.btn-primary {
+  background: var(--accent-blue);
+  color: #060b18;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-primary:hover { background: var(--accent-cyan); transform: translateY(-1px); }
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 0.5px solid var(--border-blue);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.btn-secondary:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.badge-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: rgba(77,166,255,0.08);
+  border: 0.5px solid rgba(77,166,255,0.2);
+  color: var(--accent-blue);
+}
+
+/* ── BOT MOCKUP ── */
+.bot-mockup {
+  background: #0a1120;
+  border: 0.5px solid var(--border-blue);
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: var(--glow-blue);
+  font-family: var(--font-mono);
+}
+.mockup-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 0.5px solid var(--border-blue);
+  margin-bottom: 14px;
+}
+.mockup-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.mockup-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.mockup-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.mockup-status { font-size: 11px; color: var(--accent-green); }
+.message-user {
+  background: rgba(77,166,255,0.1);
+  border: 0.5px solid rgba(77,166,255,0.2);
+  border-radius: 12px 12px 4px 12px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--accent-blue);
+  margin-bottom: 10px;
+  display: inline-block;
+  float: right;
+  clear: both;
+}
+.message-bot {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border-blue);
+  border-radius: 4px 12px 12px 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  clear: both;
+  margin-bottom: 10px;
+}
+.message-bot .account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  color: var(--text-primary);
+}
+.account-name { color: var(--text-secondary); }
+.account-amount { color: var(--accent-cyan); font-weight: 500; }
+.message-bot .divider-line {
+  border: none;
+  border-top: 0.5px solid var(--border-blue);
+  margin: 8px 0;
+}
+.message-bot .total-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding-top: 2px;
+}
+.mockup-time { font-size: 10px; color: var(--text-muted); text-align: right; margin-top: 8px; }
+.typing { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+.typing span {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  animation: typingDot 1.2s infinite;
+}
+.typing span:nth-child(2) { animation-delay: 0.2s; }
+.typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingDot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* ── SECTIONS COMMON ── */
+section { padding: 6rem 2rem; position: relative; z-index: 1; }
+.section-inner { max-width: 1100px; margin: 0 auto; }
+.section-tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent-blue);
+  margin-bottom: 0.75rem;
+}
+h2 {
+  font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+  line-height: 1.1;
+}
+.section-sub {
+  font-size: 16px;
+  color: var(--text-secondary);
+  max-width: 520px;
+  margin-bottom: 3rem;
+  line-height: 1.6;
+}
+
+/* ── FEATURES ── */
+#features { border-top: 0.5px solid var(--border-blue); }
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.feature-card {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border-blue);
+  border-radius: 14px;
+  padding: 1.75rem;
+  transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+}
+.feature-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 0% 0%, rgba(77,166,255,0.06) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.feature-card:hover { border-color: rgba(77,166,255,0.35); box-shadow: 0 0 28px rgba(77,166,255,0.1); transform: translateY(-2px); }
+.feature-card:hover::before { opacity: 1; }
+.feature-icon { font-size: 28px; margin-bottom: 1rem; }
+.feature-title { font-size: 16px; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.01em; }
+.feature-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+
+/* ── POCKETS ── */
+#pockets { border-top: 0.5px solid var(--border-blue); }
+.pockets-visual {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  align-items: flex-end;
+  margin: 3rem 0 2rem;
+  flex-wrap: wrap;
+}
+.pocket {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s, transform 0.5s;
+}
+.pocket.visible { opacity: 1; transform: translateY(0); }
+.pocket-pct { font-size: 13px; font-weight: 700; font-family: var(--font-mono); }
+.pocket-bar-wrap {
+  width: 52px;
+  height: 160px;
+  background: rgba(255,255,255,0.04);
+  border: 0.5px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+}
+.pocket-fill {
+  width: 100%;
+  height: 0%;
+  border-radius: 6px 6px 0 0;
+  transition: height 1.2s cubic-bezier(0.4,0,0.2,1);
+  position: relative;
+}
+.pocket-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 8px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 6px 6px 0 0;
+}
+.pocket-amount { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); text-align: center; }
+.pocket-label { font-size: 12px; font-weight: 600; text-align: center; }
+.pocket-emoji { font-size: 20px; }
+.pockets-hint { text-align: center; font-size: 14px; color: var(--text-secondary); }
+.pockets-hint span { color: var(--accent-blue); }
+
+/* ── FINANCE SECTION ── */
+#finance {
+  background: var(--bg-finance);
+  border-top: 0.5px solid var(--border-green);
+  border-bottom: 0.5px solid var(--border-green);
+}
+#finance .section-tag { color: var(--accent-green); }
+#finance h2 span { color: var(--accent-green); }
+.finance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+.finance-logo {
+  width: 88px; height: 88px;
+  border-radius: 50%;
+  margin-bottom: 1.5rem;
+  filter: drop-shadow(0 0 24px rgba(0,255,136,0.5));
+  animation: floatLogo 4s ease-in-out infinite;
+}
+.checklist { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 2rem; }
+.checklist li { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.check-icon { color: var(--accent-green); font-weight: 700; font-size: 16px; }
+.webapp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,255,136,0.08);
+  border: 0.5px solid rgba(0,255,136,0.3);
+  color: var(--accent-green);
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.webapp-btn:hover { background: rgba(0,255,136,0.15); transform: translateY(-1px); box-shadow: 0 0 20px rgba(0,255,136,0.2); }
+
+/* ── COUPLE MODE ── */
+#couple { border-top: 0.5px solid var(--border-blue); }
+.couple-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.couple-card {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border-blue);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+.couple-card.shared { border-color: rgba(0,255,136,0.2); }
+.couple-card-title { font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 1.25rem; color: var(--text-secondary); }
+.couple-card.shared .couple-card-title { color: var(--accent-green); }
+.mini-pocket { margin-bottom: 14px; }
+.mini-pocket-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px; }
+.mini-pocket-name { font-weight: 600; }
+.mini-pocket-pct { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
+.mini-bar { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+.mini-fill { height: 100%; border-radius: 3px; transition: width 1.4s cubic-bezier(0.4,0,0.2,1); width: 0%; }
+.couple-caption { text-align: center; margin-top: 2rem; font-size: 14px; color: var(--text-secondary); }
+.couple-caption strong { color: var(--text-primary); }
+
+/* ── SETUP ── */
+#setup { border-top: 0.5px solid var(--border-blue); }
+.steps { display: flex; flex-direction: column; gap: 0; position: relative; }
+.steps::before {
+  content: "";
+  position: absolute;
+  left: 19px;
+  top: 20px;
+  bottom: 20px;
+  width: 1px;
+  background: linear-gradient(180deg, var(--accent-blue), transparent);
+  opacity: 0.3;
+}
+.step {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 1.5rem;
+  padding: 1.75rem 0;
+  border-bottom: 0.5px solid var(--border-blue);
+  align-items: start;
+  position: relative;
+}
+.step:last-child { border-bottom: none; }
+.step-num {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 0.5px solid var(--accent-blue);
+  color: var(--accent-blue);
+  background: var(--bg-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  z-index: 1;
+  position: relative;
+  box-shadow: 0 0 12px rgba(77,166,255,0.2);
+}
+.step-title { font-size: 16px; font-weight: 700; margin-bottom: 0.5rem; }
+.step-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: 0.75rem; }
+pre {
+  background: #060d1e;
+  border: 0.5px solid var(--border-blue);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow-x: auto;
+  line-height: 1.7;
+}
+.kw { color: var(--accent-cyan); }
+.val { color: var(--accent-green); }
+
+/* ── OPEN SOURCE ── */
+#opensource { border-top: 0.5px solid var(--border-blue); }
+.oss-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 3rem; }
+.oss-card {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border-blue);
+  border-radius: 16px;
+  padding: 1.75rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.oss-card:hover { border-color: rgba(77,166,255,0.3); box-shadow: var(--glow-blue); }
+.oss-icon { font-size: 28px; margin-bottom: 1rem; }
+.oss-title { font-size: 15px; font-weight: 700; margin-bottom: 0.5rem; }
+.oss-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+.shields { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 2rem; }
+.shields img { height: 22px; border-radius: 4px; }
+.github-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(77,166,255,0.08);
+  border: 0.5px solid var(--accent-blue);
+  color: var(--accent-blue);
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.github-btn:hover { background: rgba(77,166,255,0.15); transform: translateY(-1px); box-shadow: 0 0 24px rgba(77,166,255,0.2); }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 0.5px solid var(--border-blue);
+  padding: 2.5rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  position: relative;
+  z-index: 1;
+}
+.footer-brand { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
+.footer-brand img { width: 28px; height: 28px; border-radius: 50%; }
+.footer-links { display: flex; gap: 1.5rem; }
+.footer-links a { color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+.footer-links a:hover { color: var(--accent-blue); }
+.footer-credit { font-size: 12px; color: var(--text-muted); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .oss-code-grid { grid-template-columns: 1fr !important; }
+  .hero-grid, .finance-grid, .couple-grid { grid-template-columns: 1fr; gap: 2.5rem; }
+  .nav-links { display: none; }
+  .pockets-visual { gap: 1rem; }
+  .pocket-bar-wrap { width: 44px; height: 120px; }
+  footer { flex-direction: column; align-items: flex-start; }
+}
+
+/* ── SCROLL REVEAL ── */
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s, transform 0.6s; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+<nav>
+  <div class="nav-brand">
+    <img src="assets/logo-main.png" alt="Sova">
+    Sova Family
+  </div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#pockets">Pockets</a>
+    <a href="#finance">Finance</a>
+    <a href="#setup">Setup</a>
+    <a href="#opensource">Open Source</a>
+  </div>
+  <a href="https://github.com/nkhimin/hermes-agent" class="nav-cta">GitHub ↗</a>
+</nav>
+
+<!-- HERO -->
+<header id="hero">
+  <div class="hero-grid-bg"></div>
+  <div class="hero-orb"></div>
+  <div class="hero-grid">
+    <div>
+      <img src="assets/logo-main.png" alt="Sova Family logo" class="hero-logo">
+      <div class="hero-tag">Open Source · Self-hosted · MIT</div>
+      <h1>Personal finance<br>for <span>Telegram</span></h1>
+      <p class="hero-sub">Connect Monobank, track spending with visual pockets, manage debt, goals, and trips — all from a Telegram Mini App.</p>
+      <div class="hero-buttons">
+        <a href="https://github.com/nkhimin/hermes-agent" class="btn-primary">⭐ Star on GitHub</a>
+        <a href="#setup" class="btn-secondary">Get started →</a>
+      </div>
+      <div class="badge-row"><span class="badge">Python 3.11+</span><span class="badge">PTB 21.x</span><span class="badge">FastAPI</span><span class="badge">PostgreSQL</span><span class="badge">Railway</span></div>
+    </div>
+    <div>
+      <div class="bot-mockup">
+        <div class="mockup-header">
+          <div class="mockup-avatar">
+            <img src="assets/logo-finance.png" alt="Finance bot">
+          </div>
+          <div>
+            <div class="mockup-name">Sova Finance</div>
+            <div class="mockup-status">● online</div>
+          </div>
+        </div>
+        <div style="overflow:hidden">
+          <div class="message-user">/balance</div>
+        </div>
+        <div class="message-bot">
+          <div class="account-row"><span class="account-name">💳 Black</span><span class="account-amount">12,450.00 UAH</span></div><div class="account-row"><span class="account-name">💳 USD card</span><span class="account-amount">340.00 USD</span></div><div class="account-row"><span class="account-name">💳 Savings</span><span class="account-amount">5,800.00 UAH</span></div>
+          <hr class="divider-line">
+          <div class="total-row">
+            <span>Last synced</span>
+            <span>4 min ago</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 0 4px;">
+          <div class="typing"><span></span><span></span><span></span></div>
+          <span style="font-size:11px;color:var(--text-muted)">Sova Finance is online</span>
+        </div>
+        <div class="mockup-time">10:42 AM ✓✓</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- STATS BAR -->
+<div style="background:var(--bg-card);border-top:0.5px solid var(--border-blue);border-bottom:0.5px solid var(--border-blue);padding:1.5rem 2rem;position:relative;z-index:1;">
+  <div style="max-width:1100px;margin:0 auto;display:flex;justify-content:space-around;flex-wrap:wrap;gap:1.5rem;">
+    <div style="text-align:center;"><div style="font-size:clamp(1.5rem,3vw,2rem);font-weight:800;color:var(--accent-blue);font-family:var(--font-mono)">Monobank</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;letter-spacing:0.05em;text-transform:uppercase;">native integration</div></div><div style="text-align:center;"><div style="font-size:clamp(1.5rem,3vw,2rem);font-weight:800;color:var(--accent-cyan);font-family:var(--font-mono)">6 features</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;letter-spacing:0.05em;text-transform:uppercase;">in one Mini App</div></div><div style="text-align:center;"><div style="font-size:clamp(1.5rem,3vw,2rem);font-weight:800;color:var(--accent-green);font-family:var(--font-mono)">MIT</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;letter-spacing:0.05em;text-transform:uppercase;">free forever</div></div><div style="text-align:center;"><div style="font-size:clamp(1.5rem,3vw,2rem);font-weight:800;color:var(--accent-blue);font-family:var(--font-mono)">Self-hosted</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;letter-spacing:0.05em;text-transform:uppercase;">your data, your server</div></div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-inner">
+    <div class="section-tag reveal">What's inside</div>
+    <h2 class="reveal">Everything your<br>finances need</h2>
+    <p class="section-sub reveal">Six powerful features, one Telegram bot, zero spreadsheets.</p>
+    <div class="features-grid reveal"><div class="feature-card"><div class="feature-icon">🪣</div><div class="feature-title">Pockets</div><div class="feature-desc">Visual liquid budget containers. Auto-filled from Monobank transactions by category. Watch them drain as you spend.</div></div><div class="feature-card"><div class="feature-icon">💳</div><div class="feature-title">Balance</div><div class="feature-desc">/balance shows all accounts and currencies instantly. Synced every hour from Monobank automatically.</div></div><div class="feature-card"><div class="feature-icon">💸</div><div class="feature-title">Debt tracker</div><div class="feature-desc">Track money you owe with due dates. Get reminded 3 days before payment is due. Never miss a debt.</div></div><div class="feature-card"><div class="feature-icon">🎯</div><div class="feature-title">Goals</div><div class="feature-desc">Set a savings target and deadline. Progress tracked automatically against your real Monobank balance.</div></div><div class="feature-card"><div class="feature-icon">✈️</div><div class="feature-title">Trips</div><div class="feature-desc">Set a trip budget with dates. Monobank transactions within that period are auto-tagged. See spent vs budget daily.</div></div><div class="feature-card"><div class="feature-icon">📈</div><div class="feature-title">Forecast</div><div class="feature-desc">End-of-month estimate based on recurring payments, manual income, and average daily spending.</div></div></div>
+  </div>
+</section>
+
+<!-- POCKETS -->
+<section id="pockets">
+  <div class="section-inner">
+    <div class="section-tag reveal">Pockets system</div>
+    <h2 class="reveal">Watch your budget breathe</h2>
+    <p class="section-sub reveal">Pockets fill like liquid containers. Drain as you spend. Move funds between pockets with one tap.</p>
+    <div class="pockets-visual" id="pocketsVisual"><div class="pocket" data-pct="64" data-color="#f5c842" data-delay="0"><div class="pocket-pct">64%</div><div class="pocket-bar-wrap"><div class="pocket-fill" style="background:linear-gradient(180deg,#f5c842,#d4a200)"></div></div><div class="pocket-amount">₴320 / ₴500</div><div class="pocket-emoji">🍔</div><div class="pocket-label">Food</div></div><div class="pocket" data-pct="85" data-color="#4da6ff" data-delay="100"><div class="pocket-pct">85%</div><div class="pocket-bar-wrap"><div class="pocket-fill" style="background:linear-gradient(180deg,#4da6ff,#1a7acc)"></div></div><div class="pocket-amount">₴850 / ₴1000</div><div class="pocket-emoji">✈️</div><div class="pocket-label">Travel</div></div><div class="pocket" data-pct="32" data-color="#a78bfa" data-delay="200"><div class="pocket-pct">32%</div><div class="pocket-bar-wrap"><div class="pocket-fill" style="background:linear-gradient(180deg,#a78bfa,#7c3aed)"></div></div><div class="pocket-amount">₴160 / ₴500</div><div class="pocket-emoji">🎉</div><div class="pocket-label">Fun</div></div><div class="pocket" data-pct="93" data-color="#ff5555" data-delay="300"><div class="pocket-pct" style="color:#ff5555">93%</div><div class="pocket-bar-wrap"><div class="pocket-fill" style="background:linear-gradient(180deg,#ff5555,#cc0000)"></div></div><div class="pocket-amount">₴2,790 / ₴3,000</div><div class="pocket-emoji">🧾</div><div class="pocket-label">Bills</div></div><div class="pocket" data-pct="51" data-color="#00ff88" data-delay="400"><div class="pocket-pct">51%</div><div class="pocket-bar-wrap"><div class="pocket-fill" style="background:linear-gradient(180deg,#00ff88,#00cc66)"></div></div><div class="pocket-amount">₴255 / ₴500</div><div class="pocket-emoji">💊</div><div class="pocket-label">Health</div></div></div>
+    <div class="reveal" style="margin-top:2rem;display:flex;justify-content:center;">
+      <div style="background:var(--bg-card);border:0.5px solid var(--border-blue);border-radius:14px;padding:1.25rem 1.5rem;display:inline-flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;">
+        <div style="text-align:center;"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">From</div><div style="background:rgba(165,78,250,0.12);border:0.5px solid rgba(165,78,250,0.3);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#a78bfa;">🎉 Fun  ·  ₴160</div></div><div style="font-size:20px;color:var(--accent-blue)">→</div><div style="text-align:center;"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">To</div><div style="background:rgba(245,200,66,0.12);border:0.5px solid rgba(245,200,66,0.3);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#f5c842;">🍔 Food  ·  ₴320</div></div>
+        <div style="background:var(--accent-blue);color:#060b18;border:none;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Move ₴100</div>
+      </div>
+    </div>
+    <p class="pockets-hint reveal" style="margin-top:1rem;">Overspent on food? <span>Roll with punches — move funds in one tap.</span></p>
+  </div>
+</section>
+
+<!-- FINANCE AGENT -->
+<section id="finance">
+  <div class="section-inner">
+    <div class="finance-grid">
+      <div class="reveal">
+        <img src="assets/logo-finance.png" alt="Sova Finance" class="finance-logo">
+        <div class="section-tag">Finance agent</div>
+        <h2>Sova <span>Finance</span></h2>
+        <p class="section-sub" style="color:rgba(0,255,136,0.6)">Your Monobank, inside Telegram.</p>
+        <ul class="checklist"><li><span class="check-icon">✓</span> Connects to Monobank API with one token</li><li><span class="check-icon">✓</span> Syncs accounts and transactions every hour</li><li><span class="check-icon">✓</span> Pockets auto-filled by MCC category</li><li><span class="check-icon">✓</span> Daily digest pushed at 9:00am</li><li><span class="check-icon">✓</span> Debt reminders 3 days before due dates</li><li><span class="check-icon">✓</span> End-of-month forecast on the 25th</li></ul>
+        <a href="#" class="webapp-btn">📊 Open Finance App</a>
+      </div>
+      <div class="reveal" style="transition-delay:0.15s">
+        <div class="bot-mockup" style="border-color:var(--border-green);box-shadow:var(--glow-green)">
+          <div style="font-size:11px;color:var(--accent-green);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px;font-weight:600;">Daily digest · 09:00</div>
+          <div class="message-bot" style="border-color:var(--border-green)">
+            <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--accent-green)">📊 Morning summary</div>
+            <div class="account-row"><span class="account-name">Balance</span><span style="color:var(--accent-green)">18,590 UAH</span></div><div class="account-row"><span class="account-name">Spent today</span><span style="color:#f5c842">₴340</span></div><div class="account-row"><span class="account-name">Forecast</span><span style="color:var(--text-primary)">~₴8,200 by Jun 30</span></div><hr class="divider-line"><div class="account-row" style="font-size:12px"><span class="account-name">🪣 Fun pocket · 32% left</span><span style="color:#ff5555">32% left</span></div><div class="account-row" style="font-size:12px"><span class="account-name">⚠️ Debt to Olena · due in 2 days</span><span style="color:#ff5555">due in 2 days</span></div>
+          </div>
+          <div class="mockup-time" style="color:var(--accent-green);opacity:0.5">09:00 AM ✓✓</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COUPLE MODE -->
+<section id="couple">
+  <div class="section-inner">
+    <div class="section-tag reveal">Couple mode</div>
+    <h2 class="reveal">Built for two</h2>
+    <p class="section-sub reveal">Personal pockets stay private. Shared pockets belong to both of you.</p>
+    <div class="couple-grid reveal">
+      <div class="couple-card">
+        <div class="couple-card-title">Your pockets</div>
+        <div class="mini-pocket"><div class="mini-pocket-header"><span class="mini-pocket-name">🍔 Food</span><span class="mini-pocket-pct">64%</span></div><div class="mini-bar"><div class="mini-fill" data-w="64" style="background:#f5c842"></div></div></div><div class="mini-pocket"><div class="mini-pocket-header"><span class="mini-pocket-name">🎉 Fun</span><span class="mini-pocket-pct">32%</span></div><div class="mini-bar"><div class="mini-fill" data-w="32" style="background:#a78bfa"></div></div></div><div class="mini-pocket"><div class="mini-pocket-header"><span class="mini-pocket-name">💊 Health</span><span class="mini-pocket-pct">88%</span></div><div class="mini-bar"><div class="mini-fill" data-w="88" style="background:#00ff88"></div></div></div>
+      </div>
+      <div class="couple-card shared">
+        <div class="couple-card-title">Shared pockets</div>
+        <div class="mini-pocket"><div class="mini-pocket-header"><span class="mini-pocket-name">🏠 Rent</span><span class="mini-pocket-pct">95%</span></div><div class="mini-bar"><div class="mini-fill" data-w="95" style="background:#ff5555"></div></div></div><div class="mini-pocket"><div class="mini-pocket-header"><span class="mini-pocket-name">🛒 Groceries</span><span class="mini-pocket-pct">68%</span></div><div class="mini-bar"><div class="mini-fill" data-w="68" style="background:#4da6ff"></div></div></div><div class="mini-pocket"><div class="mini-pocket-header"><span class="mini-pocket-name">⚡ Utilities</span><span class="mini-pocket-pct">51%</span></div><div class="mini-bar"><div class="mini-fill" data-w="51" style="background:#00d4ff"></div></div></div>
+      </div>
+    </div>
+    <p class="couple-caption reveal"><strong>Both users see shared pockets.</strong> Personal pockets are yours alone.</p>
+  </div>
+</section>
+
+<!-- SETUP -->
+<section id="setup">
+  <div class="section-inner">
+    <div class="section-tag reveal">Self-hosted</div>
+    <h2 class="reveal">Running in 5 steps</h2>
+    <p class="section-sub reveal">Deploy to Railway with your own Monobank token. Full control, no subscriptions.</p>
+    <div class="steps"><div class="step reveal"><div class="step-num">01</div><div><div class="step-title">Clone the repo</div><pre><span class="kw">git</span> clone https://github.com/nkhimin/hermes-agent
+<span class="kw">cd</span> hermes-agent</pre></div></div><div class="step reveal"><div class="step-num">02</div><div><div class="step-title">Set environment variables</div><pre><span class="kw">FINANCE_BOT_TOKEN</span>=<span class="val">your_telegram_bot_token</span>
+<span class="kw">MONO_TOKEN</span>=<span class="val">your_monobank_token</span>
+<span class="kw">GROUP_CHAT_ID</span>=<span class="val">your_telegram_group_id</span>
+<span class="kw">MINI_APP_URL</span>=<span class="val">your_mini_app_url</span></pre></div></div><div class="step reveal"><div class="step-num">03</div><div><div class="step-title">Deploy to Railway</div><pre><span class="kw">railway</span> up --detach</pre></div></div><div class="step reveal"><div class="step-num">04</div><div><div class="step-title">Add bot to Telegram group</div><div class="step-desc">Add @sova_finance_bot to your Telegram forum group as admin with "Post messages" permission.</div></div></div><div class="step reveal"><div class="step-num">05</div><div><div class="step-title">Configure topics</div><div class="step-desc">Run /setup in the Finance topic. The bot auto-discovers thread IDs and saves them to config.</div></div></div></div>
+  </div>
+</section>
+
+<!-- OPEN SOURCE -->
+<section id="opensource">
+  <div class="section-inner">
+    <div class="section-tag reveal">Open source · MIT</div>
+    <h2 class="reveal">Built to be extended.</h2>
+    <p class="section-sub reveal">One base class. One config file. One line to add a new agent.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem;" class="reveal oss-code-grid">
+      <div>
+        <div style="background:#060d1e;border:0.5px solid var(--border-blue);border-radius:14px;overflow:hidden;">
+          <div style="background:#0a1428;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:0.5px solid var(--border-blue);">
+            <span style="width:10px;height:10px;border-radius:50%;background:#ff5f57;display:inline-block;"></span>
+            <span style="width:10px;height:10px;border-radius:50%;background:#febc2e;display:inline-block;"></span>
+            <span style="width:10px;height:10px;border-radius:50%;background:#28c840;display:inline-block;"></span>
+            <span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-family:var(--font-mono);">main.py</span>
+          </div>
+          <pre style="padding:1.25rem;border:none;background:transparent;font-size:12px;line-height:1.8;"><span style="color:#6b7a99"># register agents here</span>
+<span class="kw">agents</span> = [
+  <span style="color:var(--accent-blue)">FinanceAgent</span>(<span style="color:var(--accent-green)">config.finance</span>),
+  <span style="color:#3a4560"># NewsAgent(config.news),</span>
+  <span style="color:#3a4560"># CustomAgent(config.x),</span>
+]
+
+<span style="color:#6b7a99"># one line to add a new agent</span>
+<span style="color:var(--accent-cyan)">await</span> asyncio.gather(
+  *[a.<span style="color:var(--accent-blue)">run_polling</span>() <span style="color:var(--accent-cyan)">for</span> a <span style="color:var(--accent-cyan)">in</span> agents],
+  queue_sender.<span style="color:var(--accent-blue)">run</span>(),
+)</pre>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="oss-card" style="flex:1;"><div class="oss-icon">🔧</div><div class="oss-title">Extend it</div><div class="oss-desc">Add agents, connect new banks, build custom topics. BaseAgent is one file to implement.</div></div><div class="oss-card" style="flex:1;"><div class="oss-icon">🤝</div><div class="oss-title">Contribute</div><div class="oss-desc">Bug or idea? Open an issue or PR on GitHub. All contributions welcome.</div></div>
+      </div>
+    </div>
+
+    <div class="shields reveal">
+      <img src="https://img.shields.io/badge/python-3.11+-4da6ff?style=flat-square&logo=python&logoColor=white&labelColor=0c1428" alt="Python">
+      <img src="https://img.shields.io/badge/license-MIT-00ff88?style=flat-square&labelColor=0c1428" alt="MIT">
+      <img src="https://img.shields.io/badge/PTB-21.x-4da6ff?style=flat-square&labelColor=0c1428" alt="PTB">
+      <img src="https://img.shields.io/badge/deploy-Railway-7B61FF?style=flat-square&logo=railway&logoColor=white&labelColor=0c1428" alt="Railway">
+      <img src="https://img.shields.io/badge/PRs-welcome-00ff88?style=flat-square&labelColor=0c1428" alt="PRs welcome">
+    </div>
+    <a href="https://github.com/nkhimin/hermes-agent" class="github-btn reveal">⭐ Star on GitHub</a>
+  </div>
+</section>
+
+<!-- CTA -->
+<section style="padding:5rem 2rem;text-align:center;position:relative;z-index:1;border-top:0.5px solid var(--border-blue);">
+  <div style="max-width:600px;margin:0 auto;">
+    <div style="width:72px;height:72px;margin:0 auto 1.5rem;border-radius:50%;overflow:hidden;filter:drop-shadow(0 0 20px rgba(77,166,255,0.4));">
+      <img src="assets/logo-main.png" alt="Sova" style="width:100%;height:100%;object-fit:cover;">
+    </div>
+    <h2 style="font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;letter-spacing:-0.02em;margin-bottom:1rem;">Start managing your<br>finances <span style="color:var(--accent-blue)">today</span></h2>
+    <p style="font-size:16px;color:var(--text-secondary);margin-bottom:2rem;line-height:1.6;">Self-host in 5 minutes. Connect Monobank. Your data stays yours.</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a href="https://github.com/nkhimin/hermes-agent" class="btn-primary">⭐ Star on GitHub</a>
+      <a href="#setup" class="btn-secondary">Setup guide →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-brand">
+    <img src="assets/logo-main.png" alt="Sova">
+    Sova Family
+  </div>
+  <div class="footer-links"><a href="https://github.com/nkhimin/hermes-agent">GitHub</a><a href="#setup">Setup</a><a href="#features">Features</a></div>
+  <div class="footer-credit">Built with ❤️ in Ukraine &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; <a href="https://github.com/nkhimin/hermes-agent/issues" style="color:var(--text-muted);text-decoration:none;">Report issue</a></div>
+</footer>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: window.innerWidth < 768 ? 0.05 : 0.15 });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+const pocketObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      document.querySelectorAll('.pocket').forEach((p, i) => {
+        setTimeout(() => {
+          p.classList.add('visible');
+          const pct = parseInt(p.dataset.pct);
+          const fill = p.querySelector('.pocket-fill');
+          setTimeout(() => { fill.style.height = pct + '%'; }, 50);
+        }, i * 120);
+      });
+      document.querySelectorAll('.mini-fill').forEach((f, i) => {
+        setTimeout(() => { f.style.width = f.dataset.w + '%'; }, 600 + i * 100);
+      });
+      pocketObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: window.innerWidth < 768 ? 0.1 : 0.3 });
+
+const sections = document.querySelectorAll('section[id], header[id]');
+const navLinks = document.querySelectorAll('.nav-links a');
+const scrollSpy = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(a => {
+        a.style.color = a.getAttribute('href') === '#' + e.target.id
+          ? 'var(--accent-blue)' : '';
+      });
+    }
+  });
+}, { threshold: 0.4 });
+sections.forEach(s => scrollSpy.observe(s));
+
+const progressBar = document.getElementById('scroll-progress');
+window.addEventListener('scroll', () => {
+  const scrolled = window.scrollY;
+  const total = document.documentElement.scrollHeight - window.innerHeight;
+  progressBar.style.width = Math.round((scrolled / total) * 100) + '%';
+}, { passive: true });
+
+const heroEl = document.getElementById('hero');
+for (let i = 0; i < 18; i++) {
+  const p = document.createElement('div');
+  p.className = 'particle';
+  p.style.cssText = [
+    'left:' + Math.random() * 100 + '%',
+    'top:' + (40 + Math.random() * 50) + '%',
+    'animation-duration:' + (4 + Math.random() * 6) + 's',
+    'animation-delay:' + (Math.random() * 5) + 's',
+    'width:' + (1 + Math.random() * 2) + 'px',
+    'height:' + (1 + Math.random() * 2) + 'px',
+    'opacity:' + (0.3 + Math.random() * 0.4),
+    'background:' + (Math.random() > 0.5 ? 'var(--accent-blue)' : 'var(--accent-cyan)')
+  ].join(';');
+  heroEl.appendChild(p);
+}
+
+setTimeout(() => {
+  const userMsg = document.querySelector('.message-user');
+  const botMsg = document.querySelector('.message-bot');
+  if (userMsg && botMsg) {
+    userMsg.style.opacity = '0';
+    botMsg.style.opacity = '0';
+    userMsg.style.transition = 'opacity 0.4s';
+    botMsg.style.transition = 'opacity 0.4s 0.8s';
+    setTimeout(() => { userMsg.style.opacity = '1'; }, 400);
+    setTimeout(() => { botMsg.style.opacity = '1'; }, 1200);
+  }
+}, 100);
+
+const pv = document.getElementById('pocketsVisual');
+if (pv) pocketObserver.observe(pv);
+</script>
+
+</body>
+</html>
