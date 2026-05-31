@@ -21,12 +21,22 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     url = settings.mini_app_url
     keyboard = [[InlineKeyboardButton("Open Finance", web_app=WebAppInfo(url=url))]]
-    await ctx.bot.send_message(
-        chat_id=settings.telegram_chat_id,
-        message_thread_id=settings.telegram_finance_topic_id,
-        text="💰 Hermes Finance",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+    in_finance_topic = (
+        update.effective_chat.id == settings.telegram_chat_id
+        and getattr(update.message, "message_thread_id", None)
+        == settings.telegram_finance_topic_id
     )
+    if in_finance_topic or update.effective_chat.type == "private":
+        await update.message.reply_text(
+            "💰 Hermes Finance", reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    else:
+        await ctx.bot.send_message(
+            chat_id=settings.telegram_chat_id,
+            message_thread_id=settings.telegram_finance_topic_id,
+            text="💰 Hermes Finance",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
 
 
 async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
