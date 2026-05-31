@@ -47,9 +47,7 @@ def verify_webapp_user(request: Request) -> int:
             raise ValueError("missing hash")
 
         data_check_string = "\n".join(
-            f"{k}={v}"
-            for k, v in sorted(params.items())
-            if k != "hash"
+            f"{k}={v}" for k, v in sorted(params.items()) if k != "hash"
         )
 
         secret_key = hmac.new(

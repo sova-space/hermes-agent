@@ -22,6 +22,7 @@ from finance_api.domains.forecast.models import (  # noqa: F401
     RecurringItem,
 )
 from finance_api.domains.goals.models import Goal  # noqa: F401
+from finance_api.domains.pockets.models import Pocket, PocketTransfer  # noqa: F401
 from finance_api.domains.transactions.models import Transaction
 from finance_api.domains.trips.models import Trip  # noqa: F401
 

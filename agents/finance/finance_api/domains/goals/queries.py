@@ -71,9 +71,7 @@ def delete_goal(session: Session, goal_id: uuid.UUID) -> bool:
 
 def _to_dict(goal: Goal) -> dict[str, Any]:
     progress = (
-        goal.current_amount / goal.target_amount
-        if goal.target_amount > 0
-        else 0.0
+        goal.current_amount / goal.target_amount if goal.target_amount > 0 else 0.0
     )
     return {
         "id": str(goal.id),

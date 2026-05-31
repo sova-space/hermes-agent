@@ -68,8 +68,16 @@ def create_goal(body: GoalCreate, session: SessionDep) -> dict:
 def patch_goal(goal_id: uuid.UUID, body: GoalPatch, session: SessionDep) -> dict:
     """Partially update a goal."""
     updates: dict = {}
-    for field in ("name", "target_amount", "current_amount", "currency",
-                  "account_id", "deadline", "notes", "achieved_at"):
+    for field in (
+        "name",
+        "target_amount",
+        "current_amount",
+        "currency",
+        "account_id",
+        "deadline",
+        "notes",
+        "achieved_at",
+    ):
         value = getattr(body, field)
         if value is not None:
             updates[field] = value

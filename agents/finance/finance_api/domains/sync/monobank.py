@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from finance_api.core.config import settings
 from finance_api.core.db.engine import engine
 from finance_api.domains.accounts.models import Account
+from finance_api.domains.pockets.queries import drain_pocket
 from finance_api.domains.sync.client import MonobankClient
 from finance_api.domains.sync.mcc import MCC_LOOKUP
 from finance_api.domains.sync.models import SyncRun
@@ -239,11 +240,14 @@ def _sync_account(client: MonobankClient, acc: dict[str, Any], now_ts: int) -> i
                 ).all()
             )
 
+            new_expense_txs: list[Transaction] = []
             for tx in txs:
                 parsed = _parse_tx(tx, account_id, currency, is_fop=is_fop)
                 if parsed and parsed.monobank_id not in existing_ids:
                     session.add(parsed)
                     imported += 1
+                    if parsed.amount < 0 and parsed.category is not None:
+                        new_expense_txs.append(parsed)
 
                 cb = _parse_cashback(tx, account_id, currency)
                 if cb and cb.monobank_id not in existing_ids:
@@ -251,6 +255,21 @@ def _sync_account(client: MonobankClient, acc: dict[str, Any], now_ts: int) -> i
                     imported += 1
 
             session.commit()
+
+            for expense_tx in new_expense_txs:
+                try:
+                    drain_pocket(
+                        session,
+                        expense_tx.category,  # type: ignore[arg-type]
+                        abs(expense_tx.amount),
+                        expense_tx.currency,
+                    )
+                except Exception:
+                    log.exception(
+                        "pocket_drain_failed",
+                        category=expense_tx.category,
+                        amount=expense_tx.amount,
+                    )
 
     # Mark account synced_at only after all chunks complete
     with Session(engine) as session:

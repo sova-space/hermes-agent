@@ -6,11 +6,13 @@ from contextlib import asynccontextmanager
 
 import structlog
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
 
 from finance_api.core.config import settings
 from finance_api.core.logging.setup import configure_logging
 from finance_api.domains.bot.notifications import set_notification_context
+from finance_api.domains.pockets.jobs import reset_pockets_job
 from finance_api.domains.sync.monobank import run_sync
 from finance_api.routers import (
     accounts,
@@ -19,6 +21,7 @@ from finance_api.routers import (
     debts,
     goals,
     health,
+    pockets,
     sync,
     transactions,
     trips,
@@ -76,6 +79,12 @@ def create_app() -> FastAPI:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        reset_pockets_job,
+        trigger=CronTrigger(day=1, hour=0, minute=5),
+        id="pocket_monthly_reset",
+        replace_existing=True,
+    )
 
     bot_app = None
     if settings.telegram_bot_token:
@@ -128,5 +137,6 @@ def create_app() -> FastAPI:
     app.include_router(forecast_router)
     app.include_router(recurring_router)
     app.include_router(income_router)
+    app.include_router(pockets.router)
 
     return app
