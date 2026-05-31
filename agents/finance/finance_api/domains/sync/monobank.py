@@ -1,5 +1,6 @@
 """Monobank → PostgreSQL transaction sync."""
 
+import re
 import threading
 import uuid
 from datetime import UTC, datetime
@@ -15,6 +16,7 @@ from finance_api.domains.sync.client import MonobankClient
 from finance_api.domains.sync.mcc import MCC_LOOKUP
 from finance_api.domains.sync.models import SyncRun
 from finance_api.domains.transactions import categories as cat
+from finance_api.domains.transactions import modes
 from finance_api.domains.transactions.models import Transaction
 
 log = structlog.get_logger(__name__)
@@ -51,6 +53,40 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def _fop_ids_from_config() -> frozenset[str]:
+    """Return the set of Monobank account IDs marked as FOP via config."""
+    raw = settings.fop_account_ids.strip()
+    if not raw:
+        return frozenset()
+    return frozenset(part.strip() for part in raw.split(",") if part.strip())
+
+
+def _classify_transaction(
+    amount: float,
+    description: str,
+    mcc: int | None,
+    is_fop_account: bool,
+) -> tuple[str | None, str | None]:
+    """Return (category, mode) using the priority rules from spec 009."""
+    if amount > 0 and is_fop_account:
+        return cat.INCOME, None
+
+    partner_re = re.compile(settings.partner_name_pattern, re.IGNORECASE)
+    if amount < 0 and partner_re.search(description):
+        return cat.COUPLE_TRANSFER, modes.COUPLE
+
+    if mcc:
+        mcc_category = MCC_LOOKUP.get(mcc)
+        if amount < 0:
+            return mcc_category, modes.SOLO
+        return mcc_category, None
+
+    if amount > 0:
+        return None, None
+
+    return None, modes.SOLO
+
+
 def _get_or_create_account(
     session: Session,
     mono_id: str,
@@ -60,11 +96,13 @@ def _get_or_create_account(
     balance: float,
 ) -> Account:
     """Get existing account or create new one with the given parameters."""
+    is_fop = account_type == "fop" or mono_id in _fop_ids_from_config()
     existing = session.exec(
         select(Account).where(Account.monobank_id == mono_id)
     ).first()
     if existing:
         existing.balance = balance
+        existing.is_fop = is_fop
         session.add(existing)
         return existing
     account = Account(
@@ -73,6 +111,7 @@ def _get_or_create_account(
         currency=currency,
         account_type=account_type,
         balance=balance,
+        is_fop=is_fop,
     )
     session.add(account)
     session.flush()
@@ -80,7 +119,7 @@ def _get_or_create_account(
 
 
 def _parse_tx(
-    tx: dict[str, Any], account_id: uuid.UUID, currency: str
+    tx: dict[str, Any], account_id: uuid.UUID, currency: str, is_fop: bool = False
 ) -> Transaction | None:
     """Build a Transaction from Monobank API dict; None if amount is zero."""
     amount_minor = tx.get("amount", 0)
@@ -94,7 +133,7 @@ def _parse_tx(
     description = tx.get("description") or "Monobank"
     notes = tx.get("comment") or None
     mcc = int(tx["mcc"]) if tx.get("mcc") else None
-    category = MCC_LOOKUP.get(mcc) if mcc else None
+    category, mode = _classify_transaction(amount, description, mcc, is_fop)
 
     extra: dict[str, Any] = {}
     if tx.get("hold"):
@@ -112,6 +151,7 @@ def _parse_tx(
         description=description,
         category=category,
         mcc=mcc,
+        mode=mode,
         notes=notes,
         extra=extra or None,
         is_pending=bool(tx.get("hold")),
@@ -165,6 +205,7 @@ def _sync_account(client: MonobankClient, acc: dict[str, Any], now_ts: int) -> i
         )
         session.commit()
         account_id = account.id
+        is_fop = account.is_fop
         last_synced = account.synced_at
 
     fetch_from = now_ts - settings.monobank_fetch_days * 86400
@@ -201,7 +242,7 @@ def _sync_account(client: MonobankClient, acc: dict[str, Any], now_ts: int) -> i
             )
 
             for tx in txs:
-                parsed = _parse_tx(tx, account_id, currency)
+                parsed = _parse_tx(tx, account_id, currency, is_fop=is_fop)
                 if parsed and parsed.monobank_id not in existing_ids:
                     session.add(parsed)
                     imported += 1

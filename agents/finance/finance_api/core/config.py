@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     sync_interval_hours: int = 1
     monobank_fetch_days: int = 730
 
+    partner_name_pattern: str = "Олена|Olena|olena"  # regex to match partner transfers
+    fop_account_ids: str = ""  # comma-separated Monobank account IDs
+
     telegram_bot_token: str | None = None
     telegram_finance_topic_id: int = 1192
     telegram_chat_id: int = -1003913424869
