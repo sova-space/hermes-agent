@@ -14,7 +14,7 @@ from finance_api.domains.sync.monobank import run_sync
 log = structlog.get_logger(__name__)
 
 
-async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start command — open the Mini App."""
     if not settings.mini_app_url:
         await update.message.reply_text("Mini App not configured yet.")
