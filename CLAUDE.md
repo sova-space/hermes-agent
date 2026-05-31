@@ -56,6 +56,36 @@ Each `agents/<name>/` has its own `Dockerfile`, `railway.toml`, `pyproject.toml`
 docker build -f agents/finance/Dockerfile agents/finance/
 ```
 
+## Railway Deployment
+
+Two separate Railway projects — both served from the same monorepo (`sova-claw/hermes-agent`):
+
+| Component | Railway Project | Project ID |
+|---|---|---|
+| Hermes orchestrator | `hermes-main` | `3d73dc58-1201-4258-bc1d-1f9c24333032` |
+| Finance sub-agent + DB | `finance-agent` | `186cf9f1-f88f-4b73-b286-a055e107cc9d` |
+
+Finance project service IDs (needed for `railway link`):
+- `finance-api`: `b6cb492f-9100-4330-82db-8afd95d6fe91`
+- DB: `b81eaac6-f7f1-46c4-a113-b60a39e59729`
+- Environment: `de3164da-54fe-4557-ae8b-bd5d1ef01a33`
+
+```bash
+# Hermes orchestrator — from repo root
+railway up --detach
+
+# Finance API — from agents/finance/
+cd agents/finance
+railway link --project 186cf9f1-f88f-4b73-b286-a055e107cc9d --service b6cb492f-9100-4330-82db-8afd95d6fe91
+railway up --detach
+```
+
+**Railway does NOT auto-deploy on git push.** Always run `railway up --detach` after pushing.
+
+- Do NOT deploy finance from `hermes-main` — it has no finance service
+- Do NOT use `sova-claw/hermes-finance` — that repo is stale
+- Do NOT create new Railway services — both already exist
+
 ## Skills
 
 Skills are SKILL.md files in `hermes/skills/` — markdown only, no Python modules. Code goes in a companion script shelled out from the skill. Hermes auto-discovers them; no registration needed.
