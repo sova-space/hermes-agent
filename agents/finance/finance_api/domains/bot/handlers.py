@@ -21,8 +21,11 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     url = settings.mini_app_url
     keyboard = [[InlineKeyboardButton("Open Finance", web_app=WebAppInfo(url=url))]]
-    await update.message.reply_text(
-        "💰 Hermes Finance", reply_markup=InlineKeyboardMarkup(keyboard)
+    await ctx.bot.send_message(
+        chat_id=settings.telegram_chat_id,
+        message_thread_id=settings.telegram_finance_topic_id,
+        text="💰 Hermes Finance",
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
 
