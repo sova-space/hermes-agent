@@ -21,6 +21,7 @@ from finance_api.routers import (
     debts,
     goals,
     health,
+    miniapp,
     pockets,
     sync,
     transactions,
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router, tags=["health"])
+    app.include_router(miniapp.router, tags=["miniapp"])
     app.include_router(accounts.router, prefix="/accounts", tags=["accounts"])
     app.include_router(
         transactions.router,
