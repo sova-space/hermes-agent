@@ -1,5 +1,7 @@
 """Application settings loaded from environment variables."""
 
+from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,6 +27,15 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = None
     telegram_finance_topic_id: int = 1192
     telegram_chat_id: int = -1003913424869
+    telegram_owner_id: int
+
+    mini_app_url: str = ""
 
 
-settings = Settings()  # type: ignore[call-arg]
+@lru_cache
+def get_settings() -> Settings:
+    """Return cached application settings."""
+    return Settings()  # type: ignore[call-arg]
+
+
+settings = get_settings()

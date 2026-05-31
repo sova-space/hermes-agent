@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query
 
 from finance_api.domains.insights import queries
 from finance_api.domains.transactions.categories import ALL as _ALL_CATEGORIES
-from finance_api.schemas import MonthlyTrend, TransactionItem
+from finance_api.schemas import MonthlyTrend, SpendingRow, TransactionItem
 
 router = APIRouter()
 
@@ -64,10 +64,12 @@ def list_transactions(
 
 @router.get(
     "/spending",
-    response_model=dict[str, float],
+    response_model=list[SpendingRow],
     summary="Spending by category",
     description=(
-        "Returns total spending grouped by MCC-derived category. "
+        "Returns total spending grouped by MCC-derived category and currency. "
+        "Each row has ``category``, ``currency``, and ``amount`` so that "
+        "multi-currency amounts are never summed across currencies. "
         "Use `exclude_uncategorized=true` to hide bank transfers and "
         "internal movements that have no MCC code."
     ),
@@ -85,8 +87,8 @@ def spending_by_category(
         default=False,
         description=("Exclude transactions with no MCC category (bank transfers)"),
     ),
-) -> dict[str, float]:
-    """Return total spending grouped by category."""
+) -> list[dict[str, object]]:
+    """Return total spending grouped by category and currency."""
     return queries.get_spending_by_category(
         period=period,
         account_id=account_id,

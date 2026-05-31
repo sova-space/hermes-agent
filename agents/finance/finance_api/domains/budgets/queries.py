@@ -11,13 +11,22 @@ from finance_api.schemas import BudgetItem, BudgetSet
 
 
 def list_budgets_vs_spending() -> list[BudgetItem]:
-    """Return all budget limits annotated with current-month spending."""
-    spending = get_spending_by_category(period="this_month")
+    """Return all budget limits annotated with current-month spending.
+
+    Budget limits are expressed in their native currency (default UAH).
+    Spending is matched by category and currency; rows in other currencies
+    are ignored for the purpose of budget comparison.
+    """
+    rows = get_spending_by_category(period="this_month")
     with Session(engine) as session:
         budgets = session.exec(select(CategoryBudget)).all()
     result = []
     for b in budgets:
-        spent = spending.get(b.category, 0.0)
+        spent = sum(
+            row["amount"]
+            for row in rows
+            if row["category"] == b.category and row["currency"] == b.currency
+        )
         remaining = b.monthly_limit - spent
         result.append(
             BudgetItem(

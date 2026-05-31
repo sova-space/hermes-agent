@@ -96,13 +96,11 @@ def _get_or_create_account(
     balance: float,
 ) -> Account:
     """Get existing account or create new one with the given parameters."""
-    is_fop = account_type == "fop" or mono_id in _fop_ids_from_config()
     existing = session.exec(
         select(Account).where(Account.monobank_id == mono_id)
     ).first()
     if existing:
         existing.balance = balance
-        existing.is_fop = is_fop
         session.add(existing)
         return existing
     account = Account(
@@ -111,7 +109,7 @@ def _get_or_create_account(
         currency=currency,
         account_type=account_type,
         balance=balance,
-        is_fop=is_fop,
+        is_fop=account_type == "fop" or mono_id in _fop_ids_from_config(),
     )
     session.add(account)
     session.flush()

@@ -65,8 +65,8 @@ def _salary_anchored_start(calendar_start: date, session: Session) -> date:
     if calendar_start.month == 12:
         month_end = date(calendar_start.year + 1, 1, 1) - timedelta(days=1)
     else:
-        month_end = (
-            date(calendar_start.year, calendar_start.month + 1, 1) - timedelta(days=1)
+        month_end = date(calendar_start.year, calendar_start.month + 1, 1) - timedelta(
+            days=1
         )
     first = session.exec(
         select(func.min(Transaction.date))
@@ -101,14 +101,30 @@ def get_spending_by_category(
     account_id: UUID | None = None,
     mode: str | None = None,
     exclude_uncategorized: bool = False,
-) -> dict[str, float]:
-    """Return total spending grouped by category for the given period."""
-    start, end = _period_dates(period)
+    start: date | None = None,
+    end: date | None = None,
+) -> list[dict[str, Any]]:
+    """Return total spending grouped by category and currency for the given period.
+
+    When ``start`` and ``end`` are both provided they override ``period`` so that
+    arbitrary date ranges (e.g. trip date ranges) can be queried without defining
+    a named period.
+
+    Returns a list of dicts with keys: ``category``, ``currency``, ``amount``.
+    Amounts are positive (expenses are negated).
+    """
+    use_explicit_range = start is not None and end is not None
+    if not use_explicit_range:
+        start, end = _period_dates(period)
     with Session(engine) as session:
-        if period in SALARY_ANCHORED:
+        if not use_explicit_range and period in SALARY_ANCHORED:
             start = _salary_anchored_start(start, session)
         q = (
-            select(Transaction.category, func.sum(Transaction.amount))
+            select(
+                Transaction.category,
+                Transaction.currency,
+                func.sum(Transaction.amount),
+            )
             .where(Transaction.date >= start)
             .where(Transaction.date <= end)
             .where(Transaction.amount < 0)
@@ -120,9 +136,16 @@ def get_spending_by_category(
             q = q.where(Transaction.mode == mode)
         if exclude_uncategorized:
             q = q.where(Transaction.category.is_not(None))  # type: ignore[union-attr]
-        q = q.group_by(Transaction.category)
+        q = q.group_by(Transaction.category, Transaction.currency)
         rows = session.exec(q).all()
-        return {(cat or "Uncategorized"): round(abs(total), 2) for cat, total in rows}
+        return [
+            {
+                "category": category or "Uncategorized",
+                "currency": currency,
+                "amount": round(abs(total), 2),
+            }
+            for category, currency, total in rows
+        ]
 
 
 def get_monthly_trend(
@@ -130,36 +153,55 @@ def get_monthly_trend(
     account_id: UUID | None = None,
     mode: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return month-by-month income and expense totals."""
+    """Return month-by-month income and expense totals, split by currency.
+
+    Returns a list of dicts with keys: ``month``, ``currency``, ``income``,
+    ``expenses``.  Each (month, currency) pair is a separate row so that
+    multi-currency amounts are never summed across currencies.
+    """
     result = []
     for i in range(months - 1, -1, -1):
         year, month = _months_ago(i)
         first, last = _month_range(year, month)
 
-        def _sum(session: Session, start: date, end: date, condition: Any) -> float:
+        def _sums_by_currency(
+            session: Session,
+            start: date,
+            end: date,
+            condition: Any,
+        ) -> dict[str, float]:
             base = (
-                select(func.sum(Transaction.amount))
+                select(Transaction.currency, func.sum(Transaction.amount))
                 .where(Transaction.date >= start)
                 .where(Transaction.date <= end)
                 .where(Transaction.is_pending == False)  # noqa: E712
                 .where(condition)
+                .group_by(Transaction.currency)
             )
             if account_id:
                 base = base.where(Transaction.account_id == account_id)
             if mode is not None:
                 base = base.where(Transaction.mode == mode)
-            return session.exec(base).first() or 0
+            return {currency: total for currency, total in session.exec(base).all()}
 
         with Session(engine) as session:
             anchored_first = _salary_anchored_start(first, session) if i == 0 else first
-            income = _sum(session, anchored_first, last, Transaction.amount > 0)
-            expenses = _sum(session, anchored_first, last, Transaction.amount < 0)
+            income_by_cur = _sums_by_currency(
+                session, anchored_first, last, Transaction.amount > 0
+            )
+            expenses_by_cur = _sums_by_currency(
+                session, anchored_first, last, Transaction.amount < 0
+            )
 
-        result.append({
-            "month": first.strftime("%b %Y"),
-            "income": round(income, 2),
-            "expenses": round(abs(expenses), 2),
-        })
+        all_currencies = set(income_by_cur) | set(expenses_by_cur)
+        month_label = first.strftime("%b %Y")
+        for currency in sorted(all_currencies):
+            result.append({
+                "month": month_label,
+                "currency": currency,
+                "income": round(income_by_cur.get(currency, 0.0), 2),
+                "expenses": round(abs(expenses_by_cur.get(currency, 0.0)), 2),
+            })
     return result
 
 

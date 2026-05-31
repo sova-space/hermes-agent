@@ -41,9 +41,7 @@ def list_accounts() -> list[dict[str, object]]:
 def patch_account(account_id: str, body: AccountPatch) -> dict[str, object]:
     """Toggle is_fop flag on an account."""
     with Session(engine) as session:
-        account = session.exec(
-            select(Account).where(Account.id == account_id)
-        ).first()
+        account = session.exec(select(Account).where(Account.id == account_id)).first()
         if not account:
             raise HTTPException(status_code=404, detail="Account not found")
         account.is_fop = body.is_fop

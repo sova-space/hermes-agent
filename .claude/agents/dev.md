@@ -59,7 +59,7 @@ Always `cd agents/finance` before running finance commands. Never run `uv` or `p
 
 **Database** — SQLModel models + Alembic migrations. `DATABASE_URL` from env; connection: `postgresql+psycopg://…@postgres.railway.internal:5432/railway`.
 
-**Bot handlers** — aiogram 3.x patterns. Register handlers via routers, not `dp.message_handler`. Telegram topic IDs: `#finance=1192`, `#general=173`, `#projects=167`.
+**Bot handlers** — python-telegram-bot (PTB). `telegram.ext.Application` + `CommandHandler`. Register via `app.add_handler(...)` in `runner.py`. Telegram topic IDs: `#finance=1192`, `#general=173`, `#projects=167`.
 
 **Skills** — `hermes/skills/` are SKILL.md files (markdown only). Code lives in a companion script. Skills are never Python modules.
 

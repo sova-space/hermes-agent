@@ -19,6 +19,8 @@ def test_all_contains_every_constant() -> None:
         cat.EDUCATION,
         cat.PETS,
         cat.CASHBACK,
+        cat.INCOME,
+        cat.COUPLE_TRANSFER,
     }
     assert constants == cat.ALL
 
@@ -44,6 +46,8 @@ def test_no_duplicates() -> None:
         cat.EDUCATION,
         cat.PETS,
         cat.CASHBACK,
+        cat.INCOME,
+        cat.COUPLE_TRANSFER,
     ]
     assert len(constants_list) == len(cat.ALL)
 

@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -9,8 +10,24 @@ from fastapi import FastAPI
 
 from finance_api.core.config import settings
 from finance_api.core.logging.setup import configure_logging
+from finance_api.domains.bot.notifications import set_notification_context
 from finance_api.domains.sync.monobank import run_sync
-from finance_api.routers import accounts, budgets, health, sync, transactions
+from finance_api.routers import (
+    accounts,
+    budgets,
+    buy_list,
+    debts,
+    goals,
+    health,
+    sync,
+    transactions,
+    trips,
+)
+from finance_api.routers.forecast import (
+    forecast_router,
+    income_router,
+    recurring_router,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -75,6 +92,8 @@ def create_app() -> FastAPI:
             await bot_app.start()
             await bot_app.updater.start_polling(drop_pending_updates=True)
             log.info("telegram_bot_started")
+            loop = asyncio.get_event_loop()
+            set_notification_context(bot_app, loop)
         try:
             yield
         finally:
@@ -102,5 +121,12 @@ def create_app() -> FastAPI:
     )
     app.include_router(sync.router, prefix="/sync", tags=["sync"])
     app.include_router(budgets.router, prefix="/budgets", tags=["budgets"])
+    app.include_router(debts.router)
+    app.include_router(goals.router)
+    app.include_router(trips.router)
+    app.include_router(buy_list.router)
+    app.include_router(forecast_router)
+    app.include_router(recurring_router)
+    app.include_router(income_router)
 
     return app

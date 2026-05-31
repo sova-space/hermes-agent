@@ -1,7 +1,7 @@
 ---
 name: best-practices
-description: Python best practices for agents/finance. Covers FastAPI patterns, Pydantic v2, async rules, SQLModel, structlog, and aiogram conventions. Load during implementation or review.
-version: 1.0.0
+description: Python best practices for agents/finance. Covers FastAPI patterns, Pydantic v2, async rules, SQLModel, structlog, and python-telegram-bot (PTB) conventions. Load during implementation or review.
+version: 1.1.0
 ---
 
 # Python Best Practices — agents/finance
@@ -12,11 +12,11 @@ Rules for this repo's stack. Repo conventions always win over generic advice.
 
 ## Async / sync
 
-This repo is **async** (aiogram, APScheduler, FastAPI async routes). Apply this rule:
+This repo is **async** (PTB, APScheduler, FastAPI async routes). Apply this rule:
 
 | What the code does | Use |
 |---|---|
-| Non-blocking awaitable I/O (httpx, aiogram, asyncpg) | `async def` |
+| Non-blocking awaitable I/O (httpx, PTB, asyncpg) | `async def` |
 | Blocking call (matplotlib, file I/O, sync DB) | run in threadpool or sync route |
 | CPU-bound > 50 ms | Offload to a thread, not inline in event loop |
 
@@ -88,20 +88,51 @@ settings = get_settings()
 
 ---
 
-## aiogram handlers
+## python-telegram-bot (PTB) handlers
+
+The bot uses **python-telegram-bot** (`telegram` package), NOT aiogram.
 
 ```python
-@router.message(Command("status"))
-async def cmd_status(message: Message, session: Session) -> None:
-    if message.from_user.id != get_settings().telegram_owner_id:
+from telegram import Update
+from telegram.ext import ContextTypes, CommandHandler, Application
+
+async def cmd_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != get_settings().telegram_owner_id:
         return
     ...
+    await update.message.reply_text(text, parse_mode="HTML")
 ```
 
-- Always owner-gate at the top.
-- Use `await message.answer(text)` for text, `await message.answer_photo(FSInputFile(path))` for charts.
-- Clean up tmp chart files after sending: `os.unlink(path)`.
-- Keep handlers thin — delegate to `tools.dispatch()` or query functions.
+Register handlers in `runner.py`:
+```python
+app.add_handler(CommandHandler("balance", cmd_balance))
+```
+
+WebApp keyboard button (for Mini App):
+```python
+from telegram import WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+
+keyboard = InlineKeyboardMarkup([[
+    InlineKeyboardButton("Open Finance", web_app=WebAppInfo(url=settings.mini_app_url))
+]])
+await update.message.reply_text("Finance", reply_markup=keyboard)
+```
+
+Sending from APScheduler threads (sync context → async bot):
+```python
+# Capture at lifespan startup:
+loop = asyncio.get_event_loop()
+# In scheduler job (sync thread):
+asyncio.run_coroutine_threadsafe(
+    application.bot.send_message(chat_id=..., text=..., message_thread_id=...),
+    loop
+)
+```
+
+- Always owner-gate at the top of every handler.
+- Use `reply_text(text, parse_mode="HTML")` for formatted text.
+- Use `reply_photo(photo=open(path, "rb"))` for charts, then `os.unlink(path)`.
+- Keep handlers thin — delegate to query functions; no analytics logic in handlers.
 
 ---
 
@@ -166,7 +197,7 @@ with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
 | `print()` anywhere | Use `structlog` |
 | `Optional[X]` | Use `X \| None` |
 | Hardcoded token/URL/interval | Move to `Settings` |
-| Analytics logic in bot handlers | Move to `tools.dispatch()` or queries |
+| Analytics logic in bot handlers | Move to query functions; handlers are boundary only |
 | Direct DB access in `charts.py` | Pass data in, not session |
 | Missing owner gate in handler | Add `telegram_owner_id` check first |
 | `matplotlib.pyplot` without `Agg` backend | Set `matplotlib.use("Agg")` at module top |

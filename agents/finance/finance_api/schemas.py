@@ -58,10 +58,21 @@ class TransactionItem(BaseModel):
     )
 
 
+class SpendingRow(BaseModel):
+    """Spending total for a single category and currency."""
+
+    category: str = Field(description="Spending category, e.g. 'Food & Drink'")
+    currency: str = Field(description="ISO 4217 currency code, e.g. 'UAH'")
+    amount: float = Field(
+        description="Total amount spent (positive value, expenses are negated)"
+    )
+
+
 class MonthlyTrend(BaseModel):
-    """Income and expense totals for a single calendar month."""
+    """Income and expense totals for a single calendar month and currency."""
 
     month: str = Field(description="Month label, e.g. 'May 2026'")
+    currency: str = Field(description="ISO 4217 currency code, e.g. 'UAH'")
     income: float = Field(
         description="Total income for this month (positive transactions)"
     )

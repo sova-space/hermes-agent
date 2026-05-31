@@ -1,33 +1,27 @@
 """Format Finance API data as Telegram HTML messages."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 
+from finance_api.domains.transactions import categories as cat
+
 CATEGORY_EMOJI: dict[str, str] = {
-    "Groceries": "🛒",
-    "Supermarket": "🛒",
-    "Restaurants": "🍔",
-    "Food": "🍔",
-    "Outside food": "🍔",
-    "Cafe": "🍔",
-    "Transport": "🚇",
-    "Commuting": "🚇",
-    "Taxi": "🚕",
-    "Housing": "🏠",
-    "Utilities": "🏠",
-    "Rent": "🏠",
-    "Health": "💊",
-    "Pharmacy": "💊",
-    "Clothes": "👗",
-    "Shopping": "🛍️",
-    "Entertainment": "🎮",
-    "Travel": "✈️",
-    "Financial": "💳",
-    "Transfers": "💸",
-    "Income": "💰",
-    "Salary": "💰",
-    "Other": "📦",
-    "Uncategorized": "📦",
+    cat.FOOD_AND_DRINK: "🍔",
+    cat.GROCERIES: "🛒",
+    cat.TRANSPORTATION: "🚇",
+    cat.HEALTHCARE: "💊",
+    cat.SHOPPING: "🛍️",
+    cat.ENTERTAINMENT: "🎮",
+    cat.TRAVEL: "✈️",
+    cat.SUBSCRIPTIONS: "📱",
+    cat.UTILITIES: "⚡",
+    cat.ATM_CASH: "🏧",
+    cat.FINANCE: "💳",
+    cat.EDUCATION: "🎓",
+    cat.PETS: "🐾",
+    cat.CASHBACK: "💰",
+    cat.INCOME: "💰",
+    cat.COUPLE_TRANSFER: "💸",
 }
 
 # Currencies where the symbol goes before the amount (e.g. $1,234)
@@ -61,16 +55,40 @@ def _fmt_amount(amount: float, currency: str) -> str:
     return f"{formatted} {sym}"
 
 
+def _fmt_ago(iso: str | None) -> str:
+    """Return a human-readable 'N min ago' / 'N hours ago' string."""
+    if not iso:
+        return "never"
+    dt = datetime.fromisoformat(iso)
+    # Normalise both sides to UTC-aware for a safe subtraction.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    delta = datetime.now(UTC) - dt
+    total_minutes = int(delta.total_seconds() // 60)
+    if total_minutes < 1:
+        return "just now"
+    if total_minutes < 60:
+        return f"{total_minutes} min ago"
+    hours = total_minutes // 60
+    return f"{hours} hour{'s' if hours != 1 else ''} ago"
+
+
 def format_balance(accounts: list[dict[str, Any]]) -> str:
     """Format account balances as HTML."""
     if not accounts:
-        return "No accounts synced yet. Run /sync@sova_finance_bot first."
-    lines = ["<b>💳 Accounts</b>", ""]
+        return "No accounts synced yet. Run /sync first."
+    lines = []
     for a in accounts:
-        sym = _sym(a["currency"])
-        name = a["name"]
         bal = a["balance"]
-        lines.append(f"<code>{name:<20} {bal:>12,.2f} {sym}</code>")
+        currency = a["currency"]
+        name = a["name"]
+        lines.append(f"💳 {name}: {bal:,.2f} {currency}")
+    lines.append("─────────────")
+    latest_sync = max(
+        (a["synced_at"] for a in accounts if a.get("synced_at")),
+        default=None,
+    )
+    lines.append(f"Last synced: {_fmt_ago(latest_sync)}")
     return "\n".join(lines)
 
 
@@ -81,10 +99,12 @@ def format_stats(spending: dict[str, float], period: str = "this_month") -> str:
     total = sum(spending.values())
     label = _PERIOD_LABEL.get(period, period)
     lines = [f"<b>📊 Spending — {label}</b>", ""]
-    for cat, amount in sorted(spending.items(), key=lambda x: x[1], reverse=True):
+    for category_name, amount in sorted(
+        spending.items(), key=lambda x: x[1], reverse=True
+    ):
         pct = round(amount / total * 100) if total else 0
-        em = _emoji(cat)
-        lines.append(f"{em} <b>{cat}</b>  {amount:,.0f} ₴  <i>{pct}%</i>")
+        em = _emoji(category_name)
+        lines.append(f"{em} <b>{category_name}</b>  {amount:,.0f} ₴  <i>{pct}%</i>")
     lines += ["", f"<b>Total: {total:,.0f} ₴</b>"]
     return "\n".join(lines)
 
