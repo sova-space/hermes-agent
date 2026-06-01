@@ -26,6 +26,16 @@ routers/         →  called by hermes finance skill via HTTP
 - Queries take `Session`, return plain dicts/lists — no HTTP, no AI.
 - All config from `Settings`. No hardcoded tokens, URLs, or intervals.
 
+## Bot command sync pattern
+
+`bot/commands.py` is the single source of truth for all bot commands:
+
+- `BOT_COMMANDS` — list of `BotCommand` objects
+- `setup_bot(bot)` — called once on startup; registers commands + menu button
+- `GET /bot/commands` — endpoint Hermes reads to know which commands this bot owns
+
+**To add a command**: add it to `BOT_COMMANDS` and wire a handler in `runner.py`. Nothing else needed — Hermes stays in sync via the API.
+
 ## Railway
 
 Service: `hermes-finance` in `sova-claw` workspace.

@@ -56,6 +56,17 @@ Each `agents/<name>/` has its own `Dockerfile`, `railway.toml`, `pyproject.toml`
 docker build -f agents/finance/Dockerfile agents/finance/
 ```
 
+### Bot command sync pattern
+
+Every agent with a Telegram bot **must** follow this pattern to stay in sync with Hermes:
+
+1. **`domains/bot/commands.py`** — single source of truth. Define `BOT_COMMANDS: list[BotCommand]` and a `setup_bot(bot)` function that calls all startup steps (register commands, set menu button, etc.). Add new startup actions here only.
+2. **`routers/miniapp.py`** — expose `GET /bot/commands` returning `[{command, description}]` from `BOT_COMMANDS`.
+3. **`composition.py` lifespan** — call `await setup_bot(bot_app.bot)` explicitly after `bot_app.initialize()`. No `post_init` callbacks.
+4. **Hermes skill** — fetch `GET /bot/commands` at runtime to know which commands are owned by the agent bot. Never hardcode the list in SKILL.md.
+
+**To add a command**: edit `BOT_COMMANDS` in `commands.py` only. Everything else stays in sync automatically.
+
 ## Railway Deployment
 
 Two separate Railway projects — both served from the same monorepo (`sova-claw/hermes-agent`):
