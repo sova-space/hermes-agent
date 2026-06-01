@@ -98,7 +98,10 @@ def create_app() -> FastAPI:
         scheduler.start()
         log.info("scheduler_started", interval_hours=settings.sync_interval_hours)
         if bot_app:
+            from finance_api.domains.bot.commands import setup_bot
+
             await bot_app.initialize()
+            await setup_bot(bot_app.bot)
             await bot_app.start()
             await bot_app.updater.start_polling(drop_pending_updates=True)
             log.info("telegram_bot_started")

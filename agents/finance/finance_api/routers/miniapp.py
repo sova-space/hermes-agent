@@ -5,6 +5,7 @@ import os
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
 
+from finance_api.domains.bot.commands import BOT_COMMANDS
 from finance_api.domains.bot.notifications import send_finance_app_button
 
 router = APIRouter()
@@ -24,3 +25,9 @@ async def bot_open() -> dict:
     """Send the Mini App button to the #finance topic. Called by Hermes skill."""
     send_finance_app_button()
     return {"ok": True}
+
+
+@router.get("/bot/commands", include_in_schema=False)
+async def bot_commands() -> list[dict]:
+    """Return registered bot commands. Hermes fetches this to stay in sync."""
+    return [{"command": c.command, "description": c.description} for c in BOT_COMMANDS]
