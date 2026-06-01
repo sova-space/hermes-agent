@@ -1,6 +1,7 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "infra/Dockerfile"
+watchPatterns = ["hermes/**", "infra/**", "server.py", "railway.toml"]
 
 [deploy]
 startCommand = "/app/start.sh"

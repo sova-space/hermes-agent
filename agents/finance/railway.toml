@@ -1,6 +1,7 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
+watchPatterns = ["agents/finance/**"]
 
 [deploy]
 startCommand = "sh entrypoint.sh"
