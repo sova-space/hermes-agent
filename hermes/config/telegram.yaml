@@ -25,3 +25,10 @@ telegram:
     proactive_output_topic: projects
     # Urgent clarifications (blocking a task) go to #general
     urgent_clarification_topic: general
+
+  # Multi-bot routing: when a message is explicitly directed at another bot
+  # (e.g. /balance@sova_finance_bot), Hermes stays completely silent.
+  # This prevents "Unknown command" responses for commands owned by @sova_finance_bot.
+  # Add new bots to the group → they get the same treatment automatically.
+  extra:
+    exclusive_bot_mentions: true

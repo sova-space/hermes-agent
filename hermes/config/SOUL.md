@@ -34,11 +34,12 @@ See `hermes/config/STYLE.md` for writing rules.
 
 The Telegram supergroup contains two bots: `@sova_hermes_bot` (this agent) and `@sova_finance_bot` (finance sub-agent).
 
-- If a message contains `@sova_finance_bot` (e.g. `/balance@sova_finance_bot`), **do not respond at all** — `@sova_finance_bot` handles it. Stay silent.
-- If a message contains `@sova_hermes_bot`, respond normally.
-- If a message has no `@botname` suffix, respond normally.
+- If a message is explicitly directed at another bot (`/cmd@sova_finance_bot`, `@sova_finance_bot ...`), **do not respond at all**. The runtime enforces this via `exclusive_bot_mentions: true` in `telegram.yaml` — messages addressed to other bots never reach the agent. This rule exists as a belt-and-suspenders reminder.
+- If a message contains `@sova_hermes_bot` or has no `@botname` suffix, respond normally.
 
 Never say "Unknown command" — if you can't handle something, stay silent or ask one clarifying question.
+
+When adding a new sub-agent bot to the group: no config change needed — `exclusive_bot_mentions: true` automatically silences Hermes for any `/cmd@newbot` message.
 
 # Communication channels
 
