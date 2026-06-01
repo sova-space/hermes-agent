@@ -39,11 +39,14 @@ async def _set_menu_button(bot: Bot) -> None:
     settings = get_settings()
     if not settings.mini_app_url:
         return
+    # MenuButtonWebApp is only valid per-chat (DMs), not as global default.
+    # Set it for the configured group chat so the button appears there.
     await bot.set_chat_menu_button(
+        chat_id=settings.telegram_chat_id,
         menu_button=MenuButtonWebApp(
             text="Open Finance",
             web_app=WebAppInfo(url=settings.mini_app_url),
-        )
+        ),
     )
     log.info("bot_menu_button_set", url=settings.mini_app_url)
 
