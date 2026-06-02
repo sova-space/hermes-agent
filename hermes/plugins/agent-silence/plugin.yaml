@@ -1,0 +1,6 @@
+name: agent-silence
+version: 1.0.0
+description: Silence @-addressed commands that belong to registered agent bots
+kind: backend
+provides_hooks:
+  - pre_gateway_dispatch

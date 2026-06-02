@@ -1,6 +1,0 @@
-name: finance-silence
-version: 1.0.0
-description: Drop finance bot slash commands before the Unknown command handler fires
-kind: backend
-provides_hooks:
-  - pre_gateway_dispatch
