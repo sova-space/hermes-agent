@@ -15,14 +15,18 @@ log = structlog.get_logger(__name__)
 
 
 async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /start command — open the Mini App."""
-    if not settings.mini_app_url:
-        await update.message.reply_text("Mini App not configured yet.")
-        return
+    """Handle /finance_app command — open the Mini App."""
     url = settings.mini_app_url
-    keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("Open Finance", web_app=WebAppInfo(url=url))]]
-    )
+    # InlineKeyboardButton.web_app is restricted to private chats by Telegram.
+    # In group/topic contexts use a plain URL button instead.
+    if update.effective_chat.type == "private":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Open Finance", web_app=WebAppInfo(url=url))]
+        ])
+    else:
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Open Finance", url=url)]
+        ])
     text = "💰 Hermes Finance"
     in_finance_topic = (
         update.effective_chat.id == settings.telegram_chat_id

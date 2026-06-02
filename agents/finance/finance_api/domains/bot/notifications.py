@@ -44,18 +44,17 @@ def set_notification_context(
 
 
 def send_finance_app_button() -> None:
-    """Send the Mini App WebApp button to the #finance topic.
+    """Send the Mini App button to the #finance topic.
 
     Called via POST /bot/open when Hermes sees /finance_app.
+    Uses a URL button because InlineKeyboardButton.web_app is private-chat only.
     """
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-    if _application is None or _loop is None or not settings.mini_app_url:
+    if _application is None or _loop is None:
         log.warning("send_finance_app_button_skipped")
         return
-    btn = InlineKeyboardButton(
-        "Open Finance", web_app=WebAppInfo(url=settings.mini_app_url)
-    )
+    btn = InlineKeyboardButton("Open Finance", url=settings.mini_app_url)
     keyboard = InlineKeyboardMarkup([[btn]])
     asyncio.run_coroutine_threadsafe(
         _application.bot.send_message(

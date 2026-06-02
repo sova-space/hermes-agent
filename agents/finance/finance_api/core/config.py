@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     telegram_chat_id: int = -1003913424869
     telegram_owner_id: int
 
-    mini_app_url: str = ""
+    mini_app_url: str
 
 
 @lru_cache
