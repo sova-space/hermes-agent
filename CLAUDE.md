@@ -69,7 +69,7 @@ Every agent with a Telegram bot **must** follow this pattern to stay in sync wit
 
 ## Railway Deployment
 
-One Railway project — `hermes-main` — hosts all services from the same monorepo (`sova-claw/hermes-agent`):
+One Railway project — `hermes-main` — hosts all services from the same monorepo (`sova-space/hermes-agent`):
 
 | Component | Service name | Service ID | Root directory |
 |---|---|---|---|
@@ -91,7 +91,7 @@ railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 8d1fc2f6-0
 railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96
 ```
 
-- Do NOT use `sova-claw/hermes-finance` — that repo is stale
+- Do NOT use `sova-space/hermes-finance` — that repo is stale
 - Do NOT create new Railway services — all already exist in `hermes-main`
 - The old `finance-agent` project (`186cf9f1`) has been decommissioned
 

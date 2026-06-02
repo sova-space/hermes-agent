@@ -1,6 +1,6 @@
 # agents/finance — Finance Sub-Agent
 
-`@sova_finance_bot` — Monobank integration, budget tracking, spending analytics. Deployed as a separate Railway service from `sova-claw/hermes-agent` (this repo).
+`@sova_finance_bot` — Monobank integration, budget tracking, spending analytics. Deployed as a separate Railway service from `sova-space/hermes-agent` (this repo).
 
 ```
 finance_api/   — FastAPI + aiogram + APScheduler (single Railway service)
