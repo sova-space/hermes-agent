@@ -40,16 +40,20 @@ async def _set_menu_button(bot: Bot) -> None:
 
     MenuButtonWebApp works in groups (unlike InlineKeyboardButton.web_app)
     and gives users a persistent one-tap launcher in the chat input bar.
+    Failures are logged but never crash startup.
     """
     settings = get_settings()
-    await bot.set_chat_menu_button(
-        chat_id=settings.telegram_chat_id,
-        menu_button=MenuButtonWebApp(
-            text="Finance",
-            web_app=WebAppInfo(url=settings.mini_app_url),
-        ),
-    )
-    log.info("menu_button_set", chat_id=settings.telegram_chat_id)
+    try:
+        await bot.set_chat_menu_button(
+            chat_id=settings.telegram_chat_id,
+            menu_button=MenuButtonWebApp(
+                text="Finance",
+                web_app=WebAppInfo(url=settings.mini_app_url),
+            ),
+        )
+        log.info("menu_button_set", chat_id=settings.telegram_chat_id)
+    except Exception as exc:
+        log.warning("menu_button_set_failed", error=str(exc))
 
 
 async def setup_bot(bot: Bot) -> None:
