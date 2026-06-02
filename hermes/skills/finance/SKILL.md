@@ -11,7 +11,7 @@ metadata:
 
 Access to Nazar's Monobank bank data via the Finance API.
 
-Base URL: `http://${FINANCE_API_URL}:8000`
+Base URL: `https://${FINANCE_API_URL}`
 
 ---
 
