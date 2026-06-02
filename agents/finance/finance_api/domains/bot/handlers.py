@@ -6,6 +6,7 @@ import structlog
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from finance_api.bot.telegram_fmt import PARSE_MODE, code
 from finance_api.core.config import settings
 from finance_api.domains.bot.formatter import format_balance, format_sync_status
 from finance_api.domains.insights.queries import get_account_balances, get_sync_health
@@ -42,22 +43,26 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /balance command."""
     try:
         accounts = await asyncio.to_thread(get_account_balances)
-        await update.message.reply_html(format_balance(accounts))
+        await update.message.reply_text(format_balance(accounts), parse_mode=PARSE_MODE)
     except Exception as e:
         log.error("balance_failed", error=str(e))
-        await update.message.reply_html(f"❌ Error: <code>{e}</code>")
+        await update.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
 async def sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /sync command — fire sync in background, respond immediately."""
     try:
-        await update.message.reply_html("🔄 Syncing…")
+        await update.message.reply_text("🔄 Syncing…", parse_mode=PARSE_MODE)
         # Run sync in background without blocking the handler — full sync takes
         # several minutes due to Monobank rate limiting (62 s per account).
         asyncio.get_running_loop().run_in_executor(None, run_sync)
         await asyncio.sleep(0.5)
         status = await asyncio.to_thread(get_sync_health)
-        await update.message.reply_html(format_sync_status(status))
+        await update.message.reply_text(
+            format_sync_status(status), parse_mode=PARSE_MODE
+        )
     except Exception as e:
         log.error("sync_failed", error=str(e))
-        await update.message.reply_html(f"❌ Sync failed: <code>{e}</code>")
+        await update.message.reply_text(
+            f"❌ Sync failed: {code(e)}", parse_mode=PARSE_MODE
+        )

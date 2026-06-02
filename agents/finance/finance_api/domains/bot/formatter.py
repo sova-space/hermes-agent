@@ -1,8 +1,10 @@
 """Format Finance API data as Telegram HTML messages."""
 
+from collections import defaultdict
 from datetime import UTC, date, datetime
 from typing import Any
 
+from finance_api.bot.telegram_fmt import DIVIDER, bold, code, italic
 from finance_api.domains.transactions import categories as cat
 
 CATEGORY_EMOJI: dict[str, str] = {
@@ -74,22 +76,30 @@ def _fmt_ago(iso: str | None) -> str:
 
 
 def format_balance(accounts: list[dict[str, Any]]) -> str:
-    """Format account balances as HTML."""
+    """Format account balances grouped by currency as HTML."""
     if not accounts:
         return "No accounts synced yet. Run /sync first."
-    lines = []
+
+    by_currency: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for a in accounts:
-        bal = a["balance"]
-        currency = a["currency"]
-        name = a["name"]
-        lines.append(f"💳 {name}: {bal:,.2f} {currency}")
-    lines.append("─────────────")
+        by_currency[a["currency"]].append(a)
+
+    sections: list[str] = []
+    for currency, group in by_currency.items():
+        lines: list[str] = []
+        for a in group:
+            lines.append(f"💳 {a['name']}: {_fmt_amount(a['balance'], currency)}")
+        if len(group) > 1:
+            total = sum(a["balance"] for a in group)
+            lines.append(f"{_sym(currency)} total: {_fmt_amount(total, currency)}")
+        sections.append("\n".join(lines))
+
     latest_sync = max(
         (a["synced_at"] for a in accounts if a.get("synced_at")),
         default=None,
     )
-    lines.append(f"Last synced: {_fmt_ago(latest_sync)}")
-    return "\n".join(lines)
+    footer = f"🕐 Synced {_fmt_ago(latest_sync)}"
+    return (f"\n{DIVIDER}\n").join(sections) + f"\n{DIVIDER}\n{footer}"
 
 
 def format_stats(spending: dict[str, float], period: str = "this_month") -> str:
@@ -98,14 +108,16 @@ def format_stats(spending: dict[str, float], period: str = "this_month") -> str:
         return f"No spending data for {_PERIOD_LABEL.get(period, period)}."
     total = sum(spending.values())
     label = _PERIOD_LABEL.get(period, period)
-    lines = [f"<b>📊 Spending — {label}</b>", ""]
+    lines = [bold(f"📊 Spending — {label}"), ""]
     for category_name, amount in sorted(
         spending.items(), key=lambda x: x[1], reverse=True
     ):
         pct = round(amount / total * 100) if total else 0
         em = _emoji(category_name)
-        lines.append(f"{em} <b>{category_name}</b>  {amount:,.0f} ₴  <i>{pct}%</i>")
-    lines += ["", f"<b>Total: {total:,.0f} ₴</b>"]
+        lines.append(
+            f"{em} {bold(category_name)}  {amount:,.0f} ₴  {italic(f'{pct}%')}"
+        )
+    lines += ["", bold(f"Total: {total:,.0f} ₴")]
     return "\n".join(lines)
 
 
@@ -114,11 +126,11 @@ def format_budget(budgets: list[dict[str, Any]]) -> str:
     label = date.today().strftime("%B %Y")
     if not budgets:
         return (
-            f"<b>📉 Budget — {label}</b>\n\n"
+            f"{bold(f'📉 Budget — {label}')}\n\n"
             "No limits set yet.\n"
-            "Use <code>/budget set &lt;category&gt; &lt;amount&gt;</code> to add one."
+            f"Use {code('/budget set <category> <amount>')} to add one."
         )
-    lines = [f"<b>📉 Budget — {label}</b>", ""]
+    lines = [bold(f"📉 Budget — {label}"), ""]
     for b in budgets:
         em = _emoji(b["category"])
         spent = b["spent"]
@@ -127,14 +139,14 @@ def format_budget(budgets: list[dict[str, Any]]) -> str:
         if b["exceeded"]:
             over = spent - limit
             lines.append(
-                f"{em} <b>{b['category']}</b>  {spent:,.0f} / {limit:,.0f} {sym}  "
-                f"⚠️ <i>over by {over:,.0f}</i>"
+                f"{em} {bold(b['category'])}  {spent:,.0f} / {limit:,.0f} {sym}  "
+                f"⚠️ {italic(f'over by {over:,.0f}')}"
             )
         else:
             left = b["remaining"]
             lines.append(
-                f"{em} <b>{b['category']}</b>  {spent:,.0f} / {limit:,.0f} {sym}  "
-                f"✅ <i>{left:,.0f} left</i>"
+                f"{em} {bold(b['category'])}  {spent:,.0f} / {limit:,.0f} {sym}  "
+                f"✅ {italic(f'{left:,.0f} left')}"
             )
     return "\n".join(lines)
 

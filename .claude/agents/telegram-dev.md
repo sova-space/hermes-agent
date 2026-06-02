@@ -199,6 +199,21 @@ All under `/app/api/` prefix, all require JWT auth:
 5. Dockerfile: add multi-stage build step
 6. BotFather: register Mini App URL
 
+## Bot message formatting
+
+All Telegram HTML is produced through helpers in `finance_api/bot/telegram_fmt.py`.
+Never write raw `<b>`, `<i>`, or `<code>` tags at call sites.
+
+| Helper | Output |
+|--------|--------|
+| `bold(text)` | `<b>text</b>` |
+| `italic(text)` | `<i>text</i>` |
+| `code(text)` | `<code>text</code>` |
+| `DIVIDER` | `─ × 16` horizontal rule |
+| `PARSE_MODE` | `ParseMode.HTML` — pass to `reply_text(..., parse_mode=PARSE_MODE)` |
+
+Use `reply_text(..., parse_mode=PARSE_MODE)` everywhere — not `reply_html`.
+
 ## Code style
 - TypeScript strict mode
 - Functional components only, no class components
