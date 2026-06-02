@@ -3,7 +3,7 @@
 import asyncio
 
 import structlog
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from finance_api.core.config import settings
@@ -17,16 +17,10 @@ log = structlog.get_logger(__name__)
 async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /finance_app command — open the Mini App."""
     url = settings.mini_app_url
-    # InlineKeyboardButton.web_app is restricted to private chats by Telegram.
-    # In group/topic contexts use a plain URL button instead.
-    if update.effective_chat.type == "private":
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Open Finance", web_app=WebAppInfo(url=url))]
-        ])
-    else:
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Open Finance", url=url)]
-        ])
+    # Use a plain URL button everywhere — InlineKeyboardButton.web_app requires
+    # the domain to be approved in BotFather, which fails with Button_type_invalid
+    # until that is configured.
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Open Finance", url=url)]])
     text = "💰 Hermes Finance"
     in_finance_topic = (
         update.effective_chat.id == settings.telegram_chat_id
