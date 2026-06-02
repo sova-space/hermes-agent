@@ -38,12 +38,16 @@ routers/         →  called by hermes finance skill via HTTP
 
 ## Railway
 
-Service: `hermes-finance` in `sova-claw` workspace.
+Service: `hermes-finance` in `hermes-main` project (`3d73dc58-1201-4258-bc1d-1f9c24333032`).
+Service ID: `9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96`
 Root directory: `agents/finance` (set in Railway service settings).
-Deploy: push to `main` branch of `sova-claw/hermes-agent` → Railway auto-deploys.
+Dockerfile: `agents/finance/Dockerfile` (full path from repo root).
+Deploy: push to `main` branch → Railway auto-deploys (watch pattern: `agents/finance/**`).
 Pre-deploy: `alembic upgrade head` runs automatically via `entrypoint.sh`.
+Public URL: `https://hermes-finance-production.up.railway.app`
 
-Database: `finance` database on shared `hermes-db` PostgreSQL service.
+Database: `Postgres` service in `hermes-main` project (ID: `b6daf7a2-de33-4767-a78b-e4e4d7424d58`).
+Internal URL: `postgres.railway.internal:5432`
 
 ## Building locally
 

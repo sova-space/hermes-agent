@@ -69,33 +69,31 @@ Every agent with a Telegram bot **must** follow this pattern to stay in sync wit
 
 ## Railway Deployment
 
-Two separate Railway projects — both served from the same monorepo (`sova-claw/hermes-agent`):
+One Railway project — `hermes-main` — hosts all services from the same monorepo (`sova-claw/hermes-agent`):
 
-| Component | Railway Project | Project ID |
-|---|---|---|
-| Hermes orchestrator | `hermes-main` | `3d73dc58-1201-4258-bc1d-1f9c24333032` |
-| Finance sub-agent + DB | `finance-agent` | `186cf9f1-f88f-4b73-b286-a055e107cc9d` |
+| Component | Service name | Service ID | Root directory |
+|---|---|---|---|
+| Hermes orchestrator | `Hermes Agent` | `8d1fc2f6-031b-4527-9a7d-3e78316d1180` | repo root |
+| Finance sub-agent | `hermes-finance` | `9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96` | `agents/finance` |
+| Finance DB | `Postgres` | `b6daf7a2-de33-4767-a78b-e4e4d7424d58` | — |
 
-Finance project service IDs (needed for `railway link`):
-- `finance-api`: `b6cb492f-9100-4330-82db-8afd95d6fe91`
-- DB: `b81eaac6-f7f1-46c4-a113-b60a39e59729`
-- Environment: `de3164da-54fe-4557-ae8b-bd5d1ef01a33`
+Project: `hermes-main` · ID: `3d73dc58-1201-4258-bc1d-1f9c24333032` · Environment: `production` (`a2a88403-f2b1-4a18-a44d-3b808d07bcb1`)
+
+Auto-deploy is active (Railway dashboard, branch: `main`). Watch patterns per service:
+- Hermes Agent: `hermes/**`, `infra/**`, `server.py`, `railway.toml`
+- hermes-finance: `agents/finance/**`
 
 ```bash
-# Hermes orchestrator — from repo root
-railway up --detach
+# Link to Hermes orchestrator (from repo root)
+railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 8d1fc2f6-031b-4527-9a7d-3e78316d1180
 
-# Finance API — from agents/finance/
-cd agents/finance
-railway link --project 186cf9f1-f88f-4b73-b286-a055e107cc9d --service b6cb492f-9100-4330-82db-8afd95d6fe91
-railway up --detach
+# Link to Finance API (from anywhere)
+railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96
 ```
 
-**Railway does NOT auto-deploy on git push.** Always run `railway up --detach` after pushing.
-
-- Do NOT deploy finance from `hermes-main` — it has no finance service
 - Do NOT use `sova-claw/hermes-finance` — that repo is stale
-- Do NOT create new Railway services — both already exist
+- Do NOT create new Railway services — all already exist in `hermes-main`
+- The old `finance-agent` project (`186cf9f1`) has been decommissioned
 
 ## Skills
 
