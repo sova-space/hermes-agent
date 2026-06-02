@@ -11,7 +11,7 @@ metadata:
 
 Access to Nazar's Monobank bank data via the Finance API.
 
-Base URL: `https://hermes-finance-production.up.railway.app`
+Base URL: `http://$FINANCE_API_URL:8000` (private internal network — read `FINANCE_API_URL` env var at runtime)
 
 ---
 
