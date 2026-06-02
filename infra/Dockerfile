@@ -73,7 +73,10 @@ RUN chmod +x /app/start.sh
 # Skills and plugins are stored under /app/ so the persistent volume does not
 # shadow them. start.sh copies them to /data/.hermes/ on every boot.
 COPY hermes/skills/ /app/skills/
-COPY hermes/plugins/ /app/plugins/
+# Copy custom plugins into the bundled plugins directory so they auto-load
+# without requiring opt-in via plugins.enabled in config.yaml.
+COPY hermes/plugins/ /opt/hermes-agent/plugins/
+RUN mkdir -p /app/plugins/
 
 ENV HOME=/data
 ENV HERMES_HOME=/data/.hermes
