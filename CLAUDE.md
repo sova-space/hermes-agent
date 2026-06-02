@@ -5,7 +5,7 @@ Hermes is Nazar's personal AI agent — replies on Telegram and Slack, tracks fi
 ## Rules
 
 - **Spec-first.** Write `specs/NNN-feature-slug/spec.md` before any code.
-- **One feature, one branch, one PR.** Branch names: `NNN-short-slug`. No direct pushes to `main`.
+- **One feature, one branch, one PR.** Branch names: `NNN-short-slug`. No direct pushes to `main`. PRs auto-merge once approved.
 - **Secrets never in the repo.** All tokens/keys in Railway Variables only.
 - **MCP over custom code.** Use MCP servers for external integrations; Python only when no MCP exists.
 - **Python quality.** Target Python 3.11+. All function signatures must have type hints. Pass `ruff check` + `ruff format` before merge.
