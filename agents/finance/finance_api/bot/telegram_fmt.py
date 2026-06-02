@@ -19,3 +19,8 @@ def italic(text: str) -> str:
 def code(text: str) -> str:
     """Wrap text in HTML code tags."""
     return f"<code>{text}</code>"
+
+
+def blockquote(text: str) -> str:
+    """Wrap text in a blockquote — renders as a blue row in Telegram."""
+    return f"<blockquote>{text}</blockquote>"

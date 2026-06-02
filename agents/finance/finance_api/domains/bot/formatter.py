@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime
 from typing import Any
 
-from finance_api.bot.telegram_fmt import DIVIDER, bold, code, italic
+from finance_api.bot.telegram_fmt import DIVIDER, blockquote, bold, code, italic
 from finance_api.domains.transactions import categories as cat
 
 CATEGORY_EMOJI: dict[str, str] = {
@@ -88,10 +88,14 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
     for currency, group in by_currency.items():
         lines: list[str] = []
         for a in group:
-            lines.append(f"💳 {a['name']}: {_fmt_amount(a['balance'], currency)}")
+            lines.append(
+                blockquote(f"💳 {a['name']}: {_fmt_amount(a['balance'], currency)}")
+            )
         if len(group) > 1:
             total = sum(a["balance"] for a in group)
-            lines.append(f"{_sym(currency)} total: {_fmt_amount(total, currency)}")
+            lines.append(
+                blockquote(f"{_sym(currency)} total: {_fmt_amount(total, currency)}")
+            )
         sections.append("\n".join(lines))
 
     latest_sync = max(
