@@ -41,7 +41,7 @@ async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /balance command."""
     try:
-        accounts = get_account_balances()
+        accounts = await asyncio.to_thread(get_account_balances)
         await update.message.reply_html(format_balance(accounts))
     except Exception as e:
         log.error("balance_failed", error=str(e))
@@ -49,11 +49,14 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /sync command — trigger Monobank sync in background."""
+    """Handle /sync command — fire sync in background, respond immediately."""
     try:
         await update.message.reply_html("🔄 Syncing…")
-        await asyncio.to_thread(run_sync)
-        status = get_sync_health()
+        # Run sync in background without blocking the handler — full sync takes
+        # several minutes due to Monobank rate limiting (62 s per account).
+        asyncio.get_running_loop().run_in_executor(None, run_sync)
+        await asyncio.sleep(0.5)
+        status = await asyncio.to_thread(get_sync_health)
         await update.message.reply_html(format_sync_status(status))
     except Exception as e:
         log.error("sync_failed", error=str(e))

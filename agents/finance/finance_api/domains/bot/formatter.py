@@ -141,13 +141,17 @@ def format_budget(budgets: list[dict[str, Any]]) -> str:
 
 def format_sync_status(status: dict[str, Any]) -> str:
     """Format sync status as HTML."""
-    if status.get("status") == "never_synced":
-        return "🔄 Sync started. No previous sync on record."
     s = status.get("status", "unknown")
+    if s == "never_synced":
+        return "🔄 Sync started. No previous run on record."
+    if s == "running":
+        started = status.get("started_at", "—")
+        return f"🔄 Sync in progress…\nStarted: {started}"
     imported = status.get("tx_imported", 0)
     completed = status.get("completed_at", "—")
+    error = status.get("error")
+    if s == "error":
+        return f"❌ Last sync failed.\nError: {error}\nCompleted: {completed}"
     return (
-        f"🔄 Sync triggered.\n"
-        f"Last run: <b>{s}</b>, {imported} tx imported\n"
-        f"Completed: {completed}"
+        f"✅ Sync complete.\n{imported} transactions imported\nCompleted: {completed}"
     )
