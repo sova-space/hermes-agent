@@ -46,6 +46,11 @@ rm -f /data/.hermes/gateway.pid
 [ -f /app/config/SOUL.md ] && cp /app/config/SOUL.md /data/.hermes/SOUL.md
 if [ -d /app/skills ]; then
   cp -rf /app/skills/. /data/.hermes/skills/
+  # Substitute service discovery variables so skills stay portable across Railway accounts.
+  # Any ${VAR} in a skill file is replaced with the runtime env value at startup.
+  find /data/.hermes/skills -name "*.md" | while read -r f; do
+    sed -i "s|\${FINANCE_API_URL}|${FINANCE_API_URL}|g" "$f"
+  done
 fi
 if [ -d /app/plugins ]; then
   rm -rf /data/.hermes/plugins
