@@ -35,6 +35,7 @@ def test_trip_spending_scoped_to_date_range(session: Session, monkeypatch) -> No
     import finance_api.domains.insights.queries as q_module
     from finance_api.domains.accounts.models import Account
     from finance_api.domains.transactions.models import Transaction
+
     test_engine = session.get_bind()
     monkeypatch.setattr(q_module, "engine", test_engine)
 
@@ -88,6 +89,7 @@ def test_trip_spending_scoped_to_date_range(session: Session, monkeypatch) -> No
     trip = queries.get_trip(session, trip_id)
 
     from finance_api.domains.insights.queries import get_spending_by_category
+
     spending = get_spending_by_category(start=trip.start_date, end=trip.end_date)
 
     categories = [r["category"] for r in spending]

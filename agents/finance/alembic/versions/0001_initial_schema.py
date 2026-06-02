@@ -30,14 +30,18 @@ def upgrade() -> None:
 
     if "accounts" in tables:
         # Table predates alembic — add any missing columns and exit.
-        _add_missing_columns(conn, "accounts", [
-            sa.Column("monobank_id", sa.String()),
-            sa.Column("name", sa.String()),
-            sa.Column("currency", sa.String()),
-            sa.Column("account_type", sa.String()),
-            sa.Column("balance", sa.Float(), server_default="0"),
-            sa.Column("synced_at", sa.DateTime()),
-        ])
+        _add_missing_columns(
+            conn,
+            "accounts",
+            [
+                sa.Column("monobank_id", sa.String()),
+                sa.Column("name", sa.String()),
+                sa.Column("currency", sa.String()),
+                sa.Column("account_type", sa.String()),
+                sa.Column("balance", sa.Float(), server_default="0"),
+                sa.Column("synced_at", sa.DateTime()),
+            ],
+        )
         return
 
     op.create_table(

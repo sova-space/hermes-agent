@@ -72,78 +72,81 @@ ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 if not ADMIN_PASSWORD:
     ADMIN_PASSWORD = secrets.token_urlsafe(16)
-    print(f"[server] Admin credentials — username: {ADMIN_USERNAME}  password: {ADMIN_PASSWORD}", flush=True)
+    print(
+        f"[server] Admin credentials — username: {ADMIN_USERNAME}  password: {ADMIN_PASSWORD}",
+        flush=True,
+    )
 else:
     print(f"[server] Admin username: {ADMIN_USERNAME}", flush=True)
 
 # ── Env var registry ──────────────────────────────────────────────────────────
 # (key, label, category, is_secret)
 ENV_VARS = [
-    ("LLM_MODEL",               "Model",                    "model",     False),
-    ("OPENROUTER_API_KEY",       "OpenRouter",               "provider",  True),
-    ("DEEPSEEK_API_KEY",         "DeepSeek",                 "provider",  True),
-    ("DASHSCOPE_API_KEY",        "Qwen Cloud (DashScope)",   "provider",  True),
-    ("GLM_API_KEY",              "GLM / Z.AI",               "provider",  True),
-    ("KIMI_API_KEY",             "Kimi",                     "provider",  True),
-    ("MINIMAX_API_KEY",          "MiniMax",                  "provider",  True),
-    ("HF_TOKEN",                 "Hugging Face",             "provider",  True),
+    ("LLM_MODEL", "Model", "model", False),
+    ("OPENROUTER_API_KEY", "OpenRouter", "provider", True),
+    ("DEEPSEEK_API_KEY", "DeepSeek", "provider", True),
+    ("DASHSCOPE_API_KEY", "Qwen Cloud (DashScope)", "provider", True),
+    ("GLM_API_KEY", "GLM / Z.AI", "provider", True),
+    ("KIMI_API_KEY", "Kimi", "provider", True),
+    ("MINIMAX_API_KEY", "MiniMax", "provider", True),
+    ("HF_TOKEN", "Hugging Face", "provider", True),
     # Added in v2026.4.23+ (hermes v0.11.0+). All plain API-key auth — hermes
     # auto-routes by env-var presence, no extra config needed on our side.
     # OAuth-based providers (xAI Grok SuperGrok, Gemini CLI, Qwen OAuth, Claude Code)
     # are set up via the dashboard's Keys tab or HERMES_AUTH_JSON_BOOTSTRAP.
-    ("NVIDIA_API_KEY",           "NVIDIA NIM",               "provider",  True),
-    ("ARCEE_API_KEY",            "Arcee AI",                 "provider",  True),
-    ("STEPFUN_API_KEY",          "Step Plan",                "provider",  True),
-    ("AI_GATEWAY_API_KEY",       "Vercel AI Gateway",        "provider",  True),
-    ("GEMINI_API_KEY",           "Google AI Studio",         "provider",  True),
-    ("NOVITA_API_KEY",           "NovitaAI",                 "provider",  True),
-    ("FIREWORKS_API_KEY",        "Fireworks AI",             "provider",  True),
+    ("NVIDIA_API_KEY", "NVIDIA NIM", "provider", True),
+    ("ARCEE_API_KEY", "Arcee AI", "provider", True),
+    ("STEPFUN_API_KEY", "Step Plan", "provider", True),
+    ("AI_GATEWAY_API_KEY", "Vercel AI Gateway", "provider", True),
+    ("GEMINI_API_KEY", "Google AI Studio", "provider", True),
+    ("NOVITA_API_KEY", "NovitaAI", "provider", True),
+    ("FIREWORKS_API_KEY", "Fireworks AI", "provider", True),
     # Custom OpenAI-compatible endpoint — one slot; more via Hermes dashboard.
     # Only the API key is in category "provider" so PROVIDER_KEYS / is_config_complete
     # only trigger when an actual key is present, not just a base URL.
-    ("CUSTOM_PROVIDER_API_KEY",  "Custom Provider key",      "provider",  True),
-    ("CUSTOM_PROVIDER_BASE_URL", "Custom Provider base URL", "custom",    False),
-    ("CUSTOM_PROVIDER_NAME",     "Custom Provider name",     "custom",    False),
-    ("PARALLEL_API_KEY",         "Parallel (search)",        "tool",      True),
-    ("FIRECRAWL_API_KEY",        "Firecrawl (scrape)",       "tool",      True),
-    ("TAVILY_API_KEY",           "Tavily (search)",          "tool",      True),
-    ("FAL_KEY",                  "FAL (image gen)",          "tool",      True),
-    ("BROWSERBASE_API_KEY",      "Browserbase key",          "tool",      True),
-    ("BROWSERBASE_PROJECT_ID",   "Browserbase project",      "tool",      False),
-    ("GITHUB_TOKEN",             "GitHub token",             "tool",      True),
-    ("VOICE_TOOLS_OPENAI_KEY",   "OpenAI (voice/TTS)",       "tool",      True),
-    ("HONCHO_API_KEY",           "Honcho (memory)",          "tool",      True),
-    ("TELEGRAM_BOT_TOKEN",       "Bot Token",                "telegram",  True),
-    ("TELEGRAM_ALLOWED_USERS",   "Allowed User IDs",         "telegram",  False),
-    ("DISCORD_BOT_TOKEN",        "Bot Token",                "discord",   True),
-    ("DISCORD_ALLOWED_USERS",    "Allowed User IDs",         "discord",   False),
-    ("SLACK_BOT_TOKEN",          "Bot Token (xoxb-...)",     "slack",     True),
-    ("SLACK_APP_TOKEN",          "App Token (xapp-...)",     "slack",     True),
-    ("WHATSAPP_ENABLED",         "Enable WhatsApp",          "whatsapp",  False),
-    ("EMAIL_ADDRESS",            "Email Address",            "email",     False),
-    ("EMAIL_PASSWORD",           "Email Password",           "email",     True),
-    ("EMAIL_IMAP_HOST",          "IMAP Host",                "email",     False),
-    ("EMAIL_SMTP_HOST",          "SMTP Host",                "email",     False),
-    ("MATTERMOST_URL",           "Server URL",               "mattermost",False),
-    ("MATTERMOST_TOKEN",         "Bot Token",                "mattermost",True),
-    ("MATRIX_HOMESERVER",        "Homeserver URL",           "matrix",    False),
-    ("MATRIX_ACCESS_TOKEN",      "Access Token",             "matrix",    True),
-    ("MATRIX_USER_ID",           "User ID",                  "matrix",    False),
-    ("GATEWAY_ALLOW_ALL_USERS",  "Allow all users",          "gateway",   False),
-    ("ADMIN_USERNAME",           "Admin username",           "admin",     False),
-    ("ADMIN_PASSWORD",           "Admin password",           "admin",     True),
+    ("CUSTOM_PROVIDER_API_KEY", "Custom Provider key", "provider", True),
+    ("CUSTOM_PROVIDER_BASE_URL", "Custom Provider base URL", "custom", False),
+    ("CUSTOM_PROVIDER_NAME", "Custom Provider name", "custom", False),
+    ("PARALLEL_API_KEY", "Parallel (search)", "tool", True),
+    ("FIRECRAWL_API_KEY", "Firecrawl (scrape)", "tool", True),
+    ("TAVILY_API_KEY", "Tavily (search)", "tool", True),
+    ("FAL_KEY", "FAL (image gen)", "tool", True),
+    ("BROWSERBASE_API_KEY", "Browserbase key", "tool", True),
+    ("BROWSERBASE_PROJECT_ID", "Browserbase project", "tool", False),
+    ("GITHUB_TOKEN", "GitHub token", "tool", True),
+    ("VOICE_TOOLS_OPENAI_KEY", "OpenAI (voice/TTS)", "tool", True),
+    ("HONCHO_API_KEY", "Honcho (memory)", "tool", True),
+    ("TELEGRAM_BOT_TOKEN", "Bot Token", "telegram", True),
+    ("TELEGRAM_ALLOWED_USERS", "Allowed User IDs", "telegram", False),
+    ("DISCORD_BOT_TOKEN", "Bot Token", "discord", True),
+    ("DISCORD_ALLOWED_USERS", "Allowed User IDs", "discord", False),
+    ("SLACK_BOT_TOKEN", "Bot Token (xoxb-...)", "slack", True),
+    ("SLACK_APP_TOKEN", "App Token (xapp-...)", "slack", True),
+    ("WHATSAPP_ENABLED", "Enable WhatsApp", "whatsapp", False),
+    ("EMAIL_ADDRESS", "Email Address", "email", False),
+    ("EMAIL_PASSWORD", "Email Password", "email", True),
+    ("EMAIL_IMAP_HOST", "IMAP Host", "email", False),
+    ("EMAIL_SMTP_HOST", "SMTP Host", "email", False),
+    ("MATTERMOST_URL", "Server URL", "mattermost", False),
+    ("MATTERMOST_TOKEN", "Bot Token", "mattermost", True),
+    ("MATRIX_HOMESERVER", "Homeserver URL", "matrix", False),
+    ("MATRIX_ACCESS_TOKEN", "Access Token", "matrix", True),
+    ("MATRIX_USER_ID", "User ID", "matrix", False),
+    ("GATEWAY_ALLOW_ALL_USERS", "Allow all users", "gateway", False),
+    ("ADMIN_USERNAME", "Admin username", "admin", False),
+    ("ADMIN_PASSWORD", "Admin password", "admin", True),
 ]
 
-SECRET_KEYS  = {k for k, _, _, s in ENV_VARS if s}
+SECRET_KEYS = {k for k, _, _, s in ENV_VARS if s}
 PROVIDER_KEYS = [k for k, _, c, _ in ENV_VARS if c == "provider"]
-CHANNEL_MAP  = {
-    "Telegram":    "TELEGRAM_BOT_TOKEN",
-    "Discord":     "DISCORD_BOT_TOKEN",
-    "Slack":       "SLACK_BOT_TOKEN",
-    "WhatsApp":    "WHATSAPP_ENABLED",
-    "Email":       "EMAIL_ADDRESS",
-    "Mattermost":  "MATTERMOST_TOKEN",
-    "Matrix":      "MATRIX_ACCESS_TOKEN",
+CHANNEL_MAP = {
+    "Telegram": "TELEGRAM_BOT_TOKEN",
+    "Discord": "DISCORD_BOT_TOKEN",
+    "Slack": "SLACK_BOT_TOKEN",
+    "WhatsApp": "WHATSAPP_ENABLED",
+    "Email": "EMAIL_ADDRESS",
+    "Mattermost": "MATTERMOST_TOKEN",
+    "Matrix": "MATRIX_ACCESS_TOKEN",
 }
 
 
@@ -199,7 +202,9 @@ def write_config_yaml(data: dict[str, str]) -> None:
     merged = dict(existing)
 
     # Deployment-managed (always authoritative — these reflect the runtime env).
-    merged_model = dict(merged.get("model") if isinstance(merged.get("model"), dict) else {})
+    merged_model = dict(
+        merged.get("model") if isinstance(merged.get("model"), dict) else {}
+    )
     merged_model["default"] = model
     # Only force provider="auto" when a known API key is configured. If no
     # API key is set, the user likely configured an OAuth provider (xai-oauth,
@@ -209,21 +214,31 @@ def write_config_yaml(data: dict[str, str]) -> None:
         merged_model["provider"] = "auto"
     merged["model"] = merged_model
 
-    merged_terminal = dict(merged.get("terminal") if isinstance(merged.get("terminal"), dict) else {})
+    merged_terminal = dict(
+        merged.get("terminal") if isinstance(merged.get("terminal"), dict) else {}
+    )
     merged_terminal["backend"] = "local"
     merged_terminal["timeout"] = 60
     merged_terminal["cwd"] = "/tmp"
     merged["terminal"] = merged_terminal
 
-    merged_agent = dict(merged.get("agent") if isinstance(merged.get("agent"), dict) else {})
+    merged_agent = dict(
+        merged.get("agent") if isinstance(merged.get("agent"), dict) else {}
+    )
     merged_agent.setdefault("max_iterations", 50)
     merged["agent"] = merged_agent
 
     merged["data_dir"] = HERMES_HOME
 
     # Ensure finance bot commands are silently dropped (user plugins are opt-in).
-    merged_plugins = dict(merged.get("plugins") if isinstance(merged.get("plugins"), dict) else {})
-    enabled_plugins = list(merged_plugins.get("enabled") if isinstance(merged_plugins.get("enabled"), list) else [])
+    merged_plugins = dict(
+        merged.get("plugins") if isinstance(merged.get("plugins"), dict) else {}
+    )
+    enabled_plugins = list(
+        merged_plugins.get("enabled")
+        if isinstance(merged_plugins.get("enabled"), list)
+        else []
+    )
     if "skip-finance-bot-commands" not in enabled_plugins:
         enabled_plugins.append("skip-finance-bot-commands")
     merged_plugins["enabled"] = enabled_plugins
@@ -235,12 +250,16 @@ def write_config_yaml(data: dict[str, str]) -> None:
     if custom_base_url:
         raw_name = data.get("CUSTOM_PROVIDER_NAME", "").strip() or custom_base_url
         # Sanitise to a valid hermes provider name (lowercase alphanumeric + hyphens).
-        sanitized_name = re.sub(r"[^a-z0-9-]", "-", raw_name.lower()).strip("-") or "custom"
-        merged["custom_providers"] = [{
-            "name": sanitized_name,
-            "base_url": custom_base_url,
-            "key_env": "CUSTOM_PROVIDER_API_KEY",
-        }]
+        sanitized_name = (
+            re.sub(r"[^a-z0-9-]", "-", raw_name.lower()).strip("-") or "custom"
+        )
+        merged["custom_providers"] = [
+            {
+                "name": sanitized_name,
+                "base_url": custom_base_url,
+                "key_env": "CUSTOM_PROVIDER_API_KEY",
+            }
+        ]
     else:
         merged.pop("custom_providers", None)
 
@@ -250,14 +269,31 @@ def write_config_yaml(data: dict[str, str]) -> None:
 
 def write_env(path: Path, data: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    cat_order = ["model", "provider", "tool",
-                 "telegram", "discord", "slack", "whatsapp",
-                 "email", "mattermost", "matrix", "gateway"]
+    cat_order = [
+        "model",
+        "provider",
+        "tool",
+        "telegram",
+        "discord",
+        "slack",
+        "whatsapp",
+        "email",
+        "mattermost",
+        "matrix",
+        "gateway",
+    ]
     cat_labels = {
-        "model": "Model", "provider": "Providers", "tool": "Tools",
-        "telegram": "Telegram", "discord": "Discord", "slack": "Slack",
-        "whatsapp": "WhatsApp", "email": "Email",
-        "mattermost": "Mattermost", "matrix": "Matrix", "gateway": "Gateway",
+        "model": "Model",
+        "provider": "Providers",
+        "tool": "Tools",
+        "telegram": "Telegram",
+        "discord": "Discord",
+        "slack": "Slack",
+        "whatsapp": "WhatsApp",
+        "email": "Email",
+        "mattermost": "Mattermost",
+        "matrix": "Matrix",
+        "gateway": "Gateway",
     }
     key_cat = {k: c for k, _, c, _ in ENV_VARS}
     grouped: dict[str, list[str]] = {c: [] for c in cat_order}
@@ -288,11 +324,11 @@ def write_env(path: Path, data: dict[str, str]) -> None:
 # xAI's OIDC discovery at https://auth.x.ai/.well-known/openid-configuration
 # declares device_authorization_endpoint, so Device Code flow works without
 # any redirect URL. The client_id matches hermes's own Grok CLI credential.
-_XAI_CLIENT_ID   = "b1a00492-073a-47ea-816f-4c329264a828"
-_XAI_SCOPE       = "openid profile email offline_access grok-cli:access api:access"
-_XAI_DEVICE_URL  = "https://auth.x.ai/oauth2/device/code"
-_XAI_TOKEN_URL   = "https://auth.x.ai/oauth2/token"
-_XAI_GRANT_TYPE  = "urn:ietf:params:oauth:grant-type:device_code"
+_XAI_CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828"
+_XAI_SCOPE = "openid profile email offline_access grok-cli:access api:access"
+_XAI_DEVICE_URL = "https://auth.x.ai/oauth2/device/code"
+_XAI_TOKEN_URL = "https://auth.x.ai/oauth2/token"
+_XAI_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 
 _xai_oauth_state: dict | None = None  # one auth at a time (single-user deployment)
 
@@ -347,6 +383,7 @@ def _save_xai_auth_json(tokens: dict) -> None:
 def _apply_xai_oauth_config(model: str) -> None:
     """Write config.yaml with provider=xai-oauth and the chosen model."""
     import yaml
+
     config_path = Path(HERMES_HOME) / "config.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     existing: dict = {}
@@ -360,19 +397,25 @@ def _apply_xai_oauth_config(model: str) -> None:
             pass
 
     merged = dict(existing)
-    merged_model = dict(merged.get("model") if isinstance(merged.get("model"), dict) else {})
+    merged_model = dict(
+        merged.get("model") if isinstance(merged.get("model"), dict) else {}
+    )
     if model:
         merged_model["default"] = model
     merged_model["provider"] = "xai-oauth"
     merged["model"] = merged_model
 
-    merged_terminal = dict(merged.get("terminal") if isinstance(merged.get("terminal"), dict) else {})
+    merged_terminal = dict(
+        merged.get("terminal") if isinstance(merged.get("terminal"), dict) else {}
+    )
     merged_terminal.setdefault("backend", "local")
     merged_terminal.setdefault("timeout", 60)
     merged_terminal.setdefault("cwd", "/tmp")
     merged["terminal"] = merged_terminal
 
-    merged_agent = dict(merged.get("agent") if isinstance(merged.get("agent"), dict) else {})
+    merged_agent = dict(
+        merged.get("agent") if isinstance(merged.get("agent"), dict) else {}
+    )
     merged_agent.setdefault("max_iterations", 50)
     merged["agent"] = merged_agent
     merged["data_dir"] = HERMES_HOME
@@ -435,7 +478,9 @@ async def _poll_xai_device_auth(state: dict) -> None:
             state["interval"] = min(state["interval"] + 5, 30)
         else:
             state["status"] = "error"
-            state["error"] = err_data.get("error_description", error) or error or "Unknown error"
+            state["error"] = (
+                err_data.get("error_description", error) or error or "Unknown error"
+            )
             print(f"[xai-oauth] failed: {error}", flush=True)
             return
 
@@ -500,7 +545,8 @@ async def api_oauth_xai_start(request: Request) -> Response:
     _xai_oauth_state = {
         "device_code": data["device_code"],
         "user_code": data["user_code"],
-        "verification_uri": data.get("verification_uri_complete") or data["verification_uri"],
+        "verification_uri": data.get("verification_uri_complete")
+        or data["verification_uri"],
         "expires_at": time.time() + data.get("expires_in", 900),
         "interval": max(data.get("interval", 5), 5),
         "status": "pending",
@@ -508,11 +554,13 @@ async def api_oauth_xai_start(request: Request) -> Response:
     }
     asyncio.create_task(_poll_xai_device_auth(_xai_oauth_state))
 
-    return JSONResponse({
-        "user_code": data["user_code"],
-        "verification_uri": _xai_oauth_state["verification_uri"],
-        "expires_in": data.get("expires_in", 900),
-    })
+    return JSONResponse(
+        {
+            "user_code": data["user_code"],
+            "verification_uri": _xai_oauth_state["verification_uri"],
+            "expires_in": data.get("expires_in", 900),
+        }
+    )
 
 
 async def api_oauth_xai_status(request: Request) -> Response:
@@ -523,10 +571,12 @@ async def api_oauth_xai_status(request: Request) -> Response:
         if _has_xai_oauth_tokens():
             return JSONResponse({"status": "authorized"})
         return JSONResponse({"status": "none"})
-    return JSONResponse({
-        "status": _xai_oauth_state["status"],
-        "error": _xai_oauth_state.get("error", ""),
-    })
+    return JSONResponse(
+        {
+            "status": _xai_oauth_state["status"],
+            "error": _xai_oauth_state.get("error", ""),
+        }
+    )
 
 
 def is_config_complete(data: dict[str, str] | None = None) -> bool:
@@ -592,7 +642,9 @@ def _verify_auth_token(token: str) -> bool:
         expires_s, sig = token.rsplit(".", 1)
         if int(expires_s) < time.time():
             return False
-        expected = _hmac.new(COOKIE_SECRET, expires_s.encode(), _hashlib.sha256).hexdigest()
+        expected = _hmac.new(
+            COOKIE_SECRET, expires_s.encode(), _hashlib.sha256
+        ).hexdigest()
         return _hmac.compare_digest(sig, expected)
     except Exception:
         return False
@@ -682,21 +734,31 @@ button:hover{background:#7b8fff;border-color:#7b8fff}
 
 
 def _html_escape(s: str) -> str:
-    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-             .replace('"', "&quot;").replace("'", "&#39;"))
+    return (
+        s.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
 
 
 async def page_login(request: Request) -> Response:
     """GET /login — render the sign-in form."""
     # Already signed in? Bounce to returnTo (or /).
     if _is_authenticated(request):
-        return RedirectResponse(_safe_return_to(request.query_params.get("returnTo", "/")), status_code=302)
+        return RedirectResponse(
+            _safe_return_to(request.query_params.get("returnTo", "/")), status_code=302
+        )
     rt = _safe_return_to(request.query_params.get("returnTo", "/"))
-    error_html = ('<div class="err">Invalid username or password</div>'
-                  if request.query_params.get("error") else "")
-    html = (LOGIN_PAGE_HTML
-            .replace("__ERROR__", error_html)
-            .replace("__RETURN_TO__", _html_escape(rt)))
+    error_html = (
+        '<div class="err">Invalid username or password</div>'
+        if request.query_params.get("error")
+        else ""
+    )
+    html = LOGIN_PAGE_HTML.replace("__ERROR__", error_html).replace(
+        "__RETURN_TO__", _html_escape(rt)
+    )
     return HTMLResponse(html)
 
 
@@ -720,7 +782,9 @@ async def login_post(request: Request) -> Response:
             path="/",
         )
         return resp
-    return RedirectResponse(f"/login?returnTo={_url_quote(return_to)}&error=1", status_code=302)
+    return RedirectResponse(
+        f"/login?returnTo={_url_quote(return_to)}&error=1", status_code=302
+    )
 
 
 async def logout(request: Request) -> Response:
@@ -750,12 +814,18 @@ class Gateway:
             env = {**os.environ, "HERMES_HOME": HERMES_HOME}
             env.update(read_env(ENV_FILE))
             model = env.get("LLM_MODEL", "")
-            provider_key = next((env.get(k, "") for k in PROVIDER_KEYS if env.get(k)), "")
-            print(f"[gateway] model={model or '⚠ NOT SET'} | provider_key={'set' if provider_key else '⚠ NOT SET'}", flush=True)
+            provider_key = next(
+                (env.get(k, "") for k in PROVIDER_KEYS if env.get(k)), ""
+            )
+            print(
+                f"[gateway] model={model or '⚠ NOT SET'} | provider_key={'set' if provider_key else '⚠ NOT SET'}",
+                flush=True,
+            )
             # Write config.yaml so hermes picks up the model (env vars alone aren't always enough)
             write_config_yaml(read_env(ENV_FILE))
             self.proc = await asyncio.create_subprocess_exec(
-                "hermes", "gateway",
+                "hermes",
+                "gateway",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 env=env,
@@ -796,11 +866,17 @@ class Gateway:
             self.logs.append(f"[error] Gateway exited (code {self.proc.returncode})")
 
     def status(self) -> dict:
-        uptime = int(time.time() - self.started_at) if self.started_at and self.state == "running" else None
+        uptime = (
+            int(time.time() - self.started_at)
+            if self.started_at and self.state == "running"
+            else None
+        )
         return {
-            "state":    self.state,
-            "pid":      self.proc.pid if self.proc and self.proc.returncode is None else None,
-            "uptime":   uptime,
+            "state": self.state,
+            "pid": self.proc.pid
+            if self.proc and self.proc.returncode is None
+            else None,
+            "uptime": uptime,
             "restarts": self.restarts,
         }
 
@@ -833,9 +909,12 @@ class Dashboard:
             return
         try:
             self.proc = await asyncio.create_subprocess_exec(
-                "hermes", "dashboard",
-                "--host", HERMES_DASHBOARD_HOST,
-                "--port", str(HERMES_DASHBOARD_PORT),
+                "hermes",
+                "dashboard",
+                "--host",
+                HERMES_DASHBOARD_HOST,
+                "--port",
+                str(HERMES_DASHBOARD_PORT),
                 "--no-open",
                 # --skip-build: the Dockerfile pre-builds the React dashboard
                 # into hermes_cli/web_dist/ at image time. This flag tells
@@ -851,7 +930,10 @@ class Dashboard:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )
-            print(f"[dashboard] spawned pid={self.proc.pid} → {HERMES_DASHBOARD_URL}", flush=True)
+            print(
+                f"[dashboard] spawned pid={self.proc.pid} → {HERMES_DASHBOARD_URL}",
+                flush=True,
+            )
             self._drain_task = asyncio.create_task(self._drain())
         except Exception as e:
             print(f"[dashboard] FAILED to spawn: {e!r}", flush=True)
@@ -869,7 +951,10 @@ class Dashboard:
         finally:
             rc = self.proc.returncode if self.proc else None
             if rc is not None and rc != 0:
-                print(f"[dashboard] EXITED with code {rc} — reverse proxy will return 503 until restart", flush=True)
+                print(
+                    f"[dashboard] EXITED with code {rc} — reverse proxy will return 503 until restart",
+                    flush=True,
+                )
             elif rc == 0:
                 print("[dashboard] exited cleanly (code 0)", flush=True)
 
@@ -903,7 +988,8 @@ def get_http_client() -> httpx.AsyncClient:
 
 # ── Route handlers ────────────────────────────────────────────────────────────
 async def page_index(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     return templates.TemplateResponse(request, "index.html")
 
 
@@ -912,15 +998,19 @@ async def route_health(request: Request):
 
 
 async def api_config_get(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     async with cfg_lock:
         data = read_env(ENV_FILE)
-    defs = [{"key": k, "label": l, "category": c, "secret": s} for k, l, c, s in ENV_VARS]
+    defs = [
+        {"key": k, "label": l, "category": c, "secret": s} for k, l, c, s in ENV_VARS
+    ]
     return JSONResponse({"vars": mask(data), "defs": defs})
 
 
 async def api_config_put(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     try:
         body = await request.json()
     except Exception:
@@ -944,45 +1034,59 @@ async def api_config_put(request: Request):
 
 
 async def api_status(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     data = read_env(ENV_FILE)
     providers = {
-        k.replace("_API_KEY","").replace("_TOKEN","").replace("HF_","HuggingFace ").replace("_"," ").title():
-        {"configured": bool(data.get(k))}
+        k.replace("_API_KEY", "")
+        .replace("_TOKEN", "")
+        .replace("HF_", "HuggingFace ")
+        .replace("_", " ")
+        .title(): {"configured": bool(data.get(k))}
         for k in PROVIDER_KEYS
     }
     channels = {
-        name: {"configured": bool(v := data.get(key,"")) and v.lower() not in ("false","0","no")}
+        name: {
+            "configured": bool(v := data.get(key, ""))
+            and v.lower() not in ("false", "0", "no")
+        }
         for name, key in CHANNEL_MAP.items()
     }
-    return JSONResponse({"gateway": gw.status(), "providers": providers, "channels": channels})
+    return JSONResponse(
+        {"gateway": gw.status(), "providers": providers, "channels": channels}
+    )
 
 
 async def api_logs(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     return JSONResponse({"lines": list(gw.logs)})
 
 
 async def api_gw_start(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     asyncio.create_task(gw.start())
     return JSONResponse({"ok": True})
 
 
 async def api_gw_stop(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     asyncio.create_task(gw.stop())
     return JSONResponse({"ok": True})
 
 
 async def api_gw_restart(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     asyncio.create_task(gw.restart())
     return JSONResponse({"ok": True})
 
 
 async def api_config_reset(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     asyncio.create_task(gw.stop())
     async with cfg_lock:
         if ENV_FILE.exists():
@@ -1002,33 +1106,48 @@ def _pjson(path: Path) -> dict:
 def _wjson(path: Path, data: dict):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-    try: os.chmod(path, 0o600)
-    except OSError: pass
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
 
 
 def _platforms(suffix: str) -> list[str]:
-    if not PAIRING_DIR.exists(): return []
-    return [f.stem.rsplit(f"-{suffix}", 1)[0] for f in PAIRING_DIR.glob(f"*-{suffix}.json")]
+    if not PAIRING_DIR.exists():
+        return []
+    return [
+        f.stem.rsplit(f"-{suffix}", 1)[0] for f in PAIRING_DIR.glob(f"*-{suffix}.json")
+    ]
 
 
 async def api_pairing_pending(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     now = time.time()
     out = []
     for p in _platforms("pending"):
         for code, info in _pjson(PAIRING_DIR / f"{p}-pending.json").items():
             if now - info.get("created_at", now) <= PAIRING_TTL:
-                out.append({"platform": p, "code": code,
-                            "user_id": info.get("user_id",""), "user_name": info.get("user_name",""),
-                            "age_minutes": int((now - info.get("created_at", now)) / 60)})
+                out.append(
+                    {
+                        "platform": p,
+                        "code": code,
+                        "user_id": info.get("user_id", ""),
+                        "user_name": info.get("user_name", ""),
+                        "age_minutes": int((now - info.get("created_at", now)) / 60),
+                    }
+                )
     return JSONResponse({"pending": out})
 
 
 async def api_pairing_approve(request: Request):
-    if err := guard(request): return err
-    try: body = await request.json()
-    except Exception: return JSONResponse({"error": "Invalid JSON"}, status_code=400)
-    platform, code = body.get("platform",""), body.get("code","").upper().strip()
+    if err := guard(request):
+        return err
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    platform, code = body.get("platform", ""), body.get("code", "").upper().strip()
     if not platform or not code:
         return JSONResponse({"error": "platform and code required"}, status_code=400)
     pending_path = PAIRING_DIR / f"{platform}-pending.json"
@@ -1038,16 +1157,22 @@ async def api_pairing_approve(request: Request):
     entry = pending.pop(code)
     _wjson(pending_path, pending)
     approved = _pjson(PAIRING_DIR / f"{platform}-approved.json")
-    approved[entry["user_id"]] = {"user_name": entry.get("user_name",""), "approved_at": time.time()}
+    approved[entry["user_id"]] = {
+        "user_name": entry.get("user_name", ""),
+        "approved_at": time.time(),
+    }
     _wjson(PAIRING_DIR / f"{platform}-approved.json", approved)
     return JSONResponse({"ok": True})
 
 
 async def api_pairing_deny(request: Request):
-    if err := guard(request): return err
-    try: body = await request.json()
-    except Exception: return JSONResponse({"error": "Invalid JSON"}, status_code=400)
-    platform, code = body.get("platform",""), body.get("code","").upper().strip()
+    if err := guard(request):
+        return err
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    platform, code = body.get("platform", ""), body.get("code", "").upper().strip()
     p = PAIRING_DIR / f"{platform}-pending.json"
     pending = _pjson(p)
     if code in pending:
@@ -1057,20 +1182,30 @@ async def api_pairing_deny(request: Request):
 
 
 async def api_pairing_approved(request: Request):
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     out = []
     for p in _platforms("approved"):
         for uid, info in _pjson(PAIRING_DIR / f"{p}-approved.json").items():
-            out.append({"platform": p, "user_id": uid,
-                        "user_name": info.get("user_name",""), "approved_at": info.get("approved_at",0)})
+            out.append(
+                {
+                    "platform": p,
+                    "user_id": uid,
+                    "user_name": info.get("user_name", ""),
+                    "approved_at": info.get("approved_at", 0),
+                }
+            )
     return JSONResponse({"approved": out})
 
 
 async def api_pairing_revoke(request: Request):
-    if err := guard(request): return err
-    try: body = await request.json()
-    except Exception: return JSONResponse({"error": "Invalid JSON"}, status_code=400)
-    platform, uid = body.get("platform",""), body.get("user_id","")
+    if err := guard(request):
+        return err
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    platform, uid = body.get("platform", ""), body.get("user_id", "")
     if not platform or not uid:
         return JSONResponse({"error": "platform and user_id required"}, status_code=400)
     p = PAIRING_DIR / f"{platform}-approved.json"
@@ -1090,11 +1225,11 @@ _WIDGET_LINK_STYLE = (
 )
 BACK_TO_SETUP_WIDGET = (
     '<div id="hermes-back-widget" style="position:fixed;bottom:14px;right:14px;'
-    'z-index:99999;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;'
+    "z-index:99999;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;"
     'font-size:11px;display:flex;gap:8px;">'
     f'<a href="/setup" style="{_WIDGET_LINK_STYLE}">← Setup</a>'
     f'<a href="/logout" style="{_WIDGET_LINK_STYLE}">Sign out</a>'
-    '</div>'
+    "</div>"
 )
 
 DASHBOARD_UNAVAILABLE_HTML = f"""<!DOCTYPE html>
@@ -1131,8 +1266,7 @@ async def _proxy_to_dashboard(request: Request) -> Response:
         target = f"{target}?{request.url.query}"
 
     req_headers = {
-        k: v for k, v in request.headers.items()
-        if k.lower() not in HOP_BY_HOP
+        k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP
     }
     body = await request.body()
 
@@ -1146,7 +1280,10 @@ async def _proxy_to_dashboard(request: Request) -> Response:
     except (httpx.ConnectError, httpx.ConnectTimeout):
         return HTMLResponse(DASHBOARD_UNAVAILABLE_HTML, status_code=503)
     except httpx.RequestError as e:
-        print(f"[proxy] upstream error for {request.method} {request.url.path}: {e}", flush=True)
+        print(
+            f"[proxy] upstream error for {request.method} {request.url.path}: {e}",
+            flush=True,
+        )
         return HTMLResponse(DASHBOARD_UNAVAILABLE_HTML, status_code=502)
 
     # Surface non-2xx responses from hermes into Railway logs so we can
@@ -1161,7 +1298,8 @@ async def _proxy_to_dashboard(request: Request) -> Response:
 
     # Strip hop-by-hop and length/encoding headers — Starlette recomputes them.
     resp_headers = {
-        k: v for k, v in upstream.headers.items()
+        k: v
+        for k, v in upstream.headers.items()
         if k.lower() not in HOP_BY_HOP
         and k.lower() not in ("content-encoding", "content-length")
     }
@@ -1195,23 +1333,28 @@ async def route_root(request: Request) -> Response:
       the Keys tab) can still reach it without saving config first.
     - Non-GET (SPA API calls, etc.) always proxy through.
     """
-    if err := guard(request): return err
-    if (request.method == "GET"
-            and request.query_params.get("force") != "1"
-            and not is_config_complete()):
+    if err := guard(request):
+        return err
+    if (
+        request.method == "GET"
+        and request.query_params.get("force") != "1"
+        and not is_config_complete()
+    ):
         return RedirectResponse("/setup", status_code=302)
     return await _proxy_to_dashboard(request)
 
 
 async def route_proxy(request: Request) -> Response:
     """Catch-all: forward any unmatched path to the Hermes dashboard."""
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     return await _proxy_to_dashboard(request)
 
 
 async def route_setup_404(request: Request) -> Response:
     """Typos under /setup/* should 404 here — not fall through to the proxy."""
-    if err := guard(request): return err
+    if err := guard(request):
+        return err
     return Response("Not Found", status_code=404, media_type="text/plain")
 
 
@@ -1220,7 +1363,10 @@ async def auto_start():
     if is_config_complete():
         asyncio.create_task(gw.start())
     else:
-        print("[server] Config incomplete — gateway not started. Configure provider + model in the admin UI.", flush=True)
+        print(
+            "[server] Config incomplete — gateway not started. Configure provider + model in the admin UI.",
+            flush=True,
+        )
 
 
 @asynccontextmanager
@@ -1286,7 +1432,9 @@ async def _ws_pump_client_to_upstream(
     except (WebSocketDisconnect, websockets.exceptions.ConnectionClosed):
         return
     except Exception as e:
-        print(f"[ws-proxy] client→upstream error on {client.url.path}: {e!r}", flush=True)
+        print(
+            f"[ws-proxy] client→upstream error on {client.url.path}: {e!r}", flush=True
+        )
         return
 
 
@@ -1304,7 +1452,9 @@ async def _ws_pump_upstream_to_client(
     except (websockets.exceptions.ConnectionClosed, WebSocketDisconnect):
         return
     except Exception as e:
-        print(f"[ws-proxy] upstream→client error on {client.url.path}: {e!r}", flush=True)
+        print(
+            f"[ws-proxy] upstream→client error on {client.url.path}: {e!r}", flush=True
+        )
         return
 
 
@@ -1390,49 +1540,44 @@ ANY_METHOD = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]
 
 routes = [
     # Public — no auth required.
-    Route("/health",                            route_health),
-    Route("/login",                             page_login,          methods=["GET"]),
-    Route("/login",                             login_post,          methods=["POST"]),
-    Route("/logout",                            logout),
-
+    Route("/health", route_health),
+    Route("/login", page_login, methods=["GET"]),
+    Route("/login", login_post, methods=["POST"]),
+    Route("/logout", logout),
     # Our setup wizard + management API, all under /setup/* (cookie-auth guarded).
-    Route("/setup",                             page_index),
-    Route("/setup/",                            page_index),
-    Route("/setup/api/config",                  api_config_get,      methods=["GET"]),
-    Route("/setup/api/config",                  api_config_put,      methods=["PUT"]),
-    Route("/setup/api/status",                  api_status),
-    Route("/setup/api/logs",                    api_logs),
-    Route("/setup/api/gateway/start",           api_gw_start,        methods=["POST"]),
-    Route("/setup/api/gateway/stop",            api_gw_stop,         methods=["POST"]),
-    Route("/setup/api/gateway/restart",         api_gw_restart,      methods=["POST"]),
-    Route("/setup/api/config/reset",            api_config_reset,    methods=["POST"]),
-    Route("/setup/api/pairing/pending",         api_pairing_pending),
-    Route("/setup/api/pairing/approve",         api_pairing_approve, methods=["POST"]),
-    Route("/setup/api/pairing/deny",            api_pairing_deny,    methods=["POST"]),
-    Route("/setup/api/pairing/approved",        api_pairing_approved),
-    Route("/setup/api/pairing/revoke",          api_pairing_revoke,  methods=["POST"]),
-    Route("/setup/api/oauth/xai/start",         api_oauth_xai_start,  methods=["POST"]),
-    Route("/setup/api/oauth/xai/status",        api_oauth_xai_status),
-    Route("/setup/api/oauth/xai",               api_oauth_xai_delete, methods=["DELETE"]),
-
+    Route("/setup", page_index),
+    Route("/setup/", page_index),
+    Route("/setup/api/config", api_config_get, methods=["GET"]),
+    Route("/setup/api/config", api_config_put, methods=["PUT"]),
+    Route("/setup/api/status", api_status),
+    Route("/setup/api/logs", api_logs),
+    Route("/setup/api/gateway/start", api_gw_start, methods=["POST"]),
+    Route("/setup/api/gateway/stop", api_gw_stop, methods=["POST"]),
+    Route("/setup/api/gateway/restart", api_gw_restart, methods=["POST"]),
+    Route("/setup/api/config/reset", api_config_reset, methods=["POST"]),
+    Route("/setup/api/pairing/pending", api_pairing_pending),
+    Route("/setup/api/pairing/approve", api_pairing_approve, methods=["POST"]),
+    Route("/setup/api/pairing/deny", api_pairing_deny, methods=["POST"]),
+    Route("/setup/api/pairing/approved", api_pairing_approved),
+    Route("/setup/api/pairing/revoke", api_pairing_revoke, methods=["POST"]),
+    Route("/setup/api/oauth/xai/start", api_oauth_xai_start, methods=["POST"]),
+    Route("/setup/api/oauth/xai/status", api_oauth_xai_status),
+    Route("/setup/api/oauth/xai", api_oauth_xai_delete, methods=["DELETE"]),
     # /setup/* typos return a real 404 — not a silent proxy fallthrough.
-    Route("/setup/{path:path}",                 route_setup_404,     methods=ANY_METHOD),
-
+    Route("/setup/{path:path}", route_setup_404, methods=ANY_METHOD),
     # Reverse-proxy hermes's dashboard WebSockets (Chat tab + sidecar).
     # WebSocketRoute is matched independently of HTTP routes, so order
     # relative to the catch-all HTTP `Route("/{path:path}", ...)` below
     # doesn't matter — but listing them as a group keeps the surface
     # area auditable. Only paths in PROXIED_WS_PATHS are forwarded;
     # /api/pub is intentionally omitted.
-    WebSocketRoute("/api/pty",                  ws_proxy),
-    WebSocketRoute("/api/ws",                   ws_proxy),
-    WebSocketRoute("/api/events",               ws_proxy),
-
+    WebSocketRoute("/api/pty", ws_proxy),
+    WebSocketRoute("/api/ws", ws_proxy),
+    WebSocketRoute("/api/events", ws_proxy),
     # Root: redirect to /setup if unconfigured, otherwise proxy the dashboard.
-    Route("/",                                  route_root,          methods=ANY_METHOD),
-
+    Route("/", route_root, methods=ANY_METHOD),
     # Catch-all: everything else proxies to the Hermes dashboard subprocess.
-    Route("/{path:path}",                       route_proxy,         methods=ANY_METHOD),
+    Route("/{path:path}", route_proxy, methods=ANY_METHOD),
 ]
 
 # No middleware — auth is enforced per-handler via guard(). This keeps /health
@@ -1441,10 +1586,13 @@ app = Starlette(routes=routes, lifespan=lifespan)
 
 if __name__ == "__main__":
     import uvicorn
+
     port = int(os.environ.get("PORT", "8080"))
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info", loop="asyncio")
+    config = uvicorn.Config(
+        app, host="0.0.0.0", port=port, log_level="info", loop="asyncio"
+    )
     server = uvicorn.Server(config)
 
     def _shutdown():

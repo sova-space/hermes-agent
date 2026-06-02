@@ -38,6 +38,7 @@ def test_mark_bought_moves_item_to_bought_list(session: Session) -> None:
     item_id = uuid.UUID(created["id"])
 
     from datetime import datetime
+
     queries.update_buy_list_item(
         session,
         item_id,

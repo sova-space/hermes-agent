@@ -39,6 +39,7 @@ def test_settled_debt_absent_from_open_list(session: Session) -> None:
     debt_id = uuid.UUID(created["id"])
 
     from datetime import datetime
+
     queries.update_debt(
         session,
         debt_id,

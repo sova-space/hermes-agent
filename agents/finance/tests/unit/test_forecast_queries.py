@@ -12,6 +12,7 @@ def test_forecast_with_no_data_returns_zero_projections(
 ) -> None:
     """GET /forecast with empty DB returns zero projections without error."""
     import finance_api.domains.insights.queries as q_module
+
     test_engine = session.get_bind()
     monkeypatch.setattr(q_module, "engine", test_engine)
 
@@ -50,6 +51,7 @@ def test_deactivated_recurring_excluded_from_forecast(
 ) -> None:
     """Deactivated recurring item is not included in forecast calculation."""
     import finance_api.domains.insights.queries as q_module
+
     test_engine = session.get_bind()
     monkeypatch.setattr(q_module, "engine", test_engine)
 
