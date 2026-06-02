@@ -24,7 +24,14 @@ def _load_commands() -> None:
 def pre_dispatch(event, **kwargs):
     _load_commands()
     cmd = event.get_command() if hasattr(event, "get_command") else None
-    if cmd and cmd in _finance_commands:
+    if not cmd or cmd not in _finance_commands:
+        return None
+    # Only silence when the command is explicitly @-addressed to another bot
+    # (e.g. /balance@sova_finance_bot). Bare /balance passes through so the
+    # AI can redirect the user to #finance per the skill rules.
+    text = getattr(event, "text", "") or ""
+    command_token = text.split()[0] if text else ""
+    if "@" in command_token:
         return {"action": "skip", "reason": "finance bot command"}
     return None
 
