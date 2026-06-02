@@ -79,7 +79,7 @@ Handles conversations on Telegram and Slack. Routes user intent to skills. Propo
 
 ### Sova Finance — Finance Bot
 
-Bot: `@sova_finance_bot` · Service: `finance-api` · Railway project: `finance-agent`
+Bot: `@sova_finance_bot` · Service: `hermes-finance` · Railway project: `hermes-main`
 
 Monobank sync, spending analytics, budget tracking. Full documentation: [`agents/finance/README.md`](agents/finance/README.md).
 
@@ -164,24 +164,17 @@ docker build -f agents/finance/Dockerfile agents/finance/
 
 ### Deploy to Railway
 
-Two separate Railway projects, both served from this monorepo:
+One Railway project — `hermes-main` — hosts all services:
 
-| Component | Railway Project | Project ID |
-|-----------|----------------|------------|
-| Hermes orchestrator | `hermes-main` | `3d73dc58-1201-4258-bc1d-1f9c24333032` |
-| Finance sub-agent | `finance-agent` | `186cf9f1-f88f-4b73-b286-a055e107cc9d` |
+| Service | Name | Root directory |
+|---------|------|---------------|
+| Hermes orchestrator | `Hermes Agent` | repo root |
+| Finance sub-agent | `hermes-finance` | `agents/finance/` |
+| PostgreSQL | `Postgres` | — |
 
-Railway does **not** auto-deploy on git push. After merging to `main`:
+**Auto-deploy is active.** Push to `main` → Railway deploys only the affected service via watch patterns. No manual `railway up` needed.
 
-```bash
-# Hermes orchestrator — from repo root
-railway up --detach
-
-# Finance sub-agent — from agents/finance/
-cd agents/finance
-railway link --project 186cf9f1-f88f-4b73-b286-a055e107cc9d --service b6cb492f-9100-4330-82db-8afd95d6fe91
-railway up --detach
-```
+Services communicate over **private networking** (`*.railway.internal`) using Railway reference variables — no public URLs in config.
 
 Environment variables are set in Railway Variables only — never in the repo. See [`agents/finance/README.md`](agents/finance/README.md#environment-variables) for the full variable list.
 
