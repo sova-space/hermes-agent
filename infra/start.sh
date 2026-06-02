@@ -59,6 +59,25 @@ else
   rm -rf /data/.hermes/plugins
 fi
 
+# Enable our custom plugins in config.yaml on every boot so they don't
+# require manual opt-in (the Hermes plugin system gates user plugins behind
+# plugins.enabled by default).
+if [ -f /data/.hermes/config.yaml ]; then
+  python3 - <<'PYEOF'
+import yaml, sys
+path = "/data/.hermes/config.yaml"
+with open(path) as f:
+    cfg = yaml.safe_load(f) or {}
+plugins_cfg = cfg.setdefault("plugins", {})
+enabled = plugins_cfg.setdefault("enabled", [])
+for name in ["finance-silence"]:
+    if name not in enabled:
+        enabled.append(name)
+with open(path, "w") as f:
+    yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+PYEOF
+fi
+
 # Inject Telegram config into config.yaml on every boot.
 # Using a content hash so changes in telegram.yaml are always picked up —
 # not just on first boot.
