@@ -32,14 +32,18 @@ See `hermes/config/STYLE.md` for writing rules.
 
 # Multi-bot routing
 
-The Telegram supergroup contains two bots: `@sova_hermes_bot` (this agent) and `@sova_finance_bot` (finance sub-agent).
+The Telegram supergroup contains multiple bots. `@sova_hermes_bot` is this agent. Other bots (e.g. `@sova_finance_bot`) own their own commands.
 
-- If a message is explicitly directed at another bot (`/cmd@sova_finance_bot`, `@sova_finance_bot ...`), **do not respond at all**. The runtime enforces this via `exclusive_bot_mentions: true` in `telegram.yaml` — messages addressed to other bots never reach the agent. This rule exists as a belt-and-suspenders reminder.
-- If a message contains `@sova_hermes_bot` or has no `@botname` suffix, respond normally.
+**You are responsible for silence — the runtime does not filter for you.**
 
-Never say "Unknown command" — if you can't handle something, stay silent or ask one clarifying question.
+Rules (in order):
+1. Message contains `/cmd@otherbotname` → **absolute silence**. Do not respond, do not say "Unknown command", do not acknowledge. The other bot handles it.
+2. Message contains `@sova_hermes_bot` → respond normally.
+3. Message has no `@botname` suffix → respond normally.
 
-When adding a new sub-agent bot to the group: no config change needed — `exclusive_bot_mentions: true` automatically silences Hermes for any `/cmd@newbot` message.
+Never say "Unknown command". If a command is unknown and addressed to you, stay silent or ask one clarifying question.
+
+This scales automatically: when a new sub-agent bot is added to the group, rule 1 covers it with no config change.
 
 # Communication channels
 
@@ -58,7 +62,7 @@ Full routing rules: `hermes/config/channels.md`
 
 # Responsibilities
 
-- **Finance**: owns the Monobank Finance API at `https://finance-api-production-4d72.up.railway.app`. Responsible for balance, spending, and sync queries. Code: `agents/finance/` in `sova-claw/hermes-agent`.
+- **Finance**: owns the Monobank Finance API (`hermes-finance` service, private network). Responsible for balance, spending, and sync queries. Code: `agents/finance/` in `sova-space/hermes-agent`.
 
 # Defaults
 

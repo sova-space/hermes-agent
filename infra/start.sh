@@ -59,14 +59,19 @@ else
   rm -rf /data/.hermes/plugins
 fi
 
-# Seed Telegram topic config into config.yaml on first boot.
-# This ensures topic IDs survive volume wipes — they're stored in the repo,
-# not just on the volume.
+# Inject Telegram config into config.yaml on every boot.
+# Using a content hash so changes in telegram.yaml are always picked up —
+# not just on first boot.
 if [ -f /app/config/telegram.yaml ] && [ -f /data/.hermes/config.yaml ]; then
-  # Only inject if not already present (avoid overwriting user customisations)
-  if ! grep -q "default_chat_id: -1003913424869" /data/.hermes/config.yaml 2>/dev/null; then
-    # Append telegram section to config.yaml
+  TELEGRAM_HASH=$(md5sum /app/config/telegram.yaml | cut -d' ' -f1)
+  if ! grep -q "# telegram-hash: ${TELEGRAM_HASH}" /data/.hermes/config.yaml 2>/dev/null; then
+    # Remove old telegram section (from the 'telegram:' key to end of file)
+    sed -i '/^telegram:/,$ d' /data/.hermes/config.yaml
+    # Remove any stale hash comment
+    sed -i '/^# telegram-hash:/d' /data/.hermes/config.yaml
+    # Append updated telegram section with hash marker
     echo "" >> /data/.hermes/config.yaml
+    echo "# telegram-hash: ${TELEGRAM_HASH}" >> /data/.hermes/config.yaml
     cat /app/config/telegram.yaml >> /data/.hermes/config.yaml
   fi
 fi
