@@ -18,7 +18,9 @@ All code lives in `sova-claw/hermes-agent` at `/Users/nkhimin/Projects/personal/
 | Component | Railway Project | Project ID | Code path |
 |---|---|---|---|
 | Hermes orchestrator | `hermes-main` | `3d73dc58-1201-4258-bc1d-1f9c24333032` | repo root |
-| Finance sub-agent | `finance-agent` | `186cf9f1-f88f-4b73-b286-a055e107cc9d` | `agents/finance/` |
+| Finance sub-agent | `hermes-main` | `3d73dc58-1201-4258-bc1d-1f9c24333032` | `agents/finance/` |
+
+Both services live in the same Railway project `hermes-main`. The old `finance-agent` project (`186cf9f1`) is decommissioned.
 
 ---
 
@@ -75,7 +77,7 @@ railway up --detach -m "your message"
 
 ---
 
-## finance-agent
+## hermes-finance (finance sub-agent)
 
 ### Build
 | Field | Value |
@@ -92,10 +94,10 @@ railway up --detach -m "your message"
 ### Services
 | Name | Service ID | Role | Public URL |
 |---|---|---|---|
-| `finance-api` | `b6cb492f-9100-4330-82db-8afd95d6fe91` | FastAPI + aiogram + APScheduler | `finance-api-production-4d72.up.railway.app` |
-| `Postgres` | `b81eaac6-f7f1-46c4-a113-b60a39e59729` | PostgreSQL 16 | internal only |
+| `hermes-finance` | `9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96` | FastAPI + PTB + APScheduler | `hermes-finance-production.up.railway.app` |
+| `Postgres` | `b6daf7a2-de33-4767-a78b-e4e4d7424d58` | PostgreSQL 16 | internal only |
 
-Environment ID: `de3164da-54fe-4557-ae8b-bd5d1ef01a33`
+Environment: `production` (`a2a88403-f2b1-4a18-a44d-3b808d07bcb1`)
 
 ### Volumes
 | Volume | Mount | Size | Attached to |
@@ -104,14 +106,12 @@ Environment ID: `de3164da-54fe-4557-ae8b-bd5d1ef01a33`
 
 ### Network (internal)
 ```
-finance-api → Postgres
+hermes-finance → Postgres
   Host:     postgres.railway.internal
   Port:     5432
   Database: railway
   Var:      DATABASE_URL  (postgresql+psycopg://user:pass@postgres.railway.internal:5432/railway)
 ```
-
-`finance-api` never exposes Postgres externally. All DB access goes through the Railway internal network.
 
 ### Env vars
 ```
@@ -119,11 +119,13 @@ finance-api → Postgres
 DATABASE_URL               # Railway reference variable → Postgres service
 MONOBANK_TOKEN             # Monobank API token for sync
 TELEGRAM_BOT_TOKEN         # @sova_finance_bot token
+MINI_APP_URL               # https://hermes-finance-production.up.railway.app/miniapp
 PORT                       # 8000
 ENVIRONMENT                # production
 LOG_LEVEL                  # INFO
 MONOBANK_FETCH_DAYS        # 730
 SYNC_INTERVAL_HOURS        # 1
+TELEGRAM_OWNER_ID          # Nazar's Telegram user ID
 
 # Have defaults — override if needed
 TELEGRAM_CHAT_ID           # -1003913424869
@@ -136,18 +138,17 @@ FOP_ACCOUNT_IDS            # comma-separated Monobank account IDs of salary/FOP 
 
 ### Deploy
 ```bash
-# Must be at agents/finance/
+# Must be at agents/finance/ — railway up uses local dir as build context
 cd /Users/nkhimin/Projects/personal/hermes-agent/agents/finance
 
-# Verify context
+# Verify context (should show hermes-main / hermes-finance)
 railway status
-# Expected: Project: finance-agent, Service: finance-api
 
 # If wrong, re-link:
 railway link \
-  --project 186cf9f1-f88f-4b73-b286-a055e107cc9d \
-  --service b6cb492f-9100-4330-82db-8afd95d6fe91 \
-  --environment de3164da-54fe-4557-ae8b-bd5d1ef01a33
+  --project 3d73dc58-1201-4258-bc1d-1f9c24333032 \
+  --service 9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96 \
+  --environment a2a88403-f2b1-4a18-a44d-3b808d07bcb1
 
 railway up --detach -m "your message"
 ```
@@ -170,8 +171,8 @@ railway service logs --lines 100 | grep -iE "alembic|migration|error|traceback"
 
 ### Health check URLs
 ```
-Hermes Agent:  https://hermes-agent-production-d21c.up.railway.app/health
-Finance API:   https://finance-api-production-4d72.up.railway.app/health
+Hermes Agent:   https://hermes-agent-production-d21c.up.railway.app/health
+Finance API:    https://hermes-finance-production.up.railway.app/health
 ```
 
 ---
@@ -207,10 +208,11 @@ railway link --project ID \
 
 ## Hard rules
 
-- **Never deploy finance from `hermes-main`** — wrong project, no finance service there
+- **Finance IS in `hermes-main`** — link to project `3d73dc58`, service `9bc27c48`
+- **Deploy finance from `agents/finance/`** — `railway up` uses local dir as build context; running from repo root uploads the wrong Dockerfile
 - **Never deploy from `/Users/nkhimin/Projects/personal/hermes-finance/`** — stale archived repo
-- **Never create new services in existing projects** — both projects already have their services
-- **Never assume git push triggered a deploy** — it never does
+- **Never create new services in existing projects** — all services already exist in `hermes-main`
+- **Never assume git push triggered a deploy** — it never does; always run `railway up --detach`
 - **Secrets in Railway Variables only** — never in code, never committed
 
 ---
