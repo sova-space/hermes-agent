@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime
 from typing import Any
 
-from finance_api.bot.telegram_fmt import bold, code, expandable_blockquote, italic, pre
+from finance_api.bot.telegram_fmt import bold, code, expandable_blockquote, italic
 from finance_api.domains.transactions import categories as cat
 
 CATEGORY_EMOJI: dict[str, str] = {
@@ -142,49 +142,60 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
     )
 
 
+def _fmt_income_period(summary: dict[str, Any]) -> str:
+    start_raw = summary.get("period_start")
+    end_raw = summary.get("period_end")
+    if not start_raw or not end_raw:
+        return summary.get("period", "")
+    start = date.fromisoformat(start_raw)
+    end = date.fromisoformat(end_raw)
+    if start.month == end.month:
+        return f"{start.strftime('%b %-d')} - {end.strftime('%-d')}"
+    return f"{start.strftime('%b %-d')} - {end.strftime('%b %-d')}"
+
+
 def format_income_summary(summary: dict[str, Any]) -> str:
-    """Format monthly income vs spending as a monospace code block."""
+    """Format income: earned totals visible, source/spending details expandable."""
     by_cur = summary.get("by_currency", {})
     if not by_cur:
         return ""
 
-    period = summary.get("period", "")
-    LABEL_W = len("Spending")  # longest label — keeps columns stable
+    period = _fmt_income_period(summary)
 
-    all_amt_strs: list[str] = []
-    for c, v in by_cur.items():
-        total = v["fop"] + v["personal"]
-        for val in (v["fop"], v["personal"], total, v["spending"]):
-            if val:
-                all_amt_strs.append(_fmt_amount(val, c))
-    if not all_amt_strs:
+    # Validate there's something to show
+    has_data = any(v["fop"] or v["personal"] for v in by_cur.values())
+    if not has_data:
         return ""
 
-    amount_w = max(len(s) for s in all_amt_strs)
-    div = "─" * (LABEL_W + 2 + amount_w)
-
-    lines = [f"Income · {period}"]
-    for i, (c, v) in enumerate(by_cur.items()):
-        if i:
-            lines.append("")
-        lines.append(c)
-        if v["fop"]:
-            lines.append(
-                f"  {'FOP':<{LABEL_W}}  {_fmt_amount(v['fop'], c):>{amount_w}}"
-            )
-        if v["personal"]:
-            p_amt = _fmt_amount(v["personal"], c)
-            lines.append(f"  {'Personal':<{LABEL_W}}  {p_amt:>{amount_w}}")
+    # Top section — salary transactions with date, then spending summary
+    top_lines: list[str] = []
+    for currency, v in by_cur.items():
         total = v["fop"] + v["personal"]
-        if v["fop"] and v["personal"]:
-            lines.append(f"  {div}")
-            lines.append(f"  {'Total':<{LABEL_W}}  {_fmt_amount(total, c):>{amount_w}}")
-        if v["spending"]:
-            pct = f"  {round(v['spending'] / total * 100)}%" if total else ""
-            s_amt = _fmt_amount(v["spending"], c)
-            lines.append(f"  {'Spending':<{LABEL_W}}  {s_amt:>{amount_w}}{pct}")
+        if not total:
+            continue
+        flag = _CURRENCY_FLAG.get(currency, "💱")
+        top_lines.append(f"{flag} {bold(currency)}")
 
-    return pre("\n".join(lines))
+        all_txns: list[tuple[str, dict[str, Any]]] = [
+            ("FOP", t) for t in v.get("fop_txns", [])
+        ] + [("Personal", t) for t in v.get("personal_txns", [])]
+        all_txns.sort(key=lambda x: x[1]["date"])
+
+        for source, t in all_txns:
+            dt = date.fromisoformat(t["date"])
+            label = f"{source} · {dt.strftime('%b %-d')}"
+            amt = _fmt_amount(t["amount"], currency)
+            top_lines.append(f"  {label}  {bold(amt)}")
+
+        if v["spending"]:
+            pct = round(v["spending"] / total * 100)
+            spent = _fmt_amount(round(v["spending"]), currency)
+            top_lines.append(f"  Spent  {spent} ({pct}%)")
+
+    if not top_lines:
+        return ""
+
+    return f"💰 {bold(f'Income · {period}')}\n\n" + "\n".join(top_lines)
 
 
 def format_stats(spending: dict[str, float], period: str = "this_month") -> str:

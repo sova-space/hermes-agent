@@ -232,25 +232,32 @@ def _sync_account(client: MonobankClient, acc: dict[str, Any], now_ts: int) -> i
         ]
 
         with Session(engine) as session:
-            existing_ids: set[str] = set(
-                session.exec(
-                    select(Transaction.monobank_id).where(
+            existing_by_id: dict[str, Transaction] = {
+                t.monobank_id: t
+                for t in session.exec(
+                    select(Transaction).where(
                         Transaction.monobank_id.in_(monobank_ids + cashback_ids)  # type: ignore[attr-defined]
                     )
                 ).all()
-            )
+            }
 
             new_expense_txs: list[Transaction] = []
             for tx in txs:
                 parsed = _parse_tx(tx, account_id, currency, is_fop=is_fop)
-                if parsed and parsed.monobank_id not in existing_ids:
+                if not parsed:
+                    continue
+                existing = existing_by_id.get(parsed.monobank_id)
+                if existing is None:
                     session.add(parsed)
                     imported += 1
                     if parsed.amount < 0 and parsed.category is not None:
                         new_expense_txs.append(parsed)
+                elif existing.notes != parsed.notes:
+                    existing.notes = parsed.notes
+                    session.add(existing)
 
                 cb = _parse_cashback(tx, account_id, currency)
-                if cb and cb.monobank_id not in existing_ids:
+                if cb and cb.monobank_id not in existing_by_id:
                     session.add(cb)
                     imported += 1
 

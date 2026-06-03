@@ -307,23 +307,49 @@ def get_income_summary() -> dict[str, Any]:
             select(Account.id).where(Account.is_fop == False)  # noqa: E712
         ).all()
 
-        def _income(acc_ids: list) -> dict[str, int]:
+        def _income_txns(
+            acc_ids: list,
+        ) -> list[dict[str, Any]]:
             if not acc_ids:
-                return {}
-            rows = session.exec(
-                select(Transaction.currency, func.sum(Transaction.amount))
+                return []
+            base = (
+                select(Transaction)
                 .where(Transaction.account_id.in_(acc_ids))
                 .where(Transaction.amount > 0)
                 .where(Transaction.category != cat.CASHBACK)
                 .where(Transaction.date >= start)
                 .where(Transaction.date <= end)
                 .where(Transaction.is_pending == False)  # noqa: E712
-                .group_by(Transaction.currency)
+                .order_by(Transaction.date)
+            )
+            # Prefer #salary-tagged transactions; fall back to all positives
+            tagged = session.exec(
+                base.where(Transaction.notes.ilike("%#salary%"))  # type: ignore[union-attr]
             ).all()
-            return {c: round(v) for c, v in rows if v > 0}
+            rows = tagged if tagged else session.exec(base).all()
+            return [
+                {
+                    "date": t.date.isoformat(),
+                    "amount": round(t.amount),
+                    "currency": t.currency,
+                    "description": t.description,
+                }
+                for t in rows
+            ]
 
-        fop = _income(fop_ids)
-        personal = _income(personal_ids)
+        fop_txns = _income_txns(fop_ids)
+        personal_txns = _income_txns(personal_ids)
+
+        def _totals(
+            txns: list[dict[str, Any]],
+        ) -> dict[str, int]:
+            totals: dict[str, int] = {}
+            for t in txns:
+                totals[t["currency"]] = totals.get(t["currency"], 0) + t["amount"]
+            return totals
+
+        fop = _totals(fop_txns)
+        personal = _totals(personal_txns)
 
         spending_rows = session.exec(
             select(Transaction.currency, func.sum(Transaction.amount))
@@ -338,11 +364,15 @@ def get_income_summary() -> dict[str, Any]:
         all_currencies = sorted(set(fop) | set(personal) | set(spending))
         return {
             "period": date.today().strftime("%b %Y"),
+            "period_start": start.isoformat(),
+            "period_end": end.isoformat(),
             "by_currency": {
                 c: {
                     "fop": fop.get(c, 0),
                     "personal": personal.get(c, 0),
                     "spending": spending.get(c, 0),
+                    "fop_txns": [t for t in fop_txns if t["currency"] == c],
+                    "personal_txns": [t for t in personal_txns if t["currency"] == c],
                 }
                 for c in all_currencies
             },
