@@ -12,11 +12,13 @@ from finance_api.core.config import settings
 from finance_api.domains.bot.formatter import (
     format_balance,
     format_income_summary,
+    format_sync_status,
 )
 from finance_api.domains.insights.queries import (
     get_account_balances,
     get_hidden_account_balances,
     get_income_summary,
+    get_sync_health,
     get_visible_account_count,
 )
 from finance_api.domains.sync.monobank import run_sync
@@ -60,21 +62,26 @@ async def _edit(query, text: str, **kwargs) -> None:
 
 
 _MONO_RATE_LIMIT_S = 62  # Monobank allows one request per 62 s per token
+_sync_running = False
 
 
 async def _sync_then_edit(message: Message) -> None:
-    """Background task: run sync, then update message with fresh balance."""
-    await asyncio.to_thread(run_sync)
-    accounts = await asyncio.to_thread(get_account_balances)
+    """Background task: run sync and edit message with the final status."""
+    global _sync_running
     try:
-        await message.edit_text(
-            format_balance(accounts),
-            parse_mode=PARSE_MODE,
-            reply_markup=_balance_keyboard(),
-        )
-    except BadRequest as e:
-        if _MSG_NOT_MODIFIED not in str(e).lower():
-            raise
+        await asyncio.to_thread(run_sync)
+        status = await asyncio.to_thread(get_sync_health)
+        try:
+            await message.edit_text(
+                format_sync_status(status),
+                parse_mode=PARSE_MODE,
+                reply_markup=_balance_keyboard(),
+            )
+        except BadRequest as e:
+            if _MSG_NOT_MODIFIED not in str(e).lower():
+                raise
+    finally:
+        _sync_running = False
 
 
 async def _do_sync(message: Message) -> None:
@@ -191,8 +198,12 @@ async def sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle 🔄 Sync button — edit message to syncing state, update when done."""
+    global _sync_running
     query = update.callback_query
     await query.answer()
+    if _sync_running:
+        return
+    _sync_running = True
     try:
         n = await asyncio.to_thread(get_visible_account_count)
         est_min = max(1, round(n * _MONO_RATE_LIMIT_S / 60))
@@ -204,5 +215,6 @@ async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         asyncio.create_task(_sync_then_edit(query.message))  # noqa: RUF006
     except Exception as e:
+        _sync_running = False
         log.error("sync_callback_failed", error=str(e))
         await _edit(query, f"❌ Sync failed: {code(e)}", parse_mode=PARSE_MODE)
