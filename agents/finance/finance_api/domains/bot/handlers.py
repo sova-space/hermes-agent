@@ -44,6 +44,16 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+async def _send(query, ctx: ContextTypes.DEFAULT_TYPE, text: str, **kwargs) -> None:
+    """Send a plain message to the same chat/topic — no reply-to reference."""
+    await ctx.bot.send_message(
+        chat_id=query.message.chat_id,
+        message_thread_id=query.message.message_thread_id,
+        text=text,
+        **kwargs,
+    )
+
+
 _MONO_RATE_LIMIT_S = 62  # Monobank allows one request per 62 s per token
 
 
@@ -111,14 +121,16 @@ async def callback_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     await query.answer()
     try:
         accounts = await asyncio.to_thread(get_account_balances)
-        await query.message.reply_text(
+        await _send(
+            query,
+            ctx,
             format_balance(accounts),
             parse_mode=PARSE_MODE,
             reply_markup=_balance_keyboard(),
         )
     except Exception as e:
         log.error("balance_callback_failed", error=str(e))
-        await query.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+        await _send(query, ctx, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
 async def callback_income(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -128,12 +140,12 @@ async def callback_income(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     try:
         income = await asyncio.to_thread(get_income_summary)
         text = format_income_summary(income) or "No income data for this month yet."
-        await query.message.reply_text(
-            text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+        await _send(
+            query, ctx, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
         )
     except Exception as e:
         log.error("income_callback_failed", error=str(e))
-        await query.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+        await _send(query, ctx, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
 async def callback_skipped(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -143,12 +155,12 @@ async def callback_skipped(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     try:
         accounts = await asyncio.to_thread(get_hidden_account_balances)
         text = format_balance(accounts) if accounts else "No skipped accounts."
-        await query.message.reply_text(
-            text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+        await _send(
+            query, ctx, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
         )
     except Exception as e:
         log.error("skipped_callback_failed", error=str(e))
-        await query.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+        await _send(query, ctx, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
 async def sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -170,6 +182,4 @@ async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await _do_sync(query.message)
     except Exception as e:
         log.error("sync_callback_failed", error=str(e))
-        await query.message.reply_text(
-            f"❌ Sync failed: {code(e)}", parse_mode=PARSE_MODE
-        )
+        await _send(query, ctx, f"❌ Sync failed: {code(e)}", parse_mode=PARSE_MODE)
