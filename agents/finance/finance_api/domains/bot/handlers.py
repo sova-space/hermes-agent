@@ -8,8 +8,16 @@ from telegram.ext import ContextTypes
 
 from finance_api.bot.telegram_fmt import PARSE_MODE, code
 from finance_api.core.config import settings
-from finance_api.domains.bot.formatter import format_balance, format_sync_status
-from finance_api.domains.insights.queries import get_account_balances, get_sync_health
+from finance_api.domains.bot.formatter import (
+    format_balance,
+    format_income_summary,
+    format_sync_status,
+)
+from finance_api.domains.insights.queries import (
+    get_account_balances,
+    get_income_summary,
+    get_sync_health,
+)
 from finance_api.domains.sync.monobank import run_sync
 
 log = structlog.get_logger(__name__)
@@ -64,9 +72,16 @@ async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /balance command."""
     try:
-        accounts = await asyncio.to_thread(get_account_balances)
+        accounts, income = await asyncio.gather(
+            asyncio.to_thread(get_account_balances),
+            asyncio.to_thread(get_income_summary),
+        )
+        parts = [format_balance(accounts)]
+        income_block = format_income_summary(income)
+        if income_block:
+            parts.append(income_block)
         await update.message.reply_text(
-            format_balance(accounts),
+            "\n\n".join(parts),
             parse_mode=PARSE_MODE,
             reply_markup=_balance_keyboard(),
         )

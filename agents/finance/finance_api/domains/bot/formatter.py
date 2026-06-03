@@ -75,6 +75,11 @@ def _fmt_ago(iso: str | None) -> str:
     return f"{hours} hour{'s' if hours != 1 else ''} ago"
 
 
+def _short_name(name: str, currency: str) -> str:
+    """Strip 'Monobank ' prefix and trailing currency code from account name."""
+    return name.replace("Monobank ", "").replace(f" {currency}", "").strip()
+
+
 def format_balance(accounts: list[dict[str, Any]]) -> str:
     """Format account balances as a monospace code block grouped by currency."""
     if not accounts:
@@ -84,17 +89,19 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
     for a in accounts:
         by_currency[a["currency"]].append(a)
 
-    # Pre-compute formatted amounts for consistent column widths
+    short: dict[str, str] = {
+        a["name"]: _short_name(a["name"], a["currency"]) for a in accounts
+    }
     fmt: dict[str, str] = {
-        a["name"]: _fmt_amount(a["balance"], a["currency"]) for a in accounts
+        a["name"]: _fmt_amount(round(a["balance"]), a["currency"]) for a in accounts
     }
     group_totals: dict[str, str] = {
-        currency: _fmt_amount(sum(a["balance"] for a in group), currency)
+        currency: _fmt_amount(round(sum(a["balance"] for a in group)), currency)
         for currency, group in by_currency.items()
         if len(group) > 1
     }
 
-    name_w = max(len(a["name"]) for a in accounts)
+    name_w = max(len(s) for s in short.values())
     amount_w = max(
         max(len(s) for s in fmt.values()),
         max((len(s) for s in group_totals.values()), default=0),
@@ -106,8 +113,18 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
         if i > 0:
             pre_lines.append("")
         pre_lines.append(currency)
-        for a in group:
-            pre_lines.append(f"  {a['name']:<{name_w}}  {fmt[a['name']]:>{amount_w}}")
+        fops = [a for a in group if a.get("is_fop")]
+        cards = [a for a in group if not a.get("is_fop")]
+        for a in fops:
+            pre_lines.append(
+                f"  {short[a['name']]:<{name_w}}  {fmt[a['name']]:>{amount_w}}"
+            )
+        if fops and cards:
+            pre_lines.append("")
+        for a in cards:
+            pre_lines.append(
+                f"  {short[a['name']]:<{name_w}}  {fmt[a['name']]:>{amount_w}}"
+            )
         if currency in group_totals:
             pre_lines.append(f"  {div}")
             pre_lines.append(
@@ -119,10 +136,55 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
         default=None,
     )
     return (
-        f"{bold('💳 Balance')}\n\n"
+        f"{bold('Balance')}\n\n"
         + pre("\n".join(pre_lines))
-        + f"\n\n🕐 Synced {_fmt_ago(latest_sync)}"
+        + f"\n\n🕐 {_fmt_ago(latest_sync)}"
     )
+
+
+def format_income_summary(summary: dict[str, Any]) -> str:
+    """Format monthly income vs spending as a monospace code block."""
+    by_cur = summary.get("by_currency", {})
+    if not by_cur:
+        return ""
+
+    period = summary.get("period", "")
+    LABEL_W = len("Spending")  # longest label — keeps columns stable
+
+    all_amt_strs: list[str] = []
+    for c, v in by_cur.items():
+        total = v["fop"] + v["personal"]
+        for val in (v["fop"], v["personal"], total, v["spending"]):
+            if val:
+                all_amt_strs.append(_fmt_amount(val, c))
+    if not all_amt_strs:
+        return ""
+
+    amount_w = max(len(s) for s in all_amt_strs)
+    div = "─" * (LABEL_W + 2 + amount_w)
+
+    lines = [f"Income · {period}"]
+    for i, (c, v) in enumerate(by_cur.items()):
+        if i:
+            lines.append("")
+        lines.append(c)
+        if v["fop"]:
+            lines.append(
+                f"  {'FOP':<{LABEL_W}}  {_fmt_amount(v['fop'], c):>{amount_w}}"
+            )
+        if v["personal"]:
+            p_amt = _fmt_amount(v["personal"], c)
+            lines.append(f"  {'Personal':<{LABEL_W}}  {p_amt:>{amount_w}}")
+        total = v["fop"] + v["personal"]
+        if v["fop"] and v["personal"]:
+            lines.append(f"  {div}")
+            lines.append(f"  {'Total':<{LABEL_W}}  {_fmt_amount(total, c):>{amount_w}}")
+        if v["spending"]:
+            pct = f"  {round(v['spending'] / total * 100)}%" if total else ""
+            s_amt = _fmt_amount(v["spending"], c)
+            lines.append(f"  {'Spending':<{LABEL_W}}  {s_amt:>{amount_w}}{pct}")
+
+    return pre("\n".join(lines))
 
 
 def format_stats(spending: dict[str, float], period: str = "this_month") -> str:

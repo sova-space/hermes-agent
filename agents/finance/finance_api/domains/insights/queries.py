@@ -17,6 +17,7 @@ from finance_api.domains.insights.periods import (
     THIS_MONTH,
 )
 from finance_api.domains.sync.models import SyncRun
+from finance_api.domains.transactions import categories as cat
 from finance_api.domains.transactions.models import Transaction
 
 
@@ -260,4 +261,59 @@ def get_sync_health() -> dict[str, Any]:
             ),
             "tx_imported": last_run.tx_imported,
             "error": last_run.error,
+        }
+
+
+def get_income_summary() -> dict[str, Any]:
+    """Return this month's income by source (FOP / personal) and spending."""
+    start, end = _period_dates(THIS_MONTH)
+    with Session(engine) as session:
+        start = _salary_anchored_start(start, session)
+
+        fop_ids = session.exec(
+            select(Account.id).where(Account.is_fop == True)  # noqa: E712
+        ).all()
+        personal_ids = session.exec(
+            select(Account.id).where(Account.is_fop == False)  # noqa: E712
+        ).all()
+
+        def _income(acc_ids: list) -> dict[str, int]:
+            if not acc_ids:
+                return {}
+            rows = session.exec(
+                select(Transaction.currency, func.sum(Transaction.amount))
+                .where(Transaction.account_id.in_(acc_ids))
+                .where(Transaction.amount > 0)
+                .where(Transaction.category != cat.CASHBACK)
+                .where(Transaction.date >= start)
+                .where(Transaction.date <= end)
+                .where(Transaction.is_pending == False)  # noqa: E712
+                .group_by(Transaction.currency)
+            ).all()
+            return {c: round(v) for c, v in rows if v > 0}
+
+        fop = _income(fop_ids)
+        personal = _income(personal_ids)
+
+        spending_rows = session.exec(
+            select(Transaction.currency, func.sum(Transaction.amount))
+            .where(Transaction.amount < 0)
+            .where(Transaction.date >= start)
+            .where(Transaction.date <= end)
+            .where(Transaction.is_pending == False)  # noqa: E712
+            .group_by(Transaction.currency)
+        ).all()
+        spending = {c: round(abs(v)) for c, v in spending_rows if v}
+
+        all_currencies = sorted(set(fop) | set(personal) | set(spending))
+        return {
+            "period": date.today().strftime("%b %Y"),
+            "by_currency": {
+                c: {
+                    "fop": fop.get(c, 0),
+                    "personal": personal.get(c, 0),
+                    "spending": spending.get(c, 0),
+                }
+                for c in all_currencies
+            },
         }
