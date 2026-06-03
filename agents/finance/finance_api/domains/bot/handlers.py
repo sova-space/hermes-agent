@@ -27,16 +27,20 @@ log = structlog.get_logger(__name__)
 SYNC_CALLBACK = "sync"
 INCOME_CALLBACK = "income"
 SKIPPED_CALLBACK = "skipped"
+BALANCE_CALLBACK = "balance_cb"
 
 
 def _balance_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
+            InlineKeyboardButton("💳 Balance", callback_data=BALANCE_CALLBACK),
             InlineKeyboardButton("💰 Income", callback_data=INCOME_CALLBACK),
-            InlineKeyboardButton("🔄 Sync", callback_data=SYNC_CALLBACK),
             InlineKeyboardButton("👁 Skipped", callback_data=SKIPPED_CALLBACK),
+        ],
+        [
+            InlineKeyboardButton("🔄 Sync", callback_data=SYNC_CALLBACK),
             InlineKeyboardButton("📊 Finance", url=settings.mini_app_url),
-        ]
+        ],
     ])
 
 
@@ -99,6 +103,22 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as e:
         log.error("balance_failed", error=str(e))
         await update.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+
+
+async def callback_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle 💳 Balance button — send a fresh balance view."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        accounts = await asyncio.to_thread(get_account_balances)
+        await query.message.reply_text(
+            format_balance(accounts),
+            parse_mode=PARSE_MODE,
+            reply_markup=_balance_keyboard(),
+        )
+    except Exception as e:
+        log.error("balance_callback_failed", error=str(e))
+        await query.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
 async def callback_income(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
