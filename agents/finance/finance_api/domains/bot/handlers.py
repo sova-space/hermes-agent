@@ -4,6 +4,7 @@ import asyncio
 
 import structlog
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from finance_api.bot.telegram_fmt import PARSE_MODE, code
@@ -50,8 +51,12 @@ def _thread_id(message) -> int | None:
 
 
 async def _edit(query, text: str, **kwargs) -> None:
-    """Edit the message that triggered the callback in place."""
-    await query.edit_message_text(text, **kwargs)
+    """Edit the message in place; silently ignore if content is unchanged."""
+    try:
+        await query.edit_message_text(text, **kwargs)
+    except BadRequest as e:
+        if "not modified" not in str(e).lower():
+            raise
 
 
 _MONO_RATE_LIMIT_S = 62  # Monobank allows one request per 62 s per token
