@@ -144,14 +144,9 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
 
 def _fmt_income_period(summary: dict[str, Any]) -> str:
     start_raw = summary.get("period_start")
-    end_raw = summary.get("period_end")
-    if not start_raw or not end_raw:
+    if not start_raw:
         return summary.get("period", "")
-    start = date.fromisoformat(start_raw)
-    end = date.fromisoformat(end_raw)
-    if start.month == end.month:
-        return f"{start.strftime('%b %-d')} - {end.strftime('%-d')}"
-    return f"{start.strftime('%b %-d')} - {end.strftime('%b %-d')}"
+    return date.fromisoformat(start_raw).strftime("%b %-d")
 
 
 def format_income_summary(summary: dict[str, Any]) -> str:
