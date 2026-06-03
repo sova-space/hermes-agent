@@ -303,8 +303,6 @@ def get_income_summary() -> dict[str, Any]:
         # If no salary found yet this calendar month, use last month instead.
         if anchored == start:
             start, end = _period_dates(LAST_MONTH)
-        # Income window starts from calendar month start so we catch all salaries
-        # regardless of order (e.g. mum paid before COXIT arrived).
 
         # FOP income: only USD accounts — that's where COXIT salary arrives directly.
         # FOP UAH receives only internal conversions, never external payments.
