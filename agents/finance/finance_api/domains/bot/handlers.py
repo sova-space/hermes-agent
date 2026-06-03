@@ -15,6 +15,7 @@ from finance_api.domains.bot.formatter import (
 )
 from finance_api.domains.insights.queries import (
     get_account_balances,
+    get_hidden_account_balances,
     get_income_summary,
     get_sync_health,
     get_visible_account_count,
@@ -25,6 +26,7 @@ log = structlog.get_logger(__name__)
 
 SYNC_CALLBACK = "sync"
 INCOME_CALLBACK = "income"
+SKIPPED_CALLBACK = "skipped"
 
 
 def _balance_keyboard() -> InlineKeyboardMarkup:
@@ -32,6 +34,7 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton("💰 Income", callback_data=INCOME_CALLBACK),
             InlineKeyboardButton("🔄 Sync", callback_data=SYNC_CALLBACK),
+            InlineKeyboardButton("👁 Skipped", callback_data=SKIPPED_CALLBACK),
             InlineKeyboardButton("📊 Finance", url=settings.mini_app_url),
         ]
     ])
@@ -110,6 +113,21 @@ async def callback_income(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         )
     except Exception as e:
         log.error("income_callback_failed", error=str(e))
+        await query.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+
+
+async def callback_skipped(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle 👁 Skipped button — show hidden accounts."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        accounts = await asyncio.to_thread(get_hidden_account_balances)
+        text = format_balance(accounts) if accounts else "No skipped accounts."
+        await query.message.reply_text(
+            text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+        )
+    except Exception as e:
+        log.error("skipped_callback_failed", error=str(e))
         await query.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 

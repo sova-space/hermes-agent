@@ -99,6 +99,26 @@ def get_account_balances() -> list[dict[str, Any]]:
         ]
 
 
+def get_hidden_account_balances() -> list[dict[str, Any]]:
+    """Return balances for hidden (skipped) accounts."""
+    with Session(engine) as session:
+        accounts = session.exec(
+            select(Account).where(Account.hidden == True)  # noqa: E712
+        ).all()
+        return [
+            {
+                "account_id": str(a.id),
+                "name": a.name,
+                "currency": a.currency,
+                "balance": a.balance,
+                "type": a.account_type,
+                "is_fop": a.is_fop,
+                "synced_at": a.synced_at.isoformat() if a.synced_at else None,
+            }
+            for a in accounts
+        ]
+
+
 def get_visible_account_count() -> int:
     """Return the number of visible accounts — used for sync time estimation."""
     with Session(engine) as session:
