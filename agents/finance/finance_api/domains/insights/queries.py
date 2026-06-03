@@ -304,8 +304,7 @@ def get_income_summary() -> dict[str, Any]:
         if anchored == start:
             start, end = _period_dates(LAST_MONTH)
 
-        # FOP income: only USD accounts — that's where COXIT salary arrives directly.
-        # FOP UAH receives only internal conversions, never external payments.
+        # FOP USD account receives external salary; FOP UAH is for internal transfers only.
         fop_usd_ids = session.exec(
             select(Account.id).where(
                 Account.is_fop == True,  # noqa: E712
