@@ -167,39 +167,45 @@ def format_income_summary(summary: dict[str, Any]) -> str:
     if not has_data:
         return ""
 
-    # Top section — salary transactions with date, then spending summary
-    top_lines: list[str] = []
+    # Collect all salary transactions and all spending, grouped by currency
+    all_txns: list[tuple[str, str, dict[str, Any]]] = []
     for currency, v in by_cur.items():
-        total = v["fop"] + v["personal"]
-        if not total:
-            continue
-        flag = _CURRENCY_FLAG.get(currency, "💱")
-        top_lines.append(f"{flag} {bold(currency)}")
+        for t in v.get("fop_txns", []):
+            all_txns.append(("FOP", currency, t))
+        for t in v.get("personal_txns", []):
+            all_txns.append(("Personal", currency, t))
+    all_txns.sort(key=lambda x: x[2]["date"])
 
-        all_txns: list[tuple[str, dict[str, Any]]] = [
-            ("FOP", t) for t in v.get("fop_txns", [])
-        ] + [("Personal", t) for t in v.get("personal_txns", [])]
-        all_txns.sort(key=lambda x: x[1]["date"])
-
-        for source, t in all_txns:
-            dt = date.fromisoformat(t["date"])
-            sender = t["description"].removeprefix("Від: ").strip()
-            label = f"{source} · {dt.strftime('%b %-d')} · {sender}"
-            amt = _fmt_amount(t["amount"], currency)
-            top_lines.append(f"  {label}  {bold(amt)}")
-
-        if v["spending"]:
-            pct = round(v["spending"] / total * 100)
-            spent = _fmt_amount(round(v["spending"]), currency)
-            top_lines.append(f"  Spent  {spent} ({pct}%)")
-            left = total - v["spending"]
-            left_str = _fmt_amount(round(left), currency)
-            top_lines.append(f"  Left   {bold(left_str)}")
-
-    if not top_lines:
+    if not all_txns:
         return ""
 
-    return f"💰 {bold(f'Income · {period}')}\n\n" + "\n".join(top_lines)
+    received_lines: list[str] = []
+    for source, currency, t in all_txns:
+        dt = date.fromisoformat(t["date"])
+        sender = t["description"].removeprefix("Від: ").strip()
+        flag = _CURRENCY_FLAG.get(currency, "💱")
+        label = f"{flag} {source} · {dt.strftime('%b %-d')} · {sender}"
+        amt = bold(_fmt_amount(t["amount"], currency))
+        received_lines.append(f"  {label}  {amt}")
+
+    # Spending + left per currency (only currencies where we have spending)
+    spent_lines: list[str] = []
+    for currency, v in by_cur.items():
+        income_total = v["fop"] + v["personal"]
+        if not v["spending"] or not income_total:
+            continue
+        flag = _CURRENCY_FLAG.get(currency, "💱")
+        pct = round(v["spending"] / income_total * 100)
+        spent_str = _fmt_amount(round(v["spending"]), currency)
+        left = income_total - v["spending"]
+        left_str = bold(_fmt_amount(round(left), currency))
+        spent_lines.append(f"  {flag} Spent  {spent_str} ({pct}%)  ·  Left {left_str}")
+
+    body = f"💵 {bold('Received')}\n" + "\n".join(received_lines)
+    if spent_lines:
+        body += f"\n\n💸 {bold('Spending')}\n" + "\n".join(spent_lines)
+
+    return f"💰 {bold(f'Income · {period}')}\n\n" + body
 
 
 def format_stats(spending: dict[str, float], period: str = "this_month") -> str:
