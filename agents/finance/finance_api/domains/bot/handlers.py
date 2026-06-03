@@ -44,7 +44,11 @@ async def _do_sync(message: Message) -> None:
     asyncio.get_running_loop().run_in_executor(None, run_sync)
     await asyncio.sleep(0.5)
     status = await asyncio.to_thread(get_sync_health)
-    await message.reply_text(format_sync_status(status), parse_mode=PARSE_MODE)
+    await message.reply_text(
+        format_sync_status(status),
+        parse_mode=PARSE_MODE,
+        reply_markup=_balance_keyboard(),
+    )
 
 
 async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -92,7 +96,9 @@ async def callback_income(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     try:
         income = await asyncio.to_thread(get_income_summary)
         text = format_income_summary(income) or "No income data for this month yet."
-        await query.message.reply_text(text, parse_mode=PARSE_MODE)
+        await query.message.reply_text(
+            text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+        )
     except Exception as e:
         log.error("income_callback_failed", error=str(e))
         await query.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
