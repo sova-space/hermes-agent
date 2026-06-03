@@ -12,13 +12,11 @@ from finance_api.core.config import settings
 from finance_api.domains.bot.formatter import (
     format_balance,
     format_income_summary,
-    format_sync_status,
 )
 from finance_api.domains.insights.queries import (
     get_account_balances,
     get_hidden_account_balances,
     get_income_summary,
-    get_sync_health,
     get_visible_account_count,
 )
 from finance_api.domains.sync.monobank import run_sync
@@ -65,14 +63,18 @@ _MONO_RATE_LIMIT_S = 62  # Monobank allows one request per 62 s per token
 
 
 async def _sync_then_edit(message: Message) -> None:
-    """Background task: run sync and edit message with the final status."""
+    """Background task: run sync, then update message with fresh balance."""
     await asyncio.to_thread(run_sync)
-    status = await asyncio.to_thread(get_sync_health)
-    await message.edit_text(
-        format_sync_status(status),
-        parse_mode=PARSE_MODE,
-        reply_markup=_balance_keyboard(),
-    )
+    accounts = await asyncio.to_thread(get_account_balances)
+    try:
+        await message.edit_text(
+            format_balance(accounts),
+            parse_mode=PARSE_MODE,
+            reply_markup=_balance_keyboard(),
+        )
+    except BadRequest as e:
+        if _MSG_NOT_MODIFIED not in str(e).lower():
+            raise
 
 
 async def _do_sync(message: Message) -> None:
@@ -198,7 +200,7 @@ async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             query,
             f"🔄 Syncing…  ~{est_min} min",
             parse_mode=PARSE_MODE,
-            reply_markup=InlineKeyboardMarkup([]),
+            reply_markup=_balance_keyboard(),
         )
         asyncio.create_task(_sync_then_edit(query.message))  # noqa: RUF006
     except Exception as e:
