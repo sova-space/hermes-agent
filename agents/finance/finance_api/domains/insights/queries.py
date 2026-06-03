@@ -322,11 +322,9 @@ def get_income_summary() -> dict[str, Any]:
                 .where(Transaction.is_pending == False)  # noqa: E712
                 .order_by(Transaction.date)
             )
-            # Prefer #salary-tagged transactions; fall back to all positives
-            tagged = session.exec(
+            rows = session.exec(
                 base.where(Transaction.notes.ilike("%#salary%"))  # type: ignore[union-attr]
             ).all()
-            rows = tagged if tagged else session.exec(base).all()
             return [
                 {
                     "date": t.date.isoformat(),
