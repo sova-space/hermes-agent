@@ -136,7 +136,7 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
         default=None,
     )
     return (
-        f"{bold('Balance')}\n\n"
+        f"{bold('Mono')}\n\n"
         + pre("\n".join(pre_lines))
         + f"\n\n🕐 {_fmt_ago(latest_sync)}"
     )
