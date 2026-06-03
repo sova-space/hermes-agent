@@ -193,21 +193,20 @@ def format_income_summary(summary: dict[str, Any]) -> str:
     for _source, currency, t in all_txns:
         income_by_cur[currency] = income_by_cur.get(currency, 0) + t["amount"]
 
-    # Balance + spent (received - balance) per currency
+    # Balance line: "X of SALARY · spent Y%", skip negligible balances
+    NEGLIGIBLE = {"UAH": 50, "USD": 5, "EUR": 5, "GBP": 5}
     balances = summary.get("balances", {})
     balance_lines: list[str] = []
-    for currency in sorted(set(income_by_cur) | set(balances)):
+    for currency in sorted(income_by_cur):
+        received = income_by_cur[currency]
         bal = balances.get(currency, 0)
-        received = income_by_cur.get(currency, 0)
+        if bal < NEGLIGIBLE.get(currency, 5):
+            continue
         flag = _CURRENCY_FLAG.get(currency, "💱")
+        sal_str = _fmt_amount(round(received), currency)
         bal_str = bold(_fmt_amount(round(bal), currency))
-        if received and bal < received:
-            spent = received - bal
-            pct = round(spent / received * 100)
-            spent_str = _fmt_amount(round(spent), currency)
-            balance_lines.append(f"  {flag} {bal_str}  · spent {spent_str} ({pct}%)")
-        else:
-            balance_lines.append(f"  {flag} {bal_str}")
+        pct = round((received - bal) / received * 100) if received else 0
+        balance_lines.append(f"  {flag} {bal_str} of {sal_str}  · spent {pct}%")
 
     body = f"💵 {bold('Received')}\n" + "\n".join(received_lines)
     if balance_lines:
