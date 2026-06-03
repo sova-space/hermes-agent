@@ -299,12 +299,12 @@ def get_income_summary() -> dict[str, Any]:
     """Return most recent salary cycle: income by source and spending."""
     start, end = _period_dates(THIS_MONTH)
     with Session(engine) as session:
-        start = _salary_anchored_start(start, session)
-        # If no salary found yet this calendar month, use last month's cycle instead.
-        if start == end.replace(day=1):
-            prev_start, prev_end = _period_dates(LAST_MONTH)
-            prev_anchored = _salary_anchored_start(prev_start, session)
-            start, end = prev_anchored, prev_end
+        anchored = _salary_anchored_start(start, session)
+        # If no salary found yet this calendar month, use last month instead.
+        if anchored == start:
+            start, end = _period_dates(LAST_MONTH)
+        # Income window starts from calendar month start so we catch all salaries
+        # regardless of order (e.g. mum paid before COXIT arrived).
 
         # FOP income: only USD accounts — that's where COXIT salary arrives directly.
         # FOP UAH receives only internal conversions, never external payments.
@@ -391,6 +391,7 @@ def get_income_summary() -> dict[str, Any]:
 
         spending_rows = session.exec(
             select(Transaction.currency, func.sum(Transaction.amount))
+            .where(Transaction.account_id.in_(personal_ids))
             .where(Transaction.amount < 0)
             .where(Transaction.date >= start)
             .where(Transaction.date <= end)
