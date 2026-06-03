@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 import finance_api.domains.accounts.models  # noqa: F401
+import finance_api.domains.rules.models  # noqa: F401
 import finance_api.domains.sync.models  # noqa: F401
 import finance_api.domains.transactions.models  # noqa: F401
 from alembic import context

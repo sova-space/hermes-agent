@@ -16,6 +16,7 @@ from finance_api.domains.insights.periods import (
     SALARY_ANCHORED,
     THIS_MONTH,
 )
+from finance_api.domains.rules.queries import get_patterns, matches_any
 from finance_api.domains.sync.models import SyncRun
 from finance_api.domains.transactions import categories as cat
 from finance_api.domains.transactions.models import Transaction
@@ -343,6 +344,9 @@ def get_income_summary() -> dict[str, Any]:
         def _personal_income_txns(acc_ids: list) -> list[dict[str, Any]]:
             if not acc_ids:
                 return []
+            income_patterns = get_patterns("personal_income")
+            if not income_patterns:
+                return []
             rows = session.exec(
                 select(Transaction)
                 .where(Transaction.account_id.in_(acc_ids))
@@ -351,7 +355,6 @@ def get_income_summary() -> dict[str, Any]:
                 .where(Transaction.date >= start)
                 .where(Transaction.date <= end)
                 .where(Transaction.is_pending == False)  # noqa: E712
-                .where(Transaction.notes.ilike("%#salary%"))  # type: ignore[union-attr]
                 .order_by(Transaction.date)
             ).all()
             return [
@@ -362,6 +365,7 @@ def get_income_summary() -> dict[str, Any]:
                     "description": t.description,
                 }
                 for t in rows
+                if matches_any(t.description, income_patterns)
             ]
 
         fop_txns = _fop_income_txns(fop_usd_ids)

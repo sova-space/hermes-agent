@@ -1,6 +1,5 @@
 """Monobank → PostgreSQL transaction sync."""
 
-import re
 import threading
 import uuid
 from datetime import UTC, datetime
@@ -13,6 +12,7 @@ from finance_api.core.config import settings
 from finance_api.core.db.engine import engine
 from finance_api.domains.accounts.models import Account
 from finance_api.domains.pockets.queries import drain_pocket
+from finance_api.domains.rules.queries import get_patterns, matches_any
 from finance_api.domains.sync.client import MonobankClient
 from finance_api.domains.sync.mcc import MCC_LOOKUP
 from finance_api.domains.sync.models import SyncRun
@@ -68,12 +68,17 @@ def _classify_transaction(
     mcc: int | None,
     is_fop_account: bool,
 ) -> tuple[str | None, str | None]:
-    """Return (category, mode) using the priority rules from spec 009."""
+    """Return (category, mode) using DB rules then MCC lookup."""
+    partner_patterns = get_patterns("partner_transfer")
+    passthrough_patterns = get_patterns("passthrough")
+
+    if matches_any(description, passthrough_patterns):
+        return cat.COUPLE_TRANSFER, None
+
     if amount > 0 and is_fop_account:
         return cat.INCOME, None
 
-    partner_re = re.compile(settings.partner_name_pattern, re.IGNORECASE)
-    if amount < 0 and partner_re.search(description):
+    if amount < 0 and matches_any(description, partner_patterns):
         return cat.COUPLE_TRANSFER, modes.COUPLE
 
     if mcc:
