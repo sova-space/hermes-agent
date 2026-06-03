@@ -29,3 +29,8 @@ def blockquote(text: str) -> str:
 def pre(text: str) -> str:
     """Wrap text in a pre block — renders as a monospace code box in Telegram."""
     return f"<pre>{text}</pre>"
+
+
+def expandable_blockquote(text: str) -> str:
+    """Wrap text in a collapsible blockquote — user taps to expand."""
+    return f"<blockquote expandable>{text}</blockquote>"

@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime
 from typing import Any
 
-from finance_api.bot.telegram_fmt import bold, code, italic, pre
+from finance_api.bot.telegram_fmt import bold, code, expandable_blockquote, italic, pre
 from finance_api.domains.transactions import categories as cat
 
 CATEGORY_EMOJI: dict[str, str] = {
@@ -80,8 +80,16 @@ def _short_name(name: str, currency: str) -> str:
     return name.replace("Monobank ", "").replace(f" {currency}", "").strip()
 
 
+_CURRENCY_FLAG: dict[str, str] = {
+    "UAH": "🇺🇦",
+    "USD": "🇺🇸",
+    "EUR": "🇪🇺",
+    "GBP": "🇬🇧",
+}
+
+
 def format_balance(accounts: list[dict[str, Any]]) -> str:
-    """Format account balances as a monospace code block grouped by currency."""
+    """Format balances: currency totals visible, per-account details expandable."""
     if not accounts:
         return "No accounts synced yet. Run /sync first."
 
@@ -95,40 +103,30 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
     fmt: dict[str, str] = {
         a["name"]: _fmt_amount(round(a["balance"]), a["currency"]) for a in accounts
     }
-    group_totals: dict[str, str] = {
-        currency: _fmt_amount(round(sum(a["balance"] for a in group)), currency)
+    group_totals: dict[str, float] = {
+        currency: round(sum(a["balance"] for a in group))
         for currency, group in by_currency.items()
-        if len(group) > 1
     }
 
-    name_w = max(len(s) for s in short.values())
-    amount_w = max(
-        max(len(s) for s in fmt.values()),
-        max((len(s) for s in group_totals.values()), default=0),
-    )
-    div = "─" * (name_w + 2 + amount_w)
+    # Totals section — always visible
+    total_lines: list[str] = []
+    for currency, _group in by_currency.items():
+        flag = _CURRENCY_FLAG.get(currency, "💱")
+        total_str = _fmt_amount(group_totals[currency], currency)
+        total_lines.append(f"{flag} {currency}  {bold(total_str)}")
 
-    pre_lines: list[str] = []
-    for i, (currency, group) in enumerate(by_currency.items()):
+    # Breakdown section — collapsed by default
+    name_w = max(len(s) for s in short.values())
+    amount_w = max(len(s) for s in fmt.values())
+    breakdown_lines: list[str] = [bold("Breakdown")]
+    for i, (_currency, group) in enumerate(by_currency.items()):
         if i > 0:
-            pre_lines.append("")
-        pre_lines.append(currency)
+            breakdown_lines.append("")
         fops = [a for a in group if a.get("is_fop")]
         cards = [a for a in group if not a.get("is_fop")]
-        for a in fops:
-            pre_lines.append(
-                f"  {short[a['name']]:<{name_w}}  {fmt[a['name']]:>{amount_w}}"
-            )
-        if fops and cards:
-            pre_lines.append("")
-        for a in cards:
-            pre_lines.append(
-                f"  {short[a['name']]:<{name_w}}  {fmt[a['name']]:>{amount_w}}"
-            )
-        if currency in group_totals:
-            pre_lines.append(f"  {div}")
-            pre_lines.append(
-                f"  {'Total':<{name_w}}  {group_totals[currency]:>{amount_w}}"
+        for a in fops + cards:
+            breakdown_lines.append(
+                f"{short[a['name']]:<{name_w}}  {fmt[a['name']]:>{amount_w}}"
             )
 
     latest_sync = max(
@@ -136,8 +134,10 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
         default=None,
     )
     return (
-        f"{bold('Mono')}\n\n"
-        + pre("\n".join(pre_lines))
+        f"💳 {bold('Mono')}\n\n"
+        + "\n".join(total_lines)
+        + "\n\n"
+        + expandable_blockquote("\n".join(breakdown_lines))
         + f"\n\n🕐 {_fmt_ago(latest_sync)}"
     )
 
