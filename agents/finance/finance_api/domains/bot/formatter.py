@@ -208,7 +208,9 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         pct = round((received - bal) / received * 100) if received else 0
         balance_lines.append(f"  {flag} {bal_str} of {sal_str}  · spent {pct}%")
 
-    # Summary: total in / out / left, all currencies joined on one line each
+    # Summary: combined in/out/left; if rate available, convert USD→UAH for a total
+    rate: float | None = summary.get("usd_uah_rate")
+
     def _join(amounts: dict[str, float]) -> str:
         return "  +  ".join(
             _fmt_amount(round(v), c)
@@ -216,7 +218,7 @@ def format_income_summary(summary: dict[str, Any]) -> str:
             if round(abs(v)) > 0
         )
 
-    total_in = {c: v for c, v in income_by_cur.items()}
+    total_in = dict(income_by_cur)
     total_out = {c: income_by_cur[c] - balances.get(c, 0) for c in income_by_cur}
     total_left = {c: balances.get(c, 0) for c in income_by_cur}
 
@@ -225,6 +227,15 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         f"  Out   {_join(total_out)}\n"
         f"  Left  {bold(_join(total_left))}"
     )
+
+    if rate and "USD" in income_by_cur and "UAH" in income_by_cur:
+        uah_total = round(
+            income_by_cur.get("UAH", 0) + income_by_cur.get("USD", 0) * rate
+        )
+        summary_block += (
+            f"\n\n  ≈ {bold(_fmt_amount(uah_total, 'UAH'))} total"
+            f"  {italic(f'($1 = {rate:,.2f} ₴)')}"
+        )
 
     body = f"💵 {bold('Received')}\n" + "\n".join(received_lines)
     if balance_lines:

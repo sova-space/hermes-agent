@@ -395,12 +395,29 @@ def get_income_summary() -> dict[str, Any]:
         ).all()
         balances = {c: round(v) for c, v in balance_rows if v}
 
+        # USD→UAH rate from the most recent FOP conversion in the period
+        fop_all_ids = session.exec(
+            select(Account.id).where(Account.is_fop == True)  # noqa: E712
+        ).all()
+        rate_row = session.exec(
+            select(Transaction.extra)
+            .where(Transaction.account_id.in_(fop_all_ids))
+            .where(Transaction.extra.isnot(None))  # type: ignore[union-attr]
+            .where(Transaction.date >= start)
+            .where(Transaction.date <= end)
+            .order_by(Transaction.date.desc())  # type: ignore[union-attr]
+        ).first()
+        usd_uah_rate: float | None = None
+        if rate_row and isinstance(rate_row, dict):
+            usd_uah_rate = rate_row.get("exchange_rate")
+
         all_currencies = sorted(set(fop) | set(personal))
         return {
             "period": date.today().strftime("%b %Y"),
             "period_start": start.isoformat(),
             "period_end": end.isoformat(),
             "balances": balances,
+            "usd_uah_rate": usd_uah_rate,
             "by_currency": {
                 c: {
                     "fop": fop.get(c, 0),
