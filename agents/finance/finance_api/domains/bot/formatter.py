@@ -208,25 +208,28 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         pct = round((received - bal) / received * 100) if received else 0
         balance_lines.append(f"  {flag} {bal_str} of {sal_str}  · spent {pct}%")
 
-    # Summary: received / spent / left per currency
-    summary_lines: list[str] = []
-    for currency in sorted(income_by_cur):
-        received = income_by_cur[currency]
-        bal = balances.get(currency, 0)
-        spent = received - bal
-        flag = _CURRENCY_FLAG.get(currency, "💱")
-        r_str = _fmt_amount(round(received), currency)
-        s_str = _fmt_amount(round(spent), currency)
-        l_str = bold(_fmt_amount(round(bal), currency))
-        summary_lines.append(
-            f"  {flag} in {bold(r_str)}  · out {s_str}  · left {l_str}"
+    # Summary: total in / out / left, all currencies joined on one line each
+    def _join(amounts: dict[str, float]) -> str:
+        return "  +  ".join(
+            _fmt_amount(round(v), c)
+            for c, v in sorted(amounts.items())
+            if round(abs(v)) > 0
         )
+
+    total_in = {c: v for c, v in income_by_cur.items()}
+    total_out = {c: income_by_cur[c] - balances.get(c, 0) for c in income_by_cur}
+    total_left = {c: balances.get(c, 0) for c in income_by_cur}
+
+    summary_block = (
+        f"  In    {bold(_join(total_in))}\n"
+        f"  Out   {_join(total_out)}\n"
+        f"  Left  {bold(_join(total_left))}"
+    )
 
     body = f"💵 {bold('Received')}\n" + "\n".join(received_lines)
     if balance_lines:
         body += f"\n\n💳 {bold('Balance now')}\n" + "\n".join(balance_lines)
-    if summary_lines:
-        body += f"\n\n📊 {bold('Summary')}\n" + "\n".join(summary_lines)
+    body += f"\n\n📊 {bold('Summary')}\n{summary_block}"
 
     return f"💰 {bold(f'Income · {period}')}\n\n" + body
 
