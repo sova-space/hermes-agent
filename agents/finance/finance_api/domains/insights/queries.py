@@ -396,21 +396,26 @@ def get_income_summary() -> dict[str, Any]:
         ).all()
         balances = {c: round(v) for c, v in balance_rows if v}
 
-        # USD→UAH rate from the most recent FOP conversion in the period
+        # USD→UAH rate: pick highest exchange_rate value among FOP conversions
+        # (rates > 1 are UAH/USD; rates < 1 are the inverse — skip those)
         fop_all_ids = session.exec(
             select(Account.id).where(Account.is_fop == True)  # noqa: E712
         ).all()
-        rate_row = session.exec(
+        rate_rows = session.exec(
             select(Transaction.extra)
             .where(Transaction.account_id.in_(fop_all_ids))
             .where(Transaction.extra.isnot(None))  # type: ignore[union-attr]
             .where(Transaction.date >= start)
             .where(Transaction.date <= end)
-            .order_by(Transaction.date.desc())  # type: ignore[union-attr]
-        ).first()
+        ).all()
         usd_uah_rate: float | None = None
-        if rate_row and isinstance(rate_row, dict):
-            usd_uah_rate = rate_row.get("exchange_rate")
+        for row in rate_rows:
+            try:
+                er = float(row["exchange_rate"])  # type: ignore[index]
+                if er > 1 and (usd_uah_rate is None or er > usd_uah_rate):
+                    usd_uah_rate = er
+            except (KeyError, TypeError, ValueError):
+                pass
 
         # Period start = earliest actual salary transaction date
         all_salary_dates = [

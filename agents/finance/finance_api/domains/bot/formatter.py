@@ -29,6 +29,8 @@ CATEGORY_EMOJI: dict[str, str] = {
 # Currencies where the symbol goes before the amount (e.g. $1,234)
 _PREFIX_CURRENCIES = {"USD", "EUR", "GBP"}
 CURRENCY_SYMBOL: dict[str, str] = {"UAH": "₴", "USD": "$", "EUR": "€", "GBP": "£"}
+_BASE_CURRENCY = "UAH"
+_FOP_CURRENCY = "USD"
 
 _PERIOD_LABEL: dict[str, str] = {
     "this_month": date.today().strftime("%B %Y"),
@@ -174,6 +176,8 @@ def format_income_summary(summary: dict[str, Any]) -> str:
     if not all_txns:
         return ""
 
+    rate: float | None = summary.get("usd_uah_rate")
+
     received_lines: list[str] = []
     for source, currency, t in all_txns:
         dt = date.fromisoformat(t["date"])
@@ -181,7 +185,17 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         flag = _CURRENCY_FLAG.get(currency, "💱")
         label = f"{flag} {source} · {dt.strftime('%b %-d')} · {sender}"
         amt = bold(_fmt_amount(t["amount"], currency))
-        received_lines.append(f"  {label}  {amt}")
+        equiv = ""
+        if rate:
+            if currency == _FOP_CURRENCY:
+                uah_val = _fmt_amount(round(t["amount"] * rate), _BASE_CURRENCY)
+                equiv = f"  {italic('≈ ' + uah_val)}"
+            elif currency == _BASE_CURRENCY and _FOP_CURRENCY in {
+                c for _, c, _ in all_txns
+            }:
+                usd_val = _fmt_amount(round(t["amount"] / rate), _FOP_CURRENCY)
+                equiv = f"  {italic('≈ ' + usd_val)}"
+        received_lines.append(f"  {label}  {amt}{equiv}")
 
     # Income totals per currency
     income_by_cur: dict[str, float] = {}
@@ -189,8 +203,7 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         income_by_cur[currency] = income_by_cur.get(currency, 0) + t["amount"]
 
     # Balance line: "X of TOTAL · spent Y%", skip negligible balances
-    # For UAH: combine direct UAH income + USD converted at rate
-    rate_early: float | None = summary.get("usd_uah_rate")
+    # For base currency: combine direct + FOP currency converted at rate
     NEGLIGIBLE = {"UAH": 50, "USD": 5, "EUR": 5, "GBP": 5}
     balances = summary.get("balances", {})
     balance_lines: list[str] = []
@@ -198,9 +211,10 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         bal = balances.get(currency, 0)
         if bal < NEGLIGIBLE.get(currency, 5):
             continue
-        if currency == "UAH" and rate_early and "USD" in income_by_cur:
+        if currency == _BASE_CURRENCY and rate and _FOP_CURRENCY in income_by_cur:
             received = (
-                income_by_cur.get("UAH", 0) + income_by_cur.get("USD", 0) * rate_early
+                income_by_cur.get(_BASE_CURRENCY, 0)
+                + income_by_cur.get(_FOP_CURRENCY, 0) * rate
             )
         else:
             received = income_by_cur[currency]
@@ -211,8 +225,6 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         balance_lines.append(f"  {flag} {bal_str} of {sal_str}  · spent {pct}%")
 
     # Summary: combined in/out/left; if rate available, convert USD→UAH for a total
-    rate: float | None = summary.get("usd_uah_rate")
-
     def _join(amounts: dict[str, float]) -> str:
         return "  +  ".join(
             _fmt_amount(round(v), c)
@@ -230,13 +242,16 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         f"  Left  {bold(_join(total_left))}"
     )
 
-    if rate and "USD" in income_by_cur and "UAH" in income_by_cur:
-        uah_total = round(
-            income_by_cur.get("UAH", 0) + income_by_cur.get("USD", 0) * rate
+    if rate and _FOP_CURRENCY in income_by_cur and _BASE_CURRENCY in income_by_cur:
+        base_total = round(
+            income_by_cur.get(_BASE_CURRENCY, 0)
+            + income_by_cur.get(_FOP_CURRENCY, 0) * rate
         )
+        fop_sym = _sym(_FOP_CURRENCY)
+        base_sym = _sym(_BASE_CURRENCY)
         summary_block += (
-            f"\n\n  ≈ {bold(_fmt_amount(uah_total, 'UAH'))} total"
-            f"  {italic(f'($1 = {rate:,.2f} ₴)')}"
+            f"\n\n  ≈ {bold(_fmt_amount(base_total, _BASE_CURRENCY))} total"
+            f"  {italic(f'({fop_sym}1 = {rate:,.2f} {base_sym})')}"
         )
 
     body = f"📊 {bold('Summary')}\n{summary_block}"
