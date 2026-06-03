@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlmodel import Session, func, select
+from sqlmodel import Session, func, or_, select
 
 from finance_api.core.db.engine import engine
 from finance_api.domains.accounts.models import Account
@@ -318,6 +318,11 @@ def get_income_summary() -> dict[str, Any]:
             select(Account.id).where(Account.is_fop == False)  # noqa: E712
         ).all()
 
+        not_cashback = or_(
+            Transaction.category.is_(None),
+            Transaction.category != cat.CASHBACK,
+        )
+
         def _fop_income_txns(acc_ids: list) -> list[dict[str, Any]]:
             if not acc_ids:
                 return []
@@ -325,7 +330,7 @@ def get_income_summary() -> dict[str, Any]:
                 select(Transaction)
                 .where(Transaction.account_id.in_(acc_ids))
                 .where(Transaction.amount > 0)
-                .where(Transaction.category != cat.CASHBACK)
+                .where(not_cashback)
                 .where(Transaction.date >= start)
                 .where(Transaction.date <= end)
                 .where(Transaction.is_pending == False)  # noqa: E712
@@ -352,7 +357,7 @@ def get_income_summary() -> dict[str, Any]:
                 select(Transaction)
                 .where(Transaction.account_id.in_(acc_ids))
                 .where(Transaction.amount > 0)
-                .where(Transaction.category != cat.CASHBACK)
+                .where(not_cashback)
                 .where(Transaction.date >= start)
                 .where(Transaction.date <= end)
                 .where(Transaction.is_pending == False)  # noqa: E712
