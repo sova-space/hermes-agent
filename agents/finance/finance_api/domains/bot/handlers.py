@@ -201,12 +201,19 @@ async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     global _sync_running
     query = update.callback_query
     await query.answer()
+    n = await asyncio.to_thread(get_visible_account_count)
+    est_min = max(1, round(n * _MONO_RATE_LIMIT_S / 60))
     if _sync_running:
+        # Sync already running — just show progress, don't start a second one
+        await _edit(
+            query,
+            f"🔄 Syncing…  ~{est_min} min",
+            parse_mode=PARSE_MODE,
+            reply_markup=_balance_keyboard(),
+        )
         return
     _sync_running = True
     try:
-        n = await asyncio.to_thread(get_visible_account_count)
-        est_min = max(1, round(n * _MONO_RATE_LIMIT_S / 60))
         await _edit(
             query,
             f"🔄 Syncing…  ~{est_min} min",
