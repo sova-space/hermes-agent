@@ -17,6 +17,7 @@ from finance_api.domains.insights.queries import (
     get_account_balances,
     get_income_summary,
     get_sync_health,
+    get_visible_account_count,
 )
 from finance_api.domains.sync.monobank import run_sync
 
@@ -36,9 +37,16 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+_MONO_RATE_LIMIT_S = 62  # Monobank allows one request per 62 s per token
+
+
 async def _do_sync(message: Message) -> None:
     """Send one sync message and edit it in place when sync finishes."""
-    sent = await message.reply_text("🔄 Syncing…", parse_mode=PARSE_MODE)
+    n = await asyncio.to_thread(get_visible_account_count)
+    est_min = max(1, round(n * _MONO_RATE_LIMIT_S / 60))
+    sent = await message.reply_text(
+        f"🔄 Syncing…  ~{est_min} min", parse_mode=PARSE_MODE
+    )
 
     async def _run_and_update() -> None:
         await asyncio.to_thread(run_sync)

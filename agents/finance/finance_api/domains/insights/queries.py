@@ -80,9 +80,11 @@ def _salary_anchored_start(calendar_start: date, session: Session) -> date:
 
 
 def get_account_balances() -> list[dict[str, Any]]:
-    """Return current balances for all synced accounts."""
+    """Return current balances for all visible (non-hidden) synced accounts."""
     with Session(engine) as session:
-        accounts = session.exec(select(Account)).all()
+        accounts = session.exec(
+            select(Account).where(Account.hidden == False)  # noqa: E712
+        ).all()
         return [
             {
                 "account_id": str(a.id),
@@ -95,6 +97,14 @@ def get_account_balances() -> list[dict[str, Any]]:
             }
             for a in accounts
         ]
+
+
+def get_visible_account_count() -> int:
+    """Return the number of visible accounts — used for sync time estimation."""
+    with Session(engine) as session:
+        return session.exec(
+            select(func.count(Account.id)).where(Account.hidden == False)  # noqa: E712
+        ).one()
 
 
 def get_spending_by_category(

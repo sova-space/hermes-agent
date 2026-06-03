@@ -18,4 +18,5 @@ class Account(SQLModel, table=True):
     account_type: str
     balance: float = 0.0
     is_fop: bool = False
+    hidden: bool = False
     synced_at: datetime | None = None
