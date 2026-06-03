@@ -303,6 +303,7 @@ def get_income_summary() -> dict[str, Any]:
         # If no salary found yet this calendar month, use last month instead.
         if anchored == start:
             start, end = _period_dates(LAST_MONTH)
+        # start/end now cover the right calendar month; salary start computed below.
 
         # FOP USD: external salary only. FOP UAH: internal transfers.
         fop_usd_ids = session.exec(
@@ -411,10 +412,16 @@ def get_income_summary() -> dict[str, Any]:
         if rate_row and isinstance(rate_row, dict):
             usd_uah_rate = rate_row.get("exchange_rate")
 
+        # Period start = earliest actual salary transaction date
+        all_salary_dates = [
+            date.fromisoformat(t["date"]) for t in fop_txns + personal_txns
+        ]
+        salary_start = min(all_salary_dates) if all_salary_dates else start
+
         all_currencies = sorted(set(fop) | set(personal))
         return {
             "period": date.today().strftime("%b %Y"),
-            "period_start": start.isoformat(),
+            "period_start": salary_start.isoformat(),
             "period_end": end.isoformat(),
             "balances": balances,
             "usd_uah_rate": usd_uah_rate,

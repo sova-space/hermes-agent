@@ -237,10 +237,10 @@ def format_income_summary(summary: dict[str, Any]) -> str:
             f"  {italic(f'($1 = {rate:,.2f} ₴)')}"
         )
 
-    body = f"💵 {bold('Received')}\n" + "\n".join(received_lines)
+    body = f"📊 {bold('Summary')}\n{summary_block}"
+    body += f"\n\n💵 {bold('Received')}\n" + "\n".join(received_lines)
     if balance_lines:
         body += f"\n\n💳 {bold('Balance now')}\n" + "\n".join(balance_lines)
-    body += f"\n\n📊 {bold('Summary')}\n{summary_block}"
 
     return f"💰 {bold(f'Income · {period}')}\n\n" + body
 
