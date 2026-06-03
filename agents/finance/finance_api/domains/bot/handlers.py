@@ -23,11 +23,13 @@ from finance_api.domains.sync.monobank import run_sync
 log = structlog.get_logger(__name__)
 
 SYNC_CALLBACK = "sync"
+INCOME_CALLBACK = "income"
 
 
 def _balance_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
+            InlineKeyboardButton("💰 Income", callback_data=INCOME_CALLBACK),
             InlineKeyboardButton("🔄 Sync", callback_data=SYNC_CALLBACK),
             InlineKeyboardButton("📊 Finance", url=settings.mini_app_url),
         ]
@@ -72,22 +74,28 @@ async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /balance command."""
     try:
-        accounts, income = await asyncio.gather(
-            asyncio.to_thread(get_account_balances),
-            asyncio.to_thread(get_income_summary),
-        )
-        parts = [format_balance(accounts)]
-        income_block = format_income_summary(income)
-        if income_block:
-            parts.append(income_block)
+        accounts = await asyncio.to_thread(get_account_balances)
         await update.message.reply_text(
-            "\n\n".join(parts),
+            format_balance(accounts),
             parse_mode=PARSE_MODE,
             reply_markup=_balance_keyboard(),
         )
     except Exception as e:
         log.error("balance_failed", error=str(e))
         await update.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+
+
+async def callback_income(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle 💰 Income button — send income vs spending summary."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        income = await asyncio.to_thread(get_income_summary)
+        text = format_income_summary(income) or "No income data for this month yet."
+        await query.message.reply_text(text, parse_mode=PARSE_MODE)
+    except Exception as e:
+        log.error("income_callback_failed", error=str(e))
+        await query.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
 async def sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
