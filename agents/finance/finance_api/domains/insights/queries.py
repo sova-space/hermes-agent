@@ -16,7 +16,7 @@ from finance_api.domains.insights.periods import (
     SALARY_ANCHORED,
     THIS_MONTH,
 )
-from finance_api.domains.rules.queries import get_patterns, matches_any
+from finance_api.domains.rules.queries import get_rules, match_label, matches_any
 from finance_api.domains.sync.models import SyncRun
 from finance_api.domains.transactions import categories as cat
 from finance_api.domains.transactions.models import Transaction
@@ -344,9 +344,10 @@ def get_income_summary() -> dict[str, Any]:
         def _personal_income_txns(acc_ids: list) -> list[dict[str, Any]]:
             if not acc_ids:
                 return []
-            income_patterns = get_patterns("personal_income")
-            if not income_patterns:
+            income_rules = get_rules("personal_income")
+            if not income_rules:
                 return []
+            income_patterns = [p for p, _ in income_rules]
             rows = session.exec(
                 select(Transaction)
                 .where(Transaction.account_id.in_(acc_ids))
@@ -362,7 +363,8 @@ def get_income_summary() -> dict[str, Any]:
                     "date": t.date.isoformat(),
                     "amount": t.amount,
                     "currency": t.currency,
-                    "description": t.description,
+                    "description": match_label(t.description, income_rules)
+                    or t.description,
                 }
                 for t in rows
                 if matches_any(t.description, income_patterns)

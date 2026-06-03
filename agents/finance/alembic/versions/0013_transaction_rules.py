@@ -21,7 +21,7 @@ SEED_RULES = [
     ("partner_transfer", "Олена", "Partner"),
     ("partner_transfer", "Olena", "Partner"),
     ("partner_transfer", "olena", "Partner"),
-    ("personal_income", "Олександра Хімін", "Мама"),
+    ("personal_income", "Олександра Хімін", "Unanet"),
     ("passthrough", "СТАБІЛЬ ГЛОБАЛ", "СТАБІЛЬ ГЛОБАЛ"),
 ]
 
