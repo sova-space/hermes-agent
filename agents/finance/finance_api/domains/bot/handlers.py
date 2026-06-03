@@ -37,18 +37,19 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
 
 
 async def _do_sync(message: Message) -> None:
-    """Fire sync in background and send status replies to message."""
-    await message.reply_text("🔄 Syncing…", parse_mode=PARSE_MODE)
-    # Run sync in background without blocking the handler — full sync takes
-    # several minutes due to Monobank rate limiting (62 s per account).
-    asyncio.get_running_loop().run_in_executor(None, run_sync)
-    await asyncio.sleep(0.5)
-    status = await asyncio.to_thread(get_sync_health)
-    await message.reply_text(
-        format_sync_status(status),
-        parse_mode=PARSE_MODE,
-        reply_markup=_balance_keyboard(),
-    )
+    """Send one sync message and edit it in place when sync finishes."""
+    sent = await message.reply_text("🔄 Syncing…", parse_mode=PARSE_MODE)
+
+    async def _run_and_update() -> None:
+        await asyncio.to_thread(run_sync)
+        status = await asyncio.to_thread(get_sync_health)
+        await sent.edit_text(
+            format_sync_status(status),
+            parse_mode=PARSE_MODE,
+            reply_markup=_balance_keyboard(),
+        )
+
+    asyncio.create_task(_run_and_update())  # noqa: RUF006
 
 
 async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
