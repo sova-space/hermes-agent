@@ -188,14 +188,26 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         amt = bold(_fmt_amount(t["amount"], currency))
         received_lines.append(f"  {label}  {amt}")
 
-    # Current balance per currency from personal accounts
+    # Income totals per currency
+    income_by_cur: dict[str, float] = {}
+    for _source, currency, t in all_txns:
+        income_by_cur[currency] = income_by_cur.get(currency, 0) + t["amount"]
+
+    # Balance + spent (received - balance) per currency
     balances = summary.get("balances", {})
     balance_lines: list[str] = []
-    for currency, bal in sorted(balances.items()):
-        if bal == 0:
-            continue
+    for currency in sorted(set(income_by_cur) | set(balances)):
+        bal = balances.get(currency, 0)
+        received = income_by_cur.get(currency, 0)
         flag = _CURRENCY_FLAG.get(currency, "💱")
-        balance_lines.append(f"  {flag} {bold(_fmt_amount(bal, currency))}")
+        bal_str = bold(_fmt_amount(round(bal), currency))
+        if received and bal < received:
+            spent = received - bal
+            pct = round(spent / received * 100)
+            spent_str = _fmt_amount(round(spent), currency)
+            balance_lines.append(f"  {flag} {bal_str}  · spent {spent_str} ({pct}%)")
+        else:
+            balance_lines.append(f"  {flag} {bal_str}")
 
     body = f"💵 {bold('Received')}\n" + "\n".join(received_lines)
     if balance_lines:
