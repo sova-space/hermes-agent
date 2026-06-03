@@ -105,14 +105,21 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /balance command."""
     try:
         accounts = await asyncio.to_thread(get_account_balances)
-        await update.message.reply_text(
-            format_balance(accounts),
+        await ctx.bot.send_message(
+            chat_id=update.effective_chat.id,
+            message_thread_id=getattr(update.message, "message_thread_id", None),
+            text=format_balance(accounts),
             parse_mode=PARSE_MODE,
             reply_markup=_balance_keyboard(),
         )
     except Exception as e:
         log.error("balance_failed", error=str(e))
-        await update.message.reply_text(f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+        await ctx.bot.send_message(
+            chat_id=update.effective_chat.id,
+            message_thread_id=getattr(update.message, "message_thread_id", None),
+            text=f"❌ Error: {code(e)}",
+            parse_mode=PARSE_MODE,
+        )
 
 
 async def callback_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
