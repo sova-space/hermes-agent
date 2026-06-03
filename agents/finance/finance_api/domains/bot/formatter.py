@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime
 from typing import Any
 
-from finance_api.bot.telegram_fmt import DIVIDER, blockquote, bold, code, italic
+from finance_api.bot.telegram_fmt import bold, code, italic, pre
 from finance_api.domains.transactions import categories as cat
 
 CATEGORY_EMOJI: dict[str, str] = {
@@ -76,7 +76,7 @@ def _fmt_ago(iso: str | None) -> str:
 
 
 def format_balance(accounts: list[dict[str, Any]]) -> str:
-    """Format account balances grouped by currency as HTML."""
+    """Format account balances as a monospace code block grouped by currency."""
     if not accounts:
         return "No accounts synced yet. Run /sync first."
 
@@ -84,26 +84,45 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
     for a in accounts:
         by_currency[a["currency"]].append(a)
 
-    sections: list[str] = []
-    for currency, group in by_currency.items():
-        lines: list[str] = []
+    # Pre-compute formatted amounts for consistent column widths
+    fmt: dict[str, str] = {
+        a["name"]: _fmt_amount(a["balance"], a["currency"]) for a in accounts
+    }
+    group_totals: dict[str, str] = {
+        currency: _fmt_amount(sum(a["balance"] for a in group), currency)
+        for currency, group in by_currency.items()
+        if len(group) > 1
+    }
+
+    name_w = max(len(a["name"]) for a in accounts)
+    amount_w = max(
+        max(len(s) for s in fmt.values()),
+        max((len(s) for s in group_totals.values()), default=0),
+    )
+    div = "─" * (name_w + 2 + amount_w)
+
+    pre_lines: list[str] = []
+    for i, (currency, group) in enumerate(by_currency.items()):
+        if i > 0:
+            pre_lines.append("")
+        pre_lines.append(currency)
         for a in group:
-            lines.append(
-                blockquote(f"💳 {a['name']}: {_fmt_amount(a['balance'], currency)}")
+            pre_lines.append(f"  {a['name']:<{name_w}}  {fmt[a['name']]:>{amount_w}}")
+        if currency in group_totals:
+            pre_lines.append(f"  {div}")
+            pre_lines.append(
+                f"  {'Total':<{name_w}}  {group_totals[currency]:>{amount_w}}"
             )
-        if len(group) > 1:
-            total = sum(a["balance"] for a in group)
-            lines.append(
-                blockquote(f"{_sym(currency)} total: {_fmt_amount(total, currency)}")
-            )
-        sections.append("\n".join(lines))
 
     latest_sync = max(
         (a["synced_at"] for a in accounts if a.get("synced_at")),
         default=None,
     )
-    footer = f"🕐 Synced {_fmt_ago(latest_sync)}"
-    return (f"\n{DIVIDER}\n").join(sections) + f"\n{DIVIDER}\n{footer}"
+    return (
+        f"{bold('💳 Balance')}\n\n"
+        + pre("\n".join(pre_lines))
+        + f"\n\n🕐 Synced {_fmt_ago(latest_sync)}"
+    )
 
 
 def format_stats(spending: dict[str, float], period: str = "this_month") -> str:

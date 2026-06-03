@@ -24,3 +24,8 @@ def code(text: str) -> str:
 def blockquote(text: str) -> str:
     """Wrap text in a blockquote — renders as a blue row in Telegram."""
     return f"<blockquote>{text}</blockquote>"
+
+
+def pre(text: str) -> str:
+    """Wrap text in a pre block — renders as a monospace code box in Telegram."""
+    return f"<pre>{text}</pre>"
