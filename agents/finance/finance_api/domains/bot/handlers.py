@@ -194,7 +194,12 @@ async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         n = await asyncio.to_thread(get_visible_account_count)
         est_min = max(1, round(n * _MONO_RATE_LIMIT_S / 60))
-        await _edit(query, f"🔄 Syncing…  ~{est_min} min", parse_mode=PARSE_MODE)
+        await _edit(
+            query,
+            f"🔄 Syncing…  ~{est_min} min",
+            parse_mode=PARSE_MODE,
+            reply_markup=InlineKeyboardMarkup([]),
+        )
         asyncio.create_task(_sync_then_edit(query.message))  # noqa: RUF006
     except Exception as e:
         log.error("sync_callback_failed", error=str(e))
