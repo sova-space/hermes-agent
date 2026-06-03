@@ -188,15 +188,22 @@ def format_income_summary(summary: dict[str, Any]) -> str:
     for _source, currency, t in all_txns:
         income_by_cur[currency] = income_by_cur.get(currency, 0) + t["amount"]
 
-    # Balance line: "X of SALARY · spent Y%", skip negligible balances
+    # Balance line: "X of TOTAL · spent Y%", skip negligible balances
+    # For UAH: combine direct UAH income + USD converted at rate
+    rate_early: float | None = summary.get("usd_uah_rate")
     NEGLIGIBLE = {"UAH": 50, "USD": 5, "EUR": 5, "GBP": 5}
     balances = summary.get("balances", {})
     balance_lines: list[str] = []
     for currency in sorted(income_by_cur):
-        received = income_by_cur[currency]
         bal = balances.get(currency, 0)
         if bal < NEGLIGIBLE.get(currency, 5):
             continue
+        if currency == "UAH" and rate_early and "USD" in income_by_cur:
+            received = (
+                income_by_cur.get("UAH", 0) + income_by_cur.get("USD", 0) * rate_early
+            )
+        else:
+            received = income_by_cur[currency]
         flag = _CURRENCY_FLAG.get(currency, "💱")
         sal_str = _fmt_amount(round(received), currency)
         bal_str = bold(_fmt_amount(round(bal), currency))
