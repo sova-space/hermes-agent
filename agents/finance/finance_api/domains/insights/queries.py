@@ -304,7 +304,7 @@ def get_income_summary() -> dict[str, Any]:
         if anchored == start:
             start, end = _period_dates(LAST_MONTH)
 
-        # FOP USD account receives external salary; FOP UAH is for internal transfers only.
+        # FOP USD: external salary only. FOP UAH: internal transfers.
         fop_usd_ids = session.exec(
             select(Account.id).where(
                 Account.is_fop == True,  # noqa: E712
@@ -386,27 +386,25 @@ def get_income_summary() -> dict[str, Any]:
         fop = _totals(fop_txns)
         personal = _totals(personal_txns)
 
-        spending_rows = session.exec(
-            select(Transaction.currency, func.sum(Transaction.amount))
-            .where(Transaction.account_id.in_(personal_ids))
-            .where(Transaction.amount < 0)
-            .where(Transaction.date >= start)
-            .where(Transaction.date <= end)
-            .where(Transaction.is_pending == False)  # noqa: E712
-            .group_by(Transaction.currency)
+        # Current balance per currency across personal accounts
+        balance_rows = session.exec(
+            select(Account.currency, func.sum(Account.balance))
+            .where(Account.id.in_(personal_ids))
+            .where(Account.hidden == False)  # noqa: E712
+            .group_by(Account.currency)
         ).all()
-        spending = {c: round(abs(v)) for c, v in spending_rows if v}
+        balances = {c: round(v) for c, v in balance_rows if v}
 
-        all_currencies = sorted(set(fop) | set(personal) | set(spending))
+        all_currencies = sorted(set(fop) | set(personal))
         return {
             "period": date.today().strftime("%b %Y"),
             "period_start": start.isoformat(),
             "period_end": end.isoformat(),
+            "balances": balances,
             "by_currency": {
                 c: {
                     "fop": fop.get(c, 0),
                     "personal": personal.get(c, 0),
-                    "spending": spending.get(c, 0),
                     "fop_txns": [t for t in fop_txns if t["currency"] == c],
                     "personal_txns": [t for t in personal_txns if t["currency"] == c],
                 }

@@ -188,22 +188,18 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         amt = bold(_fmt_amount(t["amount"], currency))
         received_lines.append(f"  {label}  {amt}")
 
-    # Spending + left per currency (only currencies where we have spending)
-    spent_lines: list[str] = []
-    for currency, v in by_cur.items():
-        income_total = v["fop"] + v["personal"]
-        if not v["spending"] or not income_total:
+    # Current balance per currency from personal accounts
+    balances = summary.get("balances", {})
+    balance_lines: list[str] = []
+    for currency, bal in sorted(balances.items()):
+        if bal == 0:
             continue
         flag = _CURRENCY_FLAG.get(currency, "💱")
-        pct = round(v["spending"] / income_total * 100)
-        spent_str = _fmt_amount(round(v["spending"]), currency)
-        left = income_total - v["spending"]
-        left_str = bold(_fmt_amount(round(left), currency))
-        spent_lines.append(f"  {flag} Spent  {spent_str} ({pct}%)  ·  Left {left_str}")
+        balance_lines.append(f"  {flag} {bold(_fmt_amount(bal, currency))}")
 
     body = f"💵 {bold('Received')}\n" + "\n".join(received_lines)
-    if spent_lines:
-        body += f"\n\n💸 {bold('Spending')}\n" + "\n".join(spent_lines)
+    if balance_lines:
+        body += f"\n\n💳 {bold('Balance now')}\n" + "\n".join(balance_lines)
 
     return f"💰 {bold(f'Income · {period}')}\n\n" + body
 
