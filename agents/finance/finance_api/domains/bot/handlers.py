@@ -30,6 +30,8 @@ INCOME_CALLBACK = "income"
 SKIPPED_CALLBACK = "skipped"
 BALANCE_CALLBACK = "balance_cb"
 
+_MSG_NOT_MODIFIED = "message is not modified"
+
 
 def _balance_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -55,7 +57,7 @@ async def _edit(query, text: str, **kwargs) -> None:
     try:
         await query.edit_message_text(text, **kwargs)
     except BadRequest as e:
-        if "not modified" not in str(e).lower():
+        if _MSG_NOT_MODIFIED not in str(e).lower():
             raise
 
 
