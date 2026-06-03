@@ -295,10 +295,15 @@ def get_sync_health() -> dict[str, Any]:
 
 
 def get_income_summary() -> dict[str, Any]:
-    """Return this month's income by source (FOP / personal) and spending."""
+    """Return most recent salary cycle: income by source and spending."""
     start, end = _period_dates(THIS_MONTH)
     with Session(engine) as session:
         start = _salary_anchored_start(start, session)
+        # If no salary found yet this calendar month, use last month's cycle instead.
+        if start == end.replace(day=1):
+            prev_start, prev_end = _period_dates(LAST_MONTH)
+            prev_anchored = _salary_anchored_start(prev_start, session)
+            start, end = prev_anchored, prev_end
 
         # FOP income: only USD accounts — that's where COXIT salary arrives directly.
         # FOP UAH receives only internal conversions, never external payments.
