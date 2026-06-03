@@ -300,19 +300,22 @@ def get_income_summary() -> dict[str, Any]:
     with Session(engine) as session:
         start = _salary_anchored_start(start, session)
 
-        fop_ids = session.exec(
-            select(Account.id).where(Account.is_fop == True)  # noqa: E712
+        # FOP income: only USD accounts — that's where COXIT salary arrives directly.
+        # FOP UAH receives only internal conversions, never external payments.
+        fop_usd_ids = session.exec(
+            select(Account.id).where(
+                Account.is_fop == True,  # noqa: E712
+                Account.currency == "USD",
+            )
         ).all()
         personal_ids = session.exec(
             select(Account.id).where(Account.is_fop == False)  # noqa: E712
         ).all()
 
-        def _income_txns(
-            acc_ids: list,
-        ) -> list[dict[str, Any]]:
+        def _fop_income_txns(acc_ids: list) -> list[dict[str, Any]]:
             if not acc_ids:
                 return []
-            base = (
+            rows = session.exec(
                 select(Transaction)
                 .where(Transaction.account_id.in_(acc_ids))
                 .where(Transaction.amount > 0)
@@ -321,22 +324,43 @@ def get_income_summary() -> dict[str, Any]:
                 .where(Transaction.date <= end)
                 .where(Transaction.is_pending == False)  # noqa: E712
                 .order_by(Transaction.date)
-            )
-            rows = session.exec(
-                base.where(Transaction.notes.ilike("%#salary%"))  # type: ignore[union-attr]
             ).all()
             return [
                 {
                     "date": t.date.isoformat(),
-                    "amount": round(t.amount),
+                    "amount": t.amount,
                     "currency": t.currency,
                     "description": t.description,
                 }
                 for t in rows
             ]
 
-        fop_txns = _income_txns(fop_ids)
-        personal_txns = _income_txns(personal_ids)
+        def _personal_income_txns(acc_ids: list) -> list[dict[str, Any]]:
+            if not acc_ids:
+                return []
+            rows = session.exec(
+                select(Transaction)
+                .where(Transaction.account_id.in_(acc_ids))
+                .where(Transaction.amount > 0)
+                .where(Transaction.category != cat.CASHBACK)
+                .where(Transaction.date >= start)
+                .where(Transaction.date <= end)
+                .where(Transaction.is_pending == False)  # noqa: E712
+                .where(Transaction.notes.ilike("%#salary%"))  # type: ignore[union-attr]
+                .order_by(Transaction.date)
+            ).all()
+            return [
+                {
+                    "date": t.date.isoformat(),
+                    "amount": t.amount,
+                    "currency": t.currency,
+                    "description": t.description,
+                }
+                for t in rows
+            ]
+
+        fop_txns = _fop_income_txns(fop_usd_ids)
+        personal_txns = _personal_income_txns(personal_ids)
 
         def _totals(
             txns: list[dict[str, Any]],

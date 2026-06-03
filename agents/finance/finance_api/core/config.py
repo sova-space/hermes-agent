@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     monobank_token: str
     sync_interval_hours: int = 1
-    monobank_fetch_days: int = 730
+    monobank_fetch_days: int = 32
 
     partner_name_pattern: str = "Олена|Olena|olena"  # regex to match partner transfers
     fop_account_ids: str = ""  # comma-separated Monobank account IDs
