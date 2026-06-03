@@ -44,11 +44,16 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def _thread_id(message) -> int | None:
+    """Return the forum topic thread ID for a message, or None outside topics."""
+    return getattr(message, "message_thread_id", None)
+
+
 async def _send(query, ctx: ContextTypes.DEFAULT_TYPE, text: str, **kwargs) -> None:
     """Send a plain message to the same chat/topic — no reply-to reference."""
     await ctx.bot.send_message(
         chat_id=query.message.chat_id,
-        message_thread_id=query.message.message_thread_id,
+        message_thread_id=_thread_id(query.message),
         text=text,
         **kwargs,
     )
@@ -107,7 +112,7 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         accounts = await asyncio.to_thread(get_account_balances)
         await ctx.bot.send_message(
             chat_id=update.effective_chat.id,
-            message_thread_id=getattr(update.message, "message_thread_id", None),
+            message_thread_id=_thread_id(update.message),
             text=format_balance(accounts),
             parse_mode=PARSE_MODE,
             reply_markup=_balance_keyboard(),
@@ -116,7 +121,7 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         log.error("balance_failed", error=str(e))
         await ctx.bot.send_message(
             chat_id=update.effective_chat.id,
-            message_thread_id=getattr(update.message, "message_thread_id", None),
+            message_thread_id=_thread_id(update.message),
             text=f"❌ Error: {code(e)}",
             parse_mode=PARSE_MODE,
         )
