@@ -49,37 +49,33 @@ def _thread_id(message) -> int | None:
     return getattr(message, "message_thread_id", None)
 
 
-async def _send(query, ctx: ContextTypes.DEFAULT_TYPE, text: str, **kwargs) -> None:
-    """Send a plain message to the same chat/topic — no reply-to reference."""
-    await ctx.bot.send_message(
-        chat_id=query.message.chat_id,
-        message_thread_id=_thread_id(query.message),
-        text=text,
-        **kwargs,
-    )
+async def _edit(query, text: str, **kwargs) -> None:
+    """Edit the message that triggered the callback in place."""
+    await query.edit_message_text(text, **kwargs)
 
 
 _MONO_RATE_LIMIT_S = 62  # Monobank allows one request per 62 s per token
 
 
+async def _sync_then_edit(message: Message) -> None:
+    """Background task: run sync and edit message with the final status."""
+    await asyncio.to_thread(run_sync)
+    status = await asyncio.to_thread(get_sync_health)
+    await message.edit_text(
+        format_sync_status(status),
+        parse_mode=PARSE_MODE,
+        reply_markup=_balance_keyboard(),
+    )
+
+
 async def _do_sync(message: Message) -> None:
-    """Send one sync message and edit it in place when sync finishes."""
+    """For /sync command — reply with status message, edit it when done."""
     n = await asyncio.to_thread(get_visible_account_count)
     est_min = max(1, round(n * _MONO_RATE_LIMIT_S / 60))
     sent = await message.reply_text(
         f"🔄 Syncing…  ~{est_min} min", parse_mode=PARSE_MODE
     )
-
-    async def _run_and_update() -> None:
-        await asyncio.to_thread(run_sync)
-        status = await asyncio.to_thread(get_sync_health)
-        await sent.edit_text(
-            format_sync_status(status),
-            parse_mode=PARSE_MODE,
-            reply_markup=_balance_keyboard(),
-        )
-
-    asyncio.create_task(_run_and_update())  # noqa: RUF006
+    asyncio.create_task(_sync_then_edit(sent))  # noqa: RUF006
 
 
 async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -92,8 +88,7 @@ async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     text = "💰 Hermes Finance"
     in_finance_topic = (
         update.effective_chat.id == settings.telegram_chat_id
-        and getattr(update.message, "message_thread_id", None)
-        == settings.telegram_finance_topic_id
+        and _thread_id(update.message) == settings.telegram_finance_topic_id
     )
     if in_finance_topic or update.effective_chat.type == "private":
         await update.message.reply_text(text, reply_markup=keyboard)
@@ -128,51 +123,50 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def callback_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle 💳 Balance button — send a fresh balance view."""
+    """Handle 💳 Balance button — edit message with fresh balance."""
     query = update.callback_query
     await query.answer()
     try:
         accounts = await asyncio.to_thread(get_account_balances)
-        await _send(
+        await _edit(
             query,
-            ctx,
             format_balance(accounts),
             parse_mode=PARSE_MODE,
             reply_markup=_balance_keyboard(),
         )
     except Exception as e:
         log.error("balance_callback_failed", error=str(e))
-        await _send(query, ctx, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+        await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
 async def callback_income(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle 💰 Income button — send income vs spending summary."""
+    """Handle 💰 Income button — edit message with income/spending summary."""
     query = update.callback_query
     await query.answer()
     try:
         income = await asyncio.to_thread(get_income_summary)
         text = format_income_summary(income) or "No income data for this month yet."
-        await _send(
-            query, ctx, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+        await _edit(
+            query, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
         )
     except Exception as e:
         log.error("income_callback_failed", error=str(e))
-        await _send(query, ctx, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+        await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
 async def callback_skipped(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle 👁 Skipped button — show hidden accounts."""
+    """Handle 👁 Skipped button — edit message with hidden accounts."""
     query = update.callback_query
     await query.answer()
     try:
         accounts = await asyncio.to_thread(get_hidden_account_balances)
         text = format_balance(accounts) if accounts else "No skipped accounts."
-        await _send(
-            query, ctx, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+        await _edit(
+            query, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
         )
     except Exception as e:
         log.error("skipped_callback_failed", error=str(e))
-        await _send(query, ctx, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+        await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
 async def sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -187,11 +181,14 @@ async def sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle 🔄 Sync inline button press."""
+    """Handle 🔄 Sync button — edit message to syncing state, update when done."""
     query = update.callback_query
     await query.answer()
     try:
-        await _do_sync(query.message)
+        n = await asyncio.to_thread(get_visible_account_count)
+        est_min = max(1, round(n * _MONO_RATE_LIMIT_S / 60))
+        await _edit(query, f"🔄 Syncing…  ~{est_min} min", parse_mode=PARSE_MODE)
+        asyncio.create_task(_sync_then_edit(query.message))  # noqa: RUF006
     except Exception as e:
         log.error("sync_callback_failed", error=str(e))
-        await _send(query, ctx, f"❌ Sync failed: {code(e)}", parse_mode=PARSE_MODE)
+        await _edit(query, f"❌ Sync failed: {code(e)}", parse_mode=PARSE_MODE)
