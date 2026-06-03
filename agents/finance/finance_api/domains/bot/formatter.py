@@ -183,7 +183,8 @@ def format_income_summary(summary: dict[str, Any]) -> str:
 
         for source, t in all_txns:
             dt = date.fromisoformat(t["date"])
-            label = f"{source} · {dt.strftime('%b %-d')}"
+            sender = t["description"].removeprefix("Від: ").strip()
+            label = f"{source} · {dt.strftime('%b %-d')} · {sender}"
             amt = _fmt_amount(t["amount"], currency)
             top_lines.append(f"  {label}  {bold(amt)}")
 
@@ -191,6 +192,9 @@ def format_income_summary(summary: dict[str, Any]) -> str:
             pct = round(v["spending"] / total * 100)
             spent = _fmt_amount(round(v["spending"]), currency)
             top_lines.append(f"  Spent  {spent} ({pct}%)")
+            left = total - v["spending"]
+            left_str = _fmt_amount(round(left), currency)
+            top_lines.append(f"  Left   {bold(left_str)}")
 
     if not top_lines:
         return ""
