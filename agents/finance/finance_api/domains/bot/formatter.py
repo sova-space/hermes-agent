@@ -208,29 +208,38 @@ def format_income_summary(summary: dict[str, Any]) -> str:
             + income_by_cur.get(_BASE_CURRENCY, 0) / rate  # type: ignore[operator]
         )
 
+        # Use plain numbers (no currency symbols) in cells — symbols in headers only
+        def _num(v: float) -> str:
+            return f"{round(v):,}"
+
+        uah_hdr = _sym(_BASE_CURRENCY)
+        usd_hdr = _sym(_FOP_CURRENCY)
+
         label_w = max(len(r[0]) for r in rows)
         uah_w = max(
-            max(len(_fmt_amount(round(r[1]), _BASE_CURRENCY)) for r in rows),
-            len(_fmt_amount(base_total, _BASE_CURRENCY)),
+            max(len(_num(r[1])) for r in rows),
+            len(_num(base_total)),
+            len(uah_hdr),
         )
         usd_w = max(
-            max(len(_fmt_amount(round(r[2]), _FOP_CURRENCY)) for r in rows),
-            len(_fmt_amount(usd_total, _FOP_CURRENCY)),
+            max(len(_num(r[2])) for r in rows),
+            len(_num(usd_total)),
+            len(usd_hdr),
         )
         div = "─" * (label_w + 2 + uah_w + 2 + usd_w)
 
-        table_lines: list[str] = []
+        table_lines: list[str] = [
+            f"{'':^{label_w}}  {uah_hdr:>{uah_w}}  {usd_hdr:>{usd_w}}"
+        ]
         for label, uah, usd in rows:
-            uah_str = _fmt_amount(round(uah), _BASE_CURRENCY)
-            usd_str = _fmt_amount(round(usd), _FOP_CURRENCY)
             table_lines.append(
-                f"{label:<{label_w}}  {uah_str:>{uah_w}}  {usd_str:>{usd_w}}"
+                f"{label:<{label_w}}  {_num(uah):>{uah_w}}  {_num(usd):>{usd_w}}"
             )
         table_lines.append(div)
         table_lines.append(
             f"{'Total':<{label_w}}"
-            f"  {_fmt_amount(base_total, _BASE_CURRENCY):>{uah_w}}"
-            f"  {_fmt_amount(usd_total, _FOP_CURRENCY):>{usd_w}}"
+            f"  {_num(base_total):>{uah_w}}"
+            f"  {_num(usd_total):>{usd_w}}"
         )
         fop_sym = _sym(_FOP_CURRENCY)
         base_sym = _sym(_BASE_CURRENCY)
