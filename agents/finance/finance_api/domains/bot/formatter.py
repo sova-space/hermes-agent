@@ -325,6 +325,9 @@ def format_spending_summary(data: dict[str, Any]) -> str:
     return header + "\n\n" + pre("\n".join(summary_lines))
 
 
+_MAX_DETAIL_ROWS = 15
+
+
 def format_spending_category(data: dict[str, Any], category: str) -> str:
     """Format detail view for a single spending category."""
     EXCLUDED = {cat.COUPLE_TRANSFER, cat.CASHBACK}
@@ -340,36 +343,57 @@ def format_spending_category(data: dict[str, Any], category: str) -> str:
 
     em = _emoji(category)
     pct = round(cat_row["amount"] / total_all * 100) if total_all else 0
-    txns = data.get("details", {}).get(category, [])
+    txns = sorted(
+        data.get("details", {}).get(category, []),
+        key=lambda t: t["amount"],
+        reverse=True,
+    )
 
-    # Group by label
+    # Group by label only when label differs from description (real label exists)
     groups: dict[str, list[dict[str, Any]]] = {}
     for t in txns:
-        groups.setdefault(t.get("label", t["description"]), []).append(t)
+        lbl = t.get("label", t["description"])
+        groups.setdefault(lbl, []).append(t)
+
+    has_real_labels = any(
+        lbl != group_txns[0]["description"] for lbl, group_txns in groups.items()
+    )
 
     parts: list[str] = []
-    for group_label, group_txns in sorted(
-        groups.items(),
-        key=lambda x: sum(t["amount"] for t in x[1]),
-        reverse=True,
-    ):
-        group_total = sum(t["amount"] for t in group_txns)
-        desc_w = max(len(t["description"]) for t in group_txns)
-        t_amt_w = max(len(f"{t['amount']:,.0f}") for t in group_txns)
-        table_lines: list[str] = []
-        for t in sorted(group_txns, key=lambda x: x["amount"], reverse=True):
-            dt = date.fromisoformat(t["date"])
-            table_lines.append(
-                f"{t['description']:<{desc_w}}  "
-                f"{t['amount']:>{t_amt_w},.0f} ₴  "
-                f"{dt.strftime('%-d %b')}"
-            )
-        header_line = (
-            f"{bold(group_label)}  {group_total:,.0f} ₴"
-            if len(groups) > 1
-            else bold(group_label)
-        )
-        parts.append(header_line + "\n" + pre("\n".join(table_lines)))
+
+    if has_real_labels:
+        for group_label, group_txns in sorted(
+            groups.items(),
+            key=lambda x: sum(t["amount"] for t in x[1]),
+            reverse=True,
+        ):
+            group_total = sum(t["amount"] for t in group_txns)
+            visible = group_txns[:_MAX_DETAIL_ROWS]
+            hidden = len(group_txns) - len(visible)
+            amt_w = max(len(f"{t['amount']:,.0f}") for t in visible)
+            table_lines = [
+                f"{t['description']}  {t['amount']:>{amt_w},.0f} ₴  "
+                f"{date.fromisoformat(t['date']).strftime('%-d %b')}"
+                for t in visible
+            ]
+            if hidden:
+                table_lines.append(f"+ {hidden} more…")
+            header = f"{bold(group_label)}  {group_total:,.0f} ₴"
+            parts.append(header + "\n" + pre("\n".join(table_lines)))
+    else:
+        # Flat table — no redundant label headers
+        visible = txns[:_MAX_DETAIL_ROWS]
+        hidden = len(txns) - len(visible)
+        desc_w = max(len(t["description"]) for t in visible) if visible else 0
+        amt_w = max(len(f"{t['amount']:,.0f}") for t in visible) if visible else 0
+        table_lines = [
+            f"{t['description']:<{desc_w}}  {t['amount']:>{amt_w},.0f} ₴  "
+            f"{date.fromisoformat(t['date']).strftime('%-d %b')}"
+            for t in visible
+        ]
+        if hidden:
+            table_lines.append(f"+ {hidden} more…")
+        parts.append(pre("\n".join(table_lines)))
 
     start = date.fromisoformat(data["period_start"])
     period_label = start.strftime("%b %-d")
