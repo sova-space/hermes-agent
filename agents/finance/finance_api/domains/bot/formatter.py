@@ -309,7 +309,6 @@ def format_spending_summary(data: dict[str, Any]) -> str:
 
     name_w = max(len(r["category"]) for r in rows)
     amt_w = max(max(len(f"{r['amount']:,.0f}") for r in rows), len("Total"))
-    details = data.get("details", {})
 
     # Summary table — no emoji inside pre so columns align perfectly
     summary_lines: list[str] = []
@@ -322,45 +321,62 @@ def format_spending_summary(data: dict[str, Any]) -> str:
     summary_lines.append("─" * (name_w + 2 + amt_w + 5))
     summary_lines.append(f"{'Total':<{name_w}}  {total:>{amt_w},.0f}")
 
-    parts: list[str] = [pre("\n".join(summary_lines))]
+    header = f"📊 {bold(f'Spending — {period_label}')}"
+    return header + "\n\n" + pre("\n".join(summary_lines))
 
-    # Expandable detail block per category — grouped by label
-    for r in rows:
-        txns = details.get(r["category"], [])
-        if not txns:
-            continue
-        em = _emoji(r["category"])
 
-        # Group by label
-        groups: dict[str, list[dict[str, Any]]] = {}
-        for t in txns:
-            groups.setdefault(t.get("label", t["description"]), []).append(t)
+def format_spending_category(data: dict[str, Any], category: str) -> str:
+    """Format detail view for a single spending category."""
+    EXCLUDED = {cat.COUPLE_TRANSFER, cat.CASHBACK}
+    rows = [
+        r
+        for r in data.get("rows", [])
+        if r["currency"] == "UAH" and r["category"] not in EXCLUDED
+    ]
+    total_all = sum(r["amount"] for r in rows)
+    cat_row = next((r for r in rows if r["category"] == category), None)
+    if not cat_row:
+        return f"No data for {category}."
 
-        block_lines: list[str] = []
-        for group_label, group_txns in sorted(
-            groups.items(),
-            key=lambda x: sum(t["amount"] for t in x[1]),
-            reverse=True,
-        ):
-            group_total = sum(t["amount"] for t in group_txns)
-            if len(groups) > 1:
-                block_lines.append(f"{bold(group_label)}  {group_total:,.0f} ₴")
-            t_amt_w = max(len(f"{t['amount']:,.0f}") for t in group_txns)
-            for t in sorted(group_txns, key=lambda x: x["amount"], reverse=True):
-                dt = date.fromisoformat(t["date"])
-                block_lines.append(
-                    f"  {t['description']}  "
-                    f"{t['amount']:>{t_amt_w},.0f} ₴  "
-                    f"{dt.strftime('%-d %b')}"
-                )
+    em = _emoji(category)
+    pct = round(cat_row["amount"] / total_all * 100) if total_all else 0
+    txns = data.get("details", {}).get(category, [])
 
-        parts.append(
-            expandable_blockquote(
-                f"{em} {bold(r['category'])}\n" + "\n".join(block_lines)
+    # Group by label
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for t in txns:
+        groups.setdefault(t.get("label", t["description"]), []).append(t)
+
+    parts: list[str] = []
+    for group_label, group_txns in sorted(
+        groups.items(),
+        key=lambda x: sum(t["amount"] for t in x[1]),
+        reverse=True,
+    ):
+        group_total = sum(t["amount"] for t in group_txns)
+        desc_w = max(len(t["description"]) for t in group_txns)
+        t_amt_w = max(len(f"{t['amount']:,.0f}") for t in group_txns)
+        table_lines: list[str] = []
+        for t in sorted(group_txns, key=lambda x: x["amount"], reverse=True):
+            dt = date.fromisoformat(t["date"])
+            table_lines.append(
+                f"{t['description']:<{desc_w}}  "
+                f"{t['amount']:>{t_amt_w},.0f} ₴  "
+                f"{dt.strftime('%-d %b')}"
             )
+        header_line = (
+            f"{bold(group_label)}  {group_total:,.0f} ₴"
+            if len(groups) > 1
+            else bold(group_label)
         )
+        parts.append(header_line + "\n" + pre("\n".join(table_lines)))
 
-    return f"📊 {bold(f'Spending — {period_label}')}\n\n" + "\n\n".join(parts)
+    start = date.fromisoformat(data["period_start"])
+    period_label = start.strftime("%b %-d")
+    cat_header = f"{category}  {cat_row['amount']:,.0f} ₴  ({pct}%)"
+    title = f"{em} {bold(cat_header)}"
+    subtitle = italic(f"since {period_label}")
+    return f"{title}\n{subtitle}\n\n" + "\n\n".join(parts)
 
 
 def format_stats(spending: dict[str, float], period: str = "this_month") -> str:

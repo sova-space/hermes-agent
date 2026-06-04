@@ -12,6 +12,7 @@ from finance_api.core.config import settings
 from finance_api.domains.bot.formatter import (
     format_balance,
     format_income_summary,
+    format_spending_category,
     format_spending_summary,
     format_sync_status,
 )
@@ -30,6 +31,7 @@ log = structlog.get_logger(__name__)
 SYNC_CALLBACK = "sync"
 INCOME_CALLBACK = "income"
 SPENDING_CALLBACK = "spending"
+SPENDING_CAT_PREFIX = "spd:"
 SKIPPED_CALLBACK = "skipped"
 BALANCE_CALLBACK = "balance_cb"
 
@@ -189,18 +191,65 @@ async def callback_skipped(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
+def _spending_keyboard(data: dict) -> InlineKeyboardMarkup:
+    """Category buttons row + back-to-balance row."""
+    from finance_api.domains.bot.formatter import CATEGORY_EMOJI
+    from finance_api.domains.transactions.categories import CASHBACK, COUPLE_TRANSFER
+
+    rows_data = [
+        r
+        for r in data.get("rows", [])
+        if r["currency"] == "UAH" and r["category"] not in {COUPLE_TRANSFER, CASHBACK}
+    ]
+    rows_data.sort(key=lambda r: r["amount"], reverse=True)
+    cat_buttons = [
+        InlineKeyboardButton(
+            CATEGORY_EMOJI.get(r["category"], "📦"),
+            callback_data=f"{SPENDING_CAT_PREFIX}{r['category']}",
+        )
+        for r in rows_data
+    ]
+    # Split into rows of 4
+    keyboard = [cat_buttons[i : i + 4] for i in range(0, len(cat_buttons), 4)]
+    keyboard.append([InlineKeyboardButton("← Back", callback_data=BALANCE_CALLBACK)])
+    return InlineKeyboardMarkup(keyboard)
+
+
 async def callback_spending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle 📊 Spending button — edit message with salary-cycle spending breakdown."""
     query = update.callback_query
     await query.answer()
     try:
         data = await asyncio.to_thread(get_spending_summary)
+        ctx.user_data["spending_data"] = data
         text = format_spending_summary(data) or "No spending recorded yet this cycle."
         await _edit(
-            query, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+            query, text, parse_mode=PARSE_MODE, reply_markup=_spending_keyboard(data)
         )
     except Exception as e:
         log.error("spending_callback_failed", error=str(e))
+        await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+
+
+async def callback_spending_category(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Handle category drill-down button — show detail for selected category."""
+    query = update.callback_query
+    await query.answer()
+    category = query.data[len(SPENDING_CAT_PREFIX) :]
+    try:
+        data = ctx.user_data.get("spending_data") or await asyncio.to_thread(
+            get_spending_summary
+        )
+        ctx.user_data["spending_data"] = data
+        text = format_spending_category(data, category)
+        back_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("← Spending", callback_data=SPENDING_CALLBACK)]
+        ])
+        await _edit(query, text, parse_mode=PARSE_MODE, reply_markup=back_kb)
+    except Exception as e:
+        log.error("spending_cat_failed", error=str(e))
         await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
