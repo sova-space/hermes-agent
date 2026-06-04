@@ -387,7 +387,8 @@ def format_spending_category(data: dict[str, Any], category: str) -> str:
         desc_w = max(len(t["description"]) for t in visible) if visible else 0
         amt_w = max(len(f"{t['amount']:,.0f}") for t in visible) if visible else 0
         table_lines = [
-            f"{t['description']:<{desc_w}}  {t['amount']:>{amt_w},.0f} ₴  "
+            f"{t['description']:<{desc_w}}  {t['amount']:>{amt_w},.0f} "
+            f"{_sym(t.get('currency', 'UAH'))}  "
             f"{date.fromisoformat(t['date']).strftime('%-d %b')}"
             for t in visible
         ]

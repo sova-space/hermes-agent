@@ -431,13 +431,14 @@ def get_spending_summary() -> dict[str, Any]:
 
         rows = get_spending_by_category(start=anchored, end=end)
 
-        # Per-category transaction details for drill-down
+        # Per-category transaction details for drill-down (all currencies)
         detail_rows = session.exec(
             select(
                 Transaction.category,
                 Transaction.description,
                 Transaction.amount,
                 Transaction.date,
+                Transaction.currency,
             )
             .where(
                 Transaction.account_id.in_(
@@ -454,7 +455,6 @@ def get_spending_summary() -> dict[str, Any]:
                     ["Couple Transfer", "Cashback"]
                 )
             )
-            .where(Transaction.currency == "UAH")
             .order_by(Transaction.category, Transaction.amount)
         ).all()
 
@@ -478,11 +478,12 @@ def get_spending_summary() -> dict[str, Any]:
             return desc
 
         by_cat: dict[str, list[dict[str, Any]]] = {}
-        for cat_name, desc, amt, dt in detail_rows:
+        for cat_name, desc, amt, dt, currency in detail_rows:
             by_cat.setdefault(cat_name, []).append({
                 "description": desc,
                 "label": _label(cat_name, desc, dt),
                 "amount": round(abs(amt), 2),
+                "currency": currency,
                 "date": dt.isoformat(),
             })
 
