@@ -12,12 +12,14 @@ from finance_api.core.config import settings
 from finance_api.domains.bot.formatter import (
     format_balance,
     format_income_summary,
+    format_spending_summary,
     format_sync_status,
 )
 from finance_api.domains.insights.queries import (
     get_account_balances,
     get_hidden_account_balances,
     get_income_summary,
+    get_spending_summary,
     get_sync_health,
     get_visible_account_count,
 )
@@ -27,6 +29,7 @@ log = structlog.get_logger(__name__)
 
 SYNC_CALLBACK = "sync"
 INCOME_CALLBACK = "income"
+SPENDING_CALLBACK = "spending"
 SKIPPED_CALLBACK = "skipped"
 BALANCE_CALLBACK = "balance_cb"
 
@@ -38,9 +41,10 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton("💳 Balance", callback_data=BALANCE_CALLBACK),
             InlineKeyboardButton("💰 Income", callback_data=INCOME_CALLBACK),
-            InlineKeyboardButton("👁 Skipped", callback_data=SKIPPED_CALLBACK),
+            InlineKeyboardButton("📊 Spending", callback_data=SPENDING_CALLBACK),
         ],
         [
+            InlineKeyboardButton("👁 Skipped", callback_data=SKIPPED_CALLBACK),
             InlineKeyboardButton("🔄 Sync", callback_data=SYNC_CALLBACK),
             InlineKeyboardButton("📊 Finance", url=settings.mini_app_url),
         ],
@@ -182,6 +186,21 @@ async def callback_skipped(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         )
     except Exception as e:
         log.error("skipped_callback_failed", error=str(e))
+        await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+
+
+async def callback_spending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle 📊 Spending button — edit message with salary-cycle spending breakdown."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        data = await asyncio.to_thread(get_spending_summary)
+        text = format_spending_summary(data) or "No spending recorded yet this cycle."
+        await _edit(
+            query, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+        )
+    except Exception as e:
+        log.error("spending_callback_failed", error=str(e))
         await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 

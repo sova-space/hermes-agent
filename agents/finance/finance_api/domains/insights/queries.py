@@ -295,6 +295,22 @@ def get_sync_health() -> dict[str, Any]:
         }
 
 
+def get_spending_summary() -> dict[str, Any]:
+    """Return UAH spending by category for the current salary cycle."""
+    start, end = _period_dates(THIS_MONTH)
+    with Session(engine) as session:
+        anchored = _salary_anchored_start(start, session)
+        if anchored == start:
+            start, end = _period_dates(LAST_MONTH)
+            anchored = _salary_anchored_start(start, session)
+        rows = get_spending_by_category(start=anchored, end=end)
+    return {
+        "rows": rows,
+        "period_start": anchored.isoformat(),
+        "period_end": end.isoformat(),
+    }
+
+
 def get_income_summary() -> dict[str, Any]:
     """Return most recent salary cycle: income by source and spending."""
     start, end = _period_dates(THIS_MONTH)

@@ -285,6 +285,42 @@ def format_income_summary(summary: dict[str, Any]) -> str:
     return f"💰 {bold(f'Income · {period}')}\n\n" + body
 
 
+def format_spending_summary(data: dict[str, Any]) -> str:
+    """Format salary-cycle UAH spending by category."""
+    EXCLUDED = {cat.COUPLE_TRANSFER, cat.CASHBACK}
+    rows = [
+        r
+        for r in data.get("rows", [])
+        if r["currency"] == "UAH" and r["category"] not in EXCLUDED
+    ]
+    if not rows:
+        return ""
+
+    rows.sort(key=lambda r: r["amount"], reverse=True)
+    total = sum(r["amount"] for r in rows)
+
+    start = date.fromisoformat(data["period_start"])
+    end = date.fromisoformat(data["period_end"])
+    if start.month == end.month:
+        period_label = f"{start.strftime('%-d')}-{end.strftime('%-d %b')}"
+    else:
+        period_label = f"{start.strftime('%-d %b')}-{end.strftime('%-d %b')}"
+
+    name_w = max(len(r["category"]) for r in rows)
+    amt_w = max(len(f"{r['amount']:,.0f}") for r in rows)
+
+    lines: list[str] = []
+    for r in rows:
+        pct = round(r["amount"] / total * 100) if total else 0
+        em = _emoji(r["category"])
+        amt_str = f"{r['amount']:,.0f}"
+        lines.append(f"{em} {r['category']:<{name_w}}  {amt_str:>{amt_w}} ₴  {pct:>3}%")
+    lines.append("─" * (3 + name_w + 2 + amt_w + 6))
+    lines.append(f"{'Total':<{3 + name_w}}  {total:>{amt_w},.0f} ₴")
+
+    return f"📊 {bold(f'Spending — {period_label}')}\n\n" + pre("\n".join(lines))
+
+
 def format_stats(spending: dict[str, float], period: str = "this_month") -> str:
     """Format spending breakdown as HTML."""
     if not spending:
