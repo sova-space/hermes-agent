@@ -156,9 +156,9 @@ _BASE: dict[int, str] = {
     7375: cat.SUBSCRIPTIONS,  # Information Retrieval Services
     7379: cat.SUBSCRIPTIONS,  # Computer Maintenance and Repair NEC
     # ------------------------------------------------------------------
-    # Utilities — electricity, gas, water, heating, telecom
+    # Utilities — electricity, gas, water, heating
     # ------------------------------------------------------------------
-    4814: cat.UTILITIES,  # Telephone Services (mobile, landline)
+    4814: cat.SUBSCRIPTIONS,  # Telephone Services — mobile/landline plans
     4899: cat.UTILITIES,  # Cable, Satellite, and Pay TV
     4900: cat.UTILITIES,  # Utilities — General
     4911: cat.UTILITIES,  # Electric Companies, Power Utilities
