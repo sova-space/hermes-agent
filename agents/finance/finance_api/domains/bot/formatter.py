@@ -203,7 +203,10 @@ def format_income_summary(summary: dict[str, Any]) -> str:
             income_by_cur.get(_BASE_CURRENCY, 0)
             + income_by_cur.get(_FOP_CURRENCY, 0) * rate  # type: ignore[operator]
         )
-        usd_total = round(income_by_cur.get(_FOP_CURRENCY, 0))
+        usd_total = round(
+            income_by_cur.get(_FOP_CURRENCY, 0)
+            + income_by_cur.get(_BASE_CURRENCY, 0) / rate  # type: ignore[operator]
+        )
 
         label_w = max(len(r[0]) for r in rows)
         uah_w = max(
