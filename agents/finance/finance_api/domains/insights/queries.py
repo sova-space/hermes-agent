@@ -298,49 +298,95 @@ def get_sync_health() -> dict[str, Any]:
 
 
 def get_subscriptions() -> dict[str, Any]:
-    """Return subscription summary: monthly/yearly breakdown with projected costs."""
-    lookback = date.today() - timedelta(days=90)
+    """Return subscription summary with smart frequency detection."""
+    today = date.today()
+    lookback_90 = today - timedelta(days=90)
+    lookback_400 = today - timedelta(days=400)
+
     with Session(engine) as session:
-        rows = session.exec(
+        # All subscription transactions in last 90 days
+        recent_rows = session.exec(
             select(
                 Transaction.description,
                 func.count(Transaction.id),
                 func.avg(func.abs(Transaction.amount)),
+                func.max(Transaction.date),
             )
             .where(Transaction.category == cat.SUBSCRIPTIONS)
             .where(Transaction.amount < 0)
-            .where(Transaction.date >= lookback)
+            .where(Transaction.date >= lookback_90)
             .where(Transaction.is_pending == False)  # noqa: E712
             .group_by(Transaction.description)
             .order_by(func.avg(func.abs(Transaction.amount)).desc())
         ).all()
 
+        # For each description: check how many distinct calendar months it appeared in
+        # and whether it existed ~1 year ago (yearly detection)
+        def _monthly_months(desc: str) -> int:
+            month_rows = session.exec(
+                select(func.date_trunc("month", Transaction.date))
+                .where(Transaction.category == cat.SUBSCRIPTIONS)
+                .where(Transaction.description == desc)
+                .where(Transaction.amount < 0)
+                .where(Transaction.date >= lookback_90)
+                .group_by(func.date_trunc("month", Transaction.date))
+            ).all()
+            return len(month_rows)
+
+        def _has_yearly_history(desc: str) -> bool:
+            old = session.exec(
+                select(func.count(Transaction.id))
+                .where(Transaction.category == cat.SUBSCRIPTIONS)
+                .where(Transaction.description == desc)
+                .where(Transaction.amount < 0)
+                .where(Transaction.date >= lookback_400)
+                .where(Transaction.date < lookback_90)
+            ).one()
+            return (old or 0) >= 1
+
         recurring = session.exec(select(RecurringItem)).all()
-        yearly_names = {
-            r.name.lower(): r.amount
+        yearly_in_recurring = {
+            r.name.lower()
             for r in recurring
-            if r.category == cat.SUBSCRIPTIONS
+            if r.category == cat.SUBSCRIPTIONS and r.day_of_month is not None
         }
 
-    monthly, yearly, unknown = [], [], []
-    for desc, count, avg_amt in rows:
+    monthly, yearly, one_time = [], [], []
+    for desc, count, avg_amt, last_date in recent_rows:
         amt = round(float(avg_amt))
-        item = {"name": desc, "amount": amt}
+        months_seen = _monthly_months(desc)
         desc_lower = desc.lower()
-        # yearly if it's in recurring_items or only appeared once in 90 days
-        if any(k in desc_lower for k in yearly_names) or count == 1:
+        is_yearly_recurring = any(k in desc_lower for k in yearly_in_recurring)
+        has_old = _has_yearly_history(desc)
+
+        item = {
+            "name": desc,
+            "amount": amt,
+            "last_date": last_date.isoformat() if last_date else None,
+        }
+
+        if is_yearly_recurring or (count == 1 and has_old):
+            # Confirmed yearly
             yearly.append({**item, "yearly": amt, "monthly_equiv": round(amt / 12)})
-        elif count >= 2:
+        elif months_seen >= 2:
+            # Appeared in 2+ distinct months → monthly
             monthly.append({**item, "yearly_equiv": amt * 12})
+        elif count == 1 and not has_old:
+            # Only appeared once, never seen before → one-time or too new to classify
+            one_time.append(item)
         else:
-            unknown.append(item)
+            # Appeared multiple times in same month but not across months → unclear
+            monthly.append({**item, "yearly_equiv": amt * 12})
+
+    monthly.sort(key=lambda x: x["amount"], reverse=True)
+    yearly.sort(key=lambda x: x["amount"], reverse=True)
 
     monthly_total = sum(s["amount"] for s in monthly)
     yearly_monthly_equiv = sum(s["monthly_equiv"] for s in yearly)
     return {
         "monthly": monthly,
         "yearly": yearly,
-        "unknown": unknown,
+        "one_time": one_time,
         "monthly_total": monthly_total,
         "yearly_monthly_equiv": yearly_monthly_equiv,
         "total_per_month": monthly_total + yearly_monthly_equiv,

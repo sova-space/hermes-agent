@@ -407,7 +407,7 @@ def format_subscriptions(data: dict[str, Any]) -> str:
     """Format subscription breakdown: monthly, yearly, unknown frequency."""
     monthly = data.get("monthly", [])
     yearly = data.get("yearly", [])
-    unknown = data.get("unknown", [])
+    unknown = data.get("one_time", data.get("unknown", []))
 
     if not monthly and not yearly and not unknown:
         return "No subscriptions found in last 90 days."
@@ -442,7 +442,7 @@ def format_subscriptions(data: dict[str, Any]) -> str:
 
     if unknown:
         lines = "\n".join(f"  {s['name']}  {s['amount']:,} ₴" for s in unknown)
-        parts.append(f"{italic('Seen once (frequency unknown)')}\n{lines}")
+        parts.append(f"{italic('One-time or too new to classify')}\n{lines}")
 
     total_mo = data.get("total_per_month", 0)
     total_yr = data.get("total_per_year", 0)
