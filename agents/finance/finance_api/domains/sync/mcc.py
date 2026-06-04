@@ -42,6 +42,7 @@ _BASE: dict[int, str] = {
     5171: cat.TRANSPORTATION,  # Petroleum Products (wholesale)
     5172: cat.TRANSPORTATION,  # Petroleum Products (not bulk)
     5531: cat.TRANSPORTATION,  # Auto Parts, Accessories, Tires
+    5533: cat.TRANSPORTATION,  # Automotive Parts and Accessories
     5541: cat.TRANSPORTATION,  # Service Stations (petrol / gasoline)
     5542: cat.TRANSPORTATION,  # Automated Fuel Dispensers
     7511: cat.TRANSPORTATION,  # Truck / Utility Trailer Rentals
@@ -79,6 +80,7 @@ _BASE: dict[int, str] = {
     5211: cat.SHOPPING,  # Lumber and Building Materials
     5251: cat.SHOPPING,  # Hardware Stores
     5261: cat.SHOPPING,  # Lawn and Garden Supply, Nurseries
+    5262: cat.SHOPPING,  # Marketplaces, Wholesale Clubs
     5310: cat.SHOPPING,  # Discount Stores
     5311: cat.SHOPPING,  # Department Stores
     5331: cat.SHOPPING,  # Variety Stores
@@ -102,6 +104,7 @@ _BASE: dict[int, str] = {
     5733: cat.SHOPPING,  # Music Stores, Instruments
     5940: cat.SHOPPING,  # Sporting Goods Stores
     5941: cat.SHOPPING,  # Sporting Goods
+    5992: cat.SHOPPING,  # Florists
     5942: cat.SHOPPING,  # Book Stores
     5943: cat.SHOPPING,  # Stationery, Office, and School Supplies
     5944: cat.SHOPPING,  # Jewelry, Watch, Clock, Silverware Stores
@@ -115,6 +118,7 @@ _BASE: dict[int, str] = {
     # Entertainment — movies, events, sports, gaming, recreation
     # ------------------------------------------------------------------
     7832: cat.ENTERTAINMENT,  # Motion Picture Theaters
+    7829: cat.ENTERTAINMENT,  # Motion Picture / Video Production (streaming)
     7841: cat.ENTERTAINMENT,  # DVD / Video Tape Rental Stores
     7922: cat.ENTERTAINMENT,  # Theatrical Ticket Agencies
     7929: cat.ENTERTAINMENT,  # Bands, Orchestras, Misc Entertainers
@@ -146,6 +150,7 @@ _BASE: dict[int, str] = {
     4816: cat.SUBSCRIPTIONS,  # Computer Network Services (internet/SaaS)
     5734: cat.SUBSCRIPTIONS,  # Computer Software Stores
     5735: cat.SUBSCRIPTIONS,  # Record Stores (music)
+    5818: cat.SUBSCRIPTIONS,  # Digital Goods — App Stores, In-App Purchases
     7372: cat.SUBSCRIPTIONS,  # Computer Programming and Data Processing
     7374: cat.SUBSCRIPTIONS,  # Computer Processing and Data Prep
     7375: cat.SUBSCRIPTIONS,  # Information Retrieval Services
@@ -169,8 +174,9 @@ _BASE: dict[int, str] = {
     6011: cat.ATM_CASH,  # Financial Institutions — Automated Cash (ATM)
     6051: cat.ATM_CASH,  # Non-Financial Institutions — Money Transfer, Crypto
     # ------------------------------------------------------------------
-    # Finance — banking fees, insurance, financial services
+    # Finance — banking fees, insurance, wire transfers, financial services
     # ------------------------------------------------------------------
+    4829: cat.FINANCE,  # Wire Transfers / Money Orders (P2P bank transfers)
     6012: cat.FINANCE,  # Financial Institutions — Merchandise and Services
     6099: cat.FINANCE,  # Financial Services NEC
     6300: cat.FINANCE,  # Insurance Sales
