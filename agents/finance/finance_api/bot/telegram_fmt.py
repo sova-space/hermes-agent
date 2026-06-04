@@ -16,9 +16,14 @@ def italic(text: str) -> str:
     return f"<i>{text}</i>"
 
 
+def escape(text: str) -> str:
+    """Escape HTML special characters for safe inclusion in HTML messages."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def code(text: str) -> str:
-    """Wrap text in HTML code tags."""
-    return f"<code>{text}</code>"
+    """Wrap text in HTML code tags — escapes content automatically."""
+    return f"<code>{escape(str(text))}</code>"
 
 
 def blockquote(text: str) -> str:

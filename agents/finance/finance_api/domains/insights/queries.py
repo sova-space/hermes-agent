@@ -323,13 +323,14 @@ def get_subscriptions() -> dict[str, Any]:
         # For each description: check how many distinct calendar months it appeared in
         # and whether it existed ~1 year ago (yearly detection)
         def _monthly_months(desc: str) -> int:
+            trunc = func.date_trunc("month", Transaction.date).label("mo")
             month_rows = session.exec(
-                select(func.date_trunc("month", Transaction.date))
+                select(trunc)
                 .where(Transaction.category == cat.SUBSCRIPTIONS)
                 .where(Transaction.description == desc)
                 .where(Transaction.amount < 0)
                 .where(Transaction.date >= lookback_90)
-                .group_by(func.date_trunc("month", Transaction.date))
+                .group_by(trunc)
             ).all()
             return len(month_rows)
 
