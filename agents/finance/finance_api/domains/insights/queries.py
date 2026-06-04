@@ -8,6 +8,7 @@ from sqlmodel import Session, func, or_, select
 
 from finance_api.core.db.engine import engine
 from finance_api.domains.accounts.models import Account
+from finance_api.domains.forecast.models import RecurringItem
 from finance_api.domains.insights.periods import (
     LAST_7D,
     LAST_30D,
@@ -294,6 +295,57 @@ def get_sync_health() -> dict[str, Any]:
             "tx_imported": last_run.tx_imported,
             "error": last_run.error,
         }
+
+
+def get_subscriptions() -> dict[str, Any]:
+    """Return subscription summary: monthly/yearly breakdown with projected costs."""
+    lookback = date.today() - timedelta(days=90)
+    with Session(engine) as session:
+        rows = session.exec(
+            select(
+                Transaction.description,
+                func.count(Transaction.id),
+                func.avg(func.abs(Transaction.amount)),
+            )
+            .where(Transaction.category == cat.SUBSCRIPTIONS)
+            .where(Transaction.amount < 0)
+            .where(Transaction.date >= lookback)
+            .where(Transaction.is_pending == False)  # noqa: E712
+            .group_by(Transaction.description)
+            .order_by(func.avg(func.abs(Transaction.amount)).desc())
+        ).all()
+
+        recurring = session.exec(select(RecurringItem)).all()
+        yearly_names = {
+            r.name.lower(): r.amount
+            for r in recurring
+            if r.category == cat.SUBSCRIPTIONS
+        }
+
+    monthly, yearly, unknown = [], [], []
+    for desc, count, avg_amt in rows:
+        amt = round(float(avg_amt))
+        item = {"name": desc, "amount": amt}
+        desc_lower = desc.lower()
+        # yearly if it's in recurring_items or only appeared once in 90 days
+        if any(k in desc_lower for k in yearly_names) or count == 1:
+            yearly.append({**item, "yearly": amt, "monthly_equiv": round(amt / 12)})
+        elif count >= 2:
+            monthly.append({**item, "yearly_equiv": amt * 12})
+        else:
+            unknown.append(item)
+
+    monthly_total = sum(s["amount"] for s in monthly)
+    yearly_monthly_equiv = sum(s["monthly_equiv"] for s in yearly)
+    return {
+        "monthly": monthly,
+        "yearly": yearly,
+        "unknown": unknown,
+        "monthly_total": monthly_total,
+        "yearly_monthly_equiv": yearly_monthly_equiv,
+        "total_per_month": monthly_total + yearly_monthly_equiv,
+        "total_per_year": monthly_total * 12 + sum(s["yearly"] for s in yearly),
+    }
 
 
 def get_spending_summary() -> dict[str, Any]:

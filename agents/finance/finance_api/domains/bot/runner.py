@@ -9,6 +9,7 @@ from finance_api.domains.bot.handlers import (
     SKIPPED_CALLBACK,
     SPENDING_CALLBACK,
     SPENDING_CAT_PREFIX,
+    SUBS_CALLBACK,
     SYNC_CALLBACK,
     balance,
     callback_balance,
@@ -16,6 +17,7 @@ from finance_api.domains.bot.handlers import (
     callback_skipped,
     callback_spending,
     callback_spending_category,
+    callback_subs,
     callback_sync,
     cmd_finance_app,
     sync,
@@ -52,4 +54,5 @@ def create_bot(token: str) -> Application:
             pattern=f"^{SPENDING_CAT_PREFIX}",
         )
     )
+    app.add_handler(CallbackQueryHandler(callback_subs, pattern=f"^{SUBS_CALLBACK}$"))
     return app

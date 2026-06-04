@@ -14,6 +14,7 @@ from finance_api.domains.bot.formatter import (
     format_income_summary,
     format_spending_category,
     format_spending_summary,
+    format_subscriptions,
     format_sync_status,
 )
 from finance_api.domains.insights.queries import (
@@ -21,6 +22,7 @@ from finance_api.domains.insights.queries import (
     get_hidden_account_balances,
     get_income_summary,
     get_spending_summary,
+    get_subscriptions,
     get_sync_health,
     get_visible_account_count,
 )
@@ -32,6 +34,7 @@ SYNC_CALLBACK = "sync"
 INCOME_CALLBACK = "income"
 SPENDING_CALLBACK = "spending"
 SPENDING_CAT_PREFIX = "spd:"
+SUBS_CALLBACK = "subs"
 SKIPPED_CALLBACK = "skipped"
 BALANCE_CALLBACK = "balance_cb"
 
@@ -44,6 +47,7 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("💳 Balance", callback_data=BALANCE_CALLBACK),
             InlineKeyboardButton("💰 Income", callback_data=INCOME_CALLBACK),
             InlineKeyboardButton("📊 Spending", callback_data=SPENDING_CALLBACK),
+            InlineKeyboardButton("📱 Subs", callback_data=SUBS_CALLBACK),
         ],
         [
             InlineKeyboardButton("👁 Skipped", callback_data=SKIPPED_CALLBACK),
@@ -269,6 +273,21 @@ async def callback_spending_category(
         await _edit(query, text, parse_mode=PARSE_MODE, reply_markup=back_kb)
     except Exception as e:
         log.error("spending_cat_failed", error=str(e))
+        await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+
+
+async def callback_subs(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle 📱 Subs button — edit message with subscription breakdown."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        data = await asyncio.to_thread(get_subscriptions)
+        text = format_subscriptions(data)
+        await _edit(
+            query, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+        )
+    except Exception as e:
+        log.error("subs_callback_failed", error=str(e))
         await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 

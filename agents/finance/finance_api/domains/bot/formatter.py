@@ -403,6 +403,53 @@ def format_spending_category(data: dict[str, Any], category: str) -> str:
     return f"{title}\n{subtitle}\n\n" + "\n\n".join(parts)
 
 
+def format_subscriptions(data: dict[str, Any]) -> str:
+    """Format subscription breakdown: monthly, yearly, unknown frequency."""
+    monthly = data.get("monthly", [])
+    yearly = data.get("yearly", [])
+    unknown = data.get("unknown", [])
+
+    if not monthly and not yearly and not unknown:
+        return "No subscriptions found in last 90 days."
+
+    parts: list[str] = []
+
+    def _table(items: list[dict[str, Any]], show_proj: bool) -> str:
+        name_w = max(len(s["name"]) for s in items)
+        amt_w = max(len(f"{s['amount']:,}") for s in items)
+        lines = []
+        for s in items:
+            proj = (
+                f"  → {s.get('yearly_equiv', s.get('yearly', 0)):,}/yr"
+                if show_proj
+                else f"  → {s.get('monthly_equiv', 0):,}/mo"
+            )
+            lines.append(f"{s['name']:<{name_w}}  {s['amount']:>{amt_w},} ₴{proj}")
+        return "\n".join(lines)
+
+    if monthly:
+        total_yr = data["monthly_total"] * 12
+        lines = _table(monthly, show_proj=True)
+        div = "─" * max(len(row) for row in lines.splitlines())
+        name_w = max(len(s["name"]) for s in monthly)
+        mo_total = data["monthly_total"]
+        total_line = f"{'Total':<{name_w}}  {mo_total:,} ₴  → {total_yr:,}/yr"
+        parts.append(f"{bold('Monthly')}\n" + pre(lines + f"\n{div}\n{total_line}"))
+
+    if yearly:
+        lines = _table(yearly, show_proj=False)
+        parts.append(f"{bold('Yearly')}\n" + pre(lines))
+
+    if unknown:
+        lines = "\n".join(f"  {s['name']}  {s['amount']:,} ₴" for s in unknown)
+        parts.append(f"{italic('Seen once (frequency unknown)')}\n{lines}")
+
+    total_mo = data.get("total_per_month", 0)
+    total_yr = data.get("total_per_year", 0)
+    footer = bold(f"Total  {total_mo:,} ₴/mo  →  {total_yr:,} ₴/yr")
+    return f"📱 {bold('Subscriptions')}\n\n" + "\n\n".join(parts) + f"\n\n{footer}"
+
+
 def format_stats(spending: dict[str, float], period: str = "this_month") -> str:
     """Format spending breakdown as HTML."""
     if not spending:
