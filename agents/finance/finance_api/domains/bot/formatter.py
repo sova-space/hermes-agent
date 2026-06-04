@@ -308,17 +308,44 @@ def format_spending_summary(data: dict[str, Any]) -> str:
 
     name_w = max(len(r["category"]) for r in rows)
     amt_w = max(len(f"{r['amount']:,.0f}") for r in rows)
+    details = data.get("details", {})
 
-    lines: list[str] = []
+    parts: list[str] = []
+    summary_lines: list[str] = []
     for r in rows:
         pct = round(r["amount"] / total * 100) if total else 0
         em = _emoji(r["category"])
         amt_str = f"{r['amount']:,.0f}"
-        lines.append(f"{em} {r['category']:<{name_w}}  {amt_str:>{amt_w}} ₴  {pct:>3}%")
-    lines.append("─" * (3 + name_w + 2 + amt_w + 6))
-    lines.append(f"{'Total':<{3 + name_w}}  {total:>{amt_w},.0f} ₴")
+        summary_lines.append(
+            f"{em} {r['category']:<{name_w}}  {amt_str:>{amt_w}} ₴  {pct:>3}%"
+        )
+    summary_lines.append("─" * (3 + name_w + 2 + amt_w + 6))
+    summary_lines.append(f"{'Total':<{3 + name_w}}  {total:>{amt_w},.0f} ₴")
+    parts.append(pre("\n".join(summary_lines)))
 
-    return f"📊 {bold(f'Spending — {period_label}')}\n\n" + pre("\n".join(lines))
+    # Expandable per-category breakdowns
+    for r in rows:
+        txns = details.get(r["category"], [])
+        if len(txns) <= 1:
+            continue
+        desc_w = max(len(t["description"]) for t in txns)
+        t_amt_w = max(len(f"{t['amount']:,.0f}") for t in txns)
+        em = _emoji(r["category"])
+        block_lines: list[str] = []
+        for t in sorted(txns, key=lambda x: x["amount"], reverse=True):
+            dt = date.fromisoformat(t["date"])
+            block_lines.append(
+                f"{t['description']:<{desc_w}}  "
+                f"{t['amount']:>{t_amt_w},.0f} ₴  "
+                f"{dt.strftime('%-d %b')}"
+            )
+        parts.append(
+            expandable_blockquote(
+                f"{em} {bold(r['category'])}\n" + "\n".join(block_lines)
+            )
+        )
+
+    return f"📊 {bold(f'Spending — {period_label}')}\n\n" + "\n\n".join(parts)
 
 
 def format_stats(spending: dict[str, float], period: str = "this_month") -> str:

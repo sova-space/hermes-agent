@@ -296,7 +296,7 @@ def get_sync_health() -> dict[str, Any]:
 
 
 def get_spending_summary() -> dict[str, Any]:
-    """Return UAH spending by category for the current salary cycle."""
+    """Return UAH spending by category with per-category transaction details."""
     start, end = _period_dates(THIS_MONTH)
     with Session(engine) as session:
         anchored = _salary_anchored_start(start, session)
@@ -304,10 +304,47 @@ def get_spending_summary() -> dict[str, Any]:
             start, end = _period_dates(LAST_MONTH)
             anchored = _salary_anchored_start(start, session)
         rows = get_spending_by_category(start=anchored, end=end)
+
+        # Per-category transaction details for drill-down
+        detail_rows = session.exec(
+            select(
+                Transaction.category,
+                Transaction.description,
+                Transaction.amount,
+                Transaction.date,
+            )
+            .where(
+                Transaction.account_id.in_(
+                    select(Account.id).where(Account.is_fop == False)  # noqa: E712
+                )
+            )
+            .where(Transaction.amount < 0)
+            .where(Transaction.date >= anchored)
+            .where(Transaction.date <= end)
+            .where(Transaction.is_pending == False)  # noqa: E712
+            .where(Transaction.category.isnot(None))  # type: ignore[union-attr]
+            .where(
+                Transaction.category.notin_(  # type: ignore[union-attr]
+                    ["Couple Transfer", "Cashback"]
+                )
+            )
+            .where(Transaction.currency == "UAH")
+            .order_by(Transaction.category, Transaction.amount)
+        ).all()
+
+        by_cat: dict[str, list[dict[str, Any]]] = {}
+        for cat_name, desc, amt, dt in detail_rows:
+            by_cat.setdefault(cat_name, []).append({
+                "description": desc,
+                "amount": round(abs(amt), 2),
+                "date": dt.isoformat(),
+            })
+
     return {
         "rows": rows,
         "period_start": anchored.isoformat(),
         "period_end": end.isoformat(),
+        "details": by_cat,
     }
 
 
