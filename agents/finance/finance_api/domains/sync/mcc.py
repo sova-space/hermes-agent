@@ -118,7 +118,7 @@ _BASE: dict[int, str] = {
     # Entertainment — movies, events, sports, gaming, recreation
     # ------------------------------------------------------------------
     7832: cat.ENTERTAINMENT,  # Motion Picture Theaters
-    7829: cat.ENTERTAINMENT,  # Motion Picture / Video Production (streaming)
+    7829: cat.SUBSCRIPTIONS,  # Digital Video / Streaming Services (Netflix etc.)
     7841: cat.ENTERTAINMENT,  # DVD / Video Tape Rental Stores
     7922: cat.ENTERTAINMENT,  # Theatrical Ticket Agencies
     7929: cat.ENTERTAINMENT,  # Bands, Orchestras, Misc Entertainers
