@@ -47,7 +47,7 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("💳 Balance", callback_data=BALANCE_CALLBACK),
             InlineKeyboardButton("💰 Income", callback_data=INCOME_CALLBACK),
             InlineKeyboardButton("📊 Spending", callback_data=SPENDING_CALLBACK),
-            InlineKeyboardButton("📱 Subs", callback_data=SUBS_CALLBACK),
+            InlineKeyboardButton("🔁 Subs", callback_data=SUBS_CALLBACK),
         ],
         [
             InlineKeyboardButton("👁 Skipped", callback_data=SKIPPED_CALLBACK),

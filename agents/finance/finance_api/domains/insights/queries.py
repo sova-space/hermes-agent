@@ -351,32 +351,28 @@ def get_subscriptions() -> dict[str, Any]:
             if r.category == cat.SUBSCRIPTIONS and r.day_of_month is not None
         }
 
-    monthly, yearly, one_time = [], [], []
-    for desc, count, avg_amt, last_date in recent_rows:
-        amt = round(float(avg_amt))
-        months_seen = _monthly_months(desc)
-        desc_lower = desc.lower()
-        is_yearly_recurring = any(k in desc_lower for k in yearly_in_recurring)
-        has_old = _has_yearly_history(desc)
+        monthly, yearly, one_time = [], [], []
+        for desc, count, avg_amt, last_date in recent_rows:
+            amt = round(float(avg_amt))
+            months_seen = _monthly_months(desc)
+            desc_lower = desc.lower()
+            is_yearly_recurring = any(k in desc_lower for k in yearly_in_recurring)
+            has_old = _has_yearly_history(desc)
 
-        item = {
-            "name": desc,
-            "amount": amt,
-            "last_date": last_date.isoformat() if last_date else None,
-        }
+            item = {
+                "name": desc,
+                "amount": amt,
+                "last_date": last_date.isoformat() if last_date else None,
+            }
 
-        if is_yearly_recurring or (count == 1 and has_old):
-            # Confirmed yearly
-            yearly.append({**item, "yearly": amt, "monthly_equiv": round(amt / 12)})
-        elif months_seen >= 2:
-            # Appeared in 2+ distinct months → monthly
-            monthly.append({**item, "yearly_equiv": amt * 12})
-        elif count == 1 and not has_old:
-            # Only appeared once, never seen before → one-time or too new to classify
-            one_time.append(item)
-        else:
-            # Appeared multiple times in same month but not across months → unclear
-            monthly.append({**item, "yearly_equiv": amt * 12})
+            if is_yearly_recurring or (count == 1 and has_old):
+                yearly.append({**item, "yearly": amt, "monthly_equiv": round(amt / 12)})
+            elif months_seen >= 2:
+                monthly.append({**item, "yearly_equiv": amt * 12})
+            elif count == 1 and not has_old:
+                one_time.append(item)
+            else:
+                monthly.append({**item, "yearly_equiv": amt * 12})
 
     monthly.sort(key=lambda x: x["amount"], reverse=True)
     yearly.sort(key=lambda x: x["amount"], reverse=True)
