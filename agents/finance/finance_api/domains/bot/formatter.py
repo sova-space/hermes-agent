@@ -324,26 +324,39 @@ def format_spending_summary(data: dict[str, Any]) -> str:
 
     parts: list[str] = [pre("\n".join(summary_lines))]
 
-    # Expandable detail block per category (tap to reveal transactions)
+    # Expandable detail block per category — grouped by label
     for r in rows:
         txns = details.get(r["category"], [])
         if not txns:
             continue
-        txns_sorted = sorted(txns, key=lambda x: x["amount"], reverse=True)
-        desc_w = max(len(t["description"]) for t in txns_sorted)
-        t_amt_w = max(len(f"{t['amount']:,.0f}") for t in txns_sorted)
         em = _emoji(r["category"])
+
+        # Group by label
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for t in txns:
+            groups.setdefault(t.get("label", t["description"]), []).append(t)
+
         block_lines: list[str] = []
-        for t in txns_sorted:
-            dt = date.fromisoformat(t["date"])
-            block_lines.append(
-                f"{t['description']:<{desc_w}}  "
-                f"{t['amount']:>{t_amt_w},.0f} ₴  "
-                f"{dt.strftime('%-d %b')}"
-            )
+        for group_label, group_txns in sorted(
+            groups.items(),
+            key=lambda x: sum(t["amount"] for t in x[1]),
+            reverse=True,
+        ):
+            group_total = sum(t["amount"] for t in group_txns)
+            if len(groups) > 1:
+                block_lines.append(f"{bold(group_label)}  {group_total:,.0f} ₴")
+            t_amt_w = max(len(f"{t['amount']:,.0f}") for t in group_txns)
+            for t in sorted(group_txns, key=lambda x: x["amount"], reverse=True):
+                dt = date.fromisoformat(t["date"])
+                block_lines.append(
+                    f"  {t['description']}  "
+                    f"{t['amount']:>{t_amt_w},.0f} ₴  "
+                    f"{dt.strftime('%-d %b')}"
+                )
+
         parts.append(
             expandable_blockquote(
-                f"{em} {bold(r['category'])}\n" + pre("\n".join(block_lines))
+                f"{em} {bold(r['category'])}\n" + "\n".join(block_lines)
             )
         )
 

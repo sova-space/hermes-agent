@@ -20,6 +20,7 @@ from finance_api.domains.rules.queries import get_rules, match_label, matches_an
 from finance_api.domains.sync.models import SyncRun
 from finance_api.domains.transactions import categories as cat
 from finance_api.domains.transactions.models import Transaction
+from finance_api.domains.trips.models import Trip
 
 
 def _period_dates(period: str) -> tuple[date, date]:
@@ -332,10 +333,30 @@ def get_spending_summary() -> dict[str, Any]:
             .order_by(Transaction.category, Transaction.amount)
         ).all()
 
+        # Rules for label lookup (auto_category)
+        auto_rules = get_rules("auto_category")
+
+        # Trips overlapping the period for Travel label lookup
+        trips = session.exec(
+            select(Trip).where(Trip.start_date <= end).where(Trip.end_date >= anchored)
+        ).all()
+
+        def _label(cat_name: str, desc: str, tx_date: date) -> str:
+            """Return a user-friendly group label for a transaction."""
+            matched = match_label(desc, auto_rules)
+            if matched:
+                return matched
+            if cat_name == cat.TRAVEL:
+                for trip in trips:
+                    if trip.start_date <= tx_date <= trip.end_date:
+                        return trip.name
+            return desc
+
         by_cat: dict[str, list[dict[str, Any]]] = {}
         for cat_name, desc, amt, dt in detail_rows:
             by_cat.setdefault(cat_name, []).append({
                 "description": desc,
+                "label": _label(cat_name, desc, dt),
                 "amount": round(abs(amt), 2),
                 "date": dt.isoformat(),
             })
