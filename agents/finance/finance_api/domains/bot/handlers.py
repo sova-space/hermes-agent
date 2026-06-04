@@ -191,8 +191,26 @@ async def callback_skipped(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
+_CAT_SHORT: dict[str, str] = {
+    "Food & Drink": "Food",
+    "Groceries": "Groceries",
+    "Transportation": "Transport",
+    "Healthcare": "Health",
+    "Shopping": "Shopping",
+    "Entertainment": "Fun",
+    "Travel": "Travel",
+    "Subscriptions": "Subs",
+    "Utilities": "Utils",
+    "ATM & Cash": "Cash",
+    "Finance": "Finance",
+    "Education": "Education",
+    "Pets": "Pets",
+    "Partner": "Partner",
+}
+
+
 def _spending_keyboard(data: dict) -> InlineKeyboardMarkup:
-    """Category buttons row + back-to-balance row."""
+    """Category buttons (emoji + short name) + back-to-balance row."""
     from finance_api.domains.bot.formatter import CATEGORY_EMOJI
     from finance_api.domains.transactions.categories import CASHBACK, COUPLE_TRANSFER
 
@@ -204,13 +222,14 @@ def _spending_keyboard(data: dict) -> InlineKeyboardMarkup:
     rows_data.sort(key=lambda r: r["amount"], reverse=True)
     cat_buttons = [
         InlineKeyboardButton(
-            CATEGORY_EMOJI.get(r["category"], "📦"),
+            f"{CATEGORY_EMOJI.get(r['category'], '📦')} "
+            f"{_CAT_SHORT.get(r['category'], r['category'])}",
             callback_data=f"{SPENDING_CAT_PREFIX}{r['category']}",
         )
         for r in rows_data
     ]
-    # Split into rows of 4
-    keyboard = [cat_buttons[i : i + 4] for i in range(0, len(cat_buttons), 4)]
+    # Split into rows of 3
+    keyboard = [cat_buttons[i : i + 3] for i in range(0, len(cat_buttons), 3)]
     keyboard.append([InlineKeyboardButton("← Back", callback_data=BALANCE_CALLBACK)])
     return InlineKeyboardMarkup(keyboard)
 
