@@ -298,12 +298,15 @@ def get_sync_health() -> dict[str, Any]:
 
 def get_spending_summary() -> dict[str, Any]:
     """Return UAH spending by category with per-category transaction details."""
+    today = date.today()
     start, end = _period_dates(THIS_MONTH)
     with Session(engine) as session:
         anchored = _salary_anchored_start(start, session)
         if anchored == start:
-            start, end = _period_dates(LAST_MONTH)
-            anchored = _salary_anchored_start(start, session)
+            # No salary yet this month — use last month's start but extend end to today
+            prev_start, _ = _period_dates(LAST_MONTH)
+            anchored = _salary_anchored_start(prev_start, session)
+            end = today
         rows = get_spending_by_category(start=anchored, end=end)
 
         # Per-category transaction details for drill-down
