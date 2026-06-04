@@ -191,10 +191,10 @@ def format_income_summary(summary: dict[str, Any]) -> str:
     if has_both:
         # Two-currency table: source | UAH | USD
         rows: list[tuple[str, float, float]] = []
-        for source, currency, t in all_txns:
+        for _source, currency, t in all_txns:
             dt = date.fromisoformat(t["date"])
             sender = t["description"].removeprefix("Від: ").strip()
-            label = f"{source} · {dt.strftime('%b %-d')} · {sender}"
+            label = f"{sender} · {dt.strftime('%b %-d')}"
             uah = t["amount"] * rate if currency == _FOP_CURRENCY else t["amount"]  # type: ignore[operator]
             usd = t["amount"] if currency == _FOP_CURRENCY else t["amount"] / rate  # type: ignore[operator]
             rows.append((label, uah, usd))
