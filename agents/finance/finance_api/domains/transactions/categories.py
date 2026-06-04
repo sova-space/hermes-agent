@@ -20,6 +20,7 @@ PETS = "Pets"
 CASHBACK = "Cashback"
 INCOME = "Income"
 COUPLE_TRANSFER = "Couple Transfer"
+PARTNER = "Partner"
 
 ALL: frozenset[str] = frozenset({
     FOOD_AND_DRINK,
@@ -38,4 +39,5 @@ ALL: frozenset[str] = frozenset({
     CASHBACK,
     INCOME,
     COUPLE_TRANSFER,
+    PARTNER,
 })

@@ -79,7 +79,7 @@ def _classify_transaction(
         return cat.INCOME, None
 
     if amount < 0 and matches_any(description, partner_patterns):
-        return cat.COUPLE_TRANSFER, modes.COUPLE
+        return cat.PARTNER, modes.COUPLE
 
     if mcc:
         mcc_category = MCC_LOOKUP.get(mcc)

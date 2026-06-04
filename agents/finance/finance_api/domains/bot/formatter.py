@@ -24,6 +24,7 @@ CATEGORY_EMOJI: dict[str, str] = {
     cat.CASHBACK: "💰",
     cat.INCOME: "💰",
     cat.COUPLE_TRANSFER: "💸",
+    cat.PARTNER: "💑",
 }
 
 # Currencies where the symbol goes before the amount (e.g. $1,234)
