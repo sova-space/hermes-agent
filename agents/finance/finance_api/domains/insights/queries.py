@@ -303,10 +303,37 @@ def get_spending_summary() -> dict[str, Any]:
     with Session(engine) as session:
         anchored = _salary_anchored_start(start, session)
         if anchored == start:
-            # No salary yet this month — use last month's start but extend end to today
             prev_start, _ = _period_dates(LAST_MONTH)
             anchored = _salary_anchored_start(prev_start, session)
             end = today
+
+        # Extend start backward to cover personal income (may arrive before FOP)
+        personal_ids = session.exec(
+            select(Account.id).where(Account.is_fop == False)  # noqa: E712
+        ).all()
+        income_rules = get_rules("personal_income")
+        if personal_ids and income_rules:
+            income_patterns = [p for p, _ in income_rules]
+            personal_income_dates = session.exec(
+                select(func.min(Transaction.date))
+                .where(Transaction.account_id.in_(personal_ids))
+                .where(Transaction.amount > 0)
+                .where(Transaction.date >= anchored - timedelta(days=7))
+                .where(Transaction.date <= end)
+            ).first()
+            if personal_income_dates:
+                personal_txns_check = session.exec(
+                    select(Transaction.date, Transaction.description)
+                    .where(Transaction.account_id.in_(personal_ids))
+                    .where(Transaction.amount > 0)
+                    .where(Transaction.date >= anchored - timedelta(days=7))
+                    .where(Transaction.date < anchored)
+                ).all()
+                for tx_date, tx_desc in personal_txns_check:
+                    if any(p.lower() in tx_desc.lower() for p in income_patterns):
+                        anchored = min(anchored, tx_date)
+                        break
+
         rows = get_spending_by_category(start=anchored, end=end)
 
         # Per-category transaction details for drill-down
