@@ -308,32 +308,33 @@ def format_spending_summary(data: dict[str, Any]) -> str:
         period_label = f"{start.strftime('%-d %b')}-{end.strftime('%-d %b')}"
 
     name_w = max(len(r["category"]) for r in rows)
-    amt_w = max(len(f"{r['amount']:,.0f}") for r in rows)
+    amt_w = max(max(len(f"{r['amount']:,.0f}") for r in rows), len("Total"))
     details = data.get("details", {})
 
-    parts: list[str] = []
+    # Summary table — no emoji inside pre so columns align perfectly
     summary_lines: list[str] = []
     for r in rows:
         pct = round(r["amount"] / total * 100) if total else 0
-        em = _emoji(r["category"])
         amt_str = f"{r['amount']:,.0f}"
         summary_lines.append(
-            f"{em} {r['category']:<{name_w}}  {amt_str:>{amt_w}} ₴  {pct:>3}%"
+            f"{r['category']:<{name_w}}  {amt_str:>{amt_w}}  {pct:>3}%"
         )
-    summary_lines.append("─" * (3 + name_w + 2 + amt_w + 6))
-    summary_lines.append(f"{'Total':<{3 + name_w}}  {total:>{amt_w},.0f} ₴")
-    parts.append(pre("\n".join(summary_lines)))
+    summary_lines.append("─" * (name_w + 2 + amt_w + 5))
+    summary_lines.append(f"{'Total':<{name_w}}  {total:>{amt_w},.0f}")
 
-    # Expandable per-category breakdowns
+    parts: list[str] = [pre("\n".join(summary_lines))]
+
+    # Expandable detail block per category (tap to reveal transactions)
     for r in rows:
         txns = details.get(r["category"], [])
-        if len(txns) <= 1:
+        if not txns:
             continue
-        desc_w = max(len(t["description"]) for t in txns)
-        t_amt_w = max(len(f"{t['amount']:,.0f}") for t in txns)
+        txns_sorted = sorted(txns, key=lambda x: x["amount"], reverse=True)
+        desc_w = max(len(t["description"]) for t in txns_sorted)
+        t_amt_w = max(len(f"{t['amount']:,.0f}") for t in txns_sorted)
         em = _emoji(r["category"])
         block_lines: list[str] = []
-        for t in sorted(txns, key=lambda x: x["amount"], reverse=True):
+        for t in txns_sorted:
             dt = date.fromisoformat(t["date"])
             block_lines.append(
                 f"{t['description']:<{desc_w}}  "
@@ -342,7 +343,7 @@ def format_spending_summary(data: dict[str, Any]) -> str:
             )
         parts.append(
             expandable_blockquote(
-                f"{em} {bold(r['category'])}\n" + "\n".join(block_lines)
+                f"{em} {bold(r['category'])}\n" + pre("\n".join(block_lines))
             )
         )
 
