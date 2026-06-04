@@ -215,7 +215,8 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         uah_hdr = _sym(_BASE_CURRENCY)
         usd_hdr = _sym(_FOP_CURRENCY)
 
-        label_w = max(len(r[0]) for r in rows)
+        src_hdr = "Source"
+        label_w = max(max(len(r[0]) for r in rows), len(src_hdr), len("Total"))
         uah_w = max(
             max(len(_num(r[1])) for r in rows),
             len(_num(base_total)),
@@ -229,7 +230,7 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         div = "─" * (label_w + 2 + uah_w + 2 + usd_w)
 
         table_lines: list[str] = [
-            f"{'':^{label_w}}  {uah_hdr:>{uah_w}}  {usd_hdr:>{usd_w}}"
+            f"{src_hdr:<{label_w}}  {uah_hdr:>{uah_w}}  {usd_hdr:>{usd_w}}"
         ]
         for label, uah, usd in rows:
             table_lines.append(
