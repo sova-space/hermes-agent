@@ -1,0 +1,21 @@
+line-length = 88
+target-version = "py312"
+preview = true
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "D", "RUF"]
+ignore = [
+    "D104",
+    "D105",
+    "D107",
+    "DOC201",
+]
+
+[lint.per-file-ignores]
+"gunicorn.conf.py" = ["D", "DOC"]
+
+[lint.pydocstyle]
+convention = "google"
+
+[format]
+docstring-code-format = true
