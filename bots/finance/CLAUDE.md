@@ -1,4 +1,4 @@
-# agents/finance — Finance Sub-Agent
+# bots/finance — Finance Sub-Agent
 
 `@sova_finance_bot` — Monobank integration, budget tracking, spending analytics. Deployed as a separate Railway service from `sova-space/hermes-agent` (this repo).
 
@@ -40,9 +40,9 @@ routers/         →  called by hermes finance skill via HTTP
 
 Service: `hermes-finance` in `hermes-main` project (`3d73dc58-1201-4258-bc1d-1f9c24333032`).
 Service ID: `9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96`
-Root directory: `agents/finance` (set in Railway service settings).
-Dockerfile: `agents/finance/Dockerfile` (full path from repo root).
-Deploy: push to `main` branch → Railway auto-deploys (watch pattern: `agents/finance/**`).
+Root directory: `bots/finance` (set in Railway service settings).
+Dockerfile: `bots/finance/Dockerfile` (full path from repo root).
+Deploy: push to `main` branch → Railway auto-deploys (watch pattern: `bots/finance/**`).
 Pre-deploy: `alembic upgrade head` runs automatically via `entrypoint.sh`.
 Public URL: `https://hermes-finance-production.up.railway.app`
 
@@ -53,7 +53,7 @@ Internal URL: `postgres.railway.internal:5432`
 
 ```bash
 # From repo root:
-docker build -f agents/finance/Dockerfile agents/finance/
+docker build -f bots/finance/Dockerfile bots/finance/
 
 # With docker compose (all services + shared db):
 docker compose -f infra/docker-compose.yml up finance db

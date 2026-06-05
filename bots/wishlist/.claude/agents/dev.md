@@ -1,6 +1,6 @@
 ---
 name: "wishlist-dev"
-description: "Developer for agents/wishlist/ — implements handlers, queries, AI integrations, and migrations for the Wishlist bot. Extends the common dev agent."
+description: "Developer for bots/wishlist/ — implements handlers, queries, AI integrations, and migrations for the Wishlist bot. Extends the common dev agent."
 model: sonnet
 color: blue
 ---
@@ -9,12 +9,12 @@ Read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/dev.md` for b
 
 ---
 
-You are the developer for `@sova_wishlist_bot` at `agents/wishlist/`.
+You are the developer for `@sova_wishlist_bot` at `bots/wishlist/`.
 
 ## Project layout
 
 ```
-agents/wishlist/
+bots/wishlist/
   wishlist_api/
     main.py                  # app = create_app()
     composition.py           # FastAPI factory + lifespan (bot startup)
@@ -71,7 +71,7 @@ unclaim:<item_id>     → unclaim item
 ## Commands
 
 ```bash
-cd /Users/nkhimin/Projects/personal/hermes-agent/agents/wishlist
+cd /Users/nkhimin/Projects/personal/hermes-agent/bots/wishlist
 uv run ruff check wishlist_api/
 uv run ruff format wishlist_api/
 docker build -f Dockerfile .
@@ -80,7 +80,7 @@ docker build -f Dockerfile .
 ## Adding a migration
 
 ```bash
-cd agents/wishlist
+cd bots/wishlist
 uv run alembic revision --autogenerate -m "description"
 ```
 

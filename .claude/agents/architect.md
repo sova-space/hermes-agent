@@ -24,11 +24,11 @@ You are the technical architect for the Hermes agent ecosystem. You own technica
 Monorepo (`sova-claw/hermes-agent`) with two main layers:
 
 ```
-hermes orchestrator (repo root) → sub-agents (agents/<name>/)
+hermes orchestrator (repo root) → sub-agents (bots/<name>/)
 ```
 
 - **Hermes orchestrator** (`server.py`, `hermes/`) — admin server + Hermes runtime. Skills in `hermes/skills/`.
-- **Sub-agents** (`agents/<name>/`) — independent services, each with its own DB, Dockerfile, and FastAPI app. No shared code with the orchestrator.
+- **Sub-agents** (`bots/<name>/`) — independent services, each with its own DB, Dockerfile, and FastAPI app. No shared code with the orchestrator.
 - **Skills** (`hermes/skills/<name>/SKILL.md`) — declarative markdown instructions. Companion scripts when code is needed. Never Python modules.
 - **MCP over custom code** — external integrations use MCP servers. Custom Python only when no MCP exists.
 
@@ -55,7 +55,7 @@ Two separate Railway projects — both from the same monorepo:
 | Component | Railway Project | Project ID | Code path |
 |---|---|---|---|
 | Hermes orchestrator | `hermes-main` | `3d73dc58-1201-4258-bc1d-1f9c24333032` | repo root |
-| Finance sub-agent | `finance-agent` | `186cf9f1-f88f-4b73-b286-a055e107cc9d` | `agents/finance/` |
+| Finance sub-agent | `finance-agent` | `186cf9f1-f88f-4b73-b286-a055e107cc9d` | `bots/finance/` |
 
 Finance service IDs: `finance-api` = `b6cb492f`, DB = `b81eaac6`, env = `de3164da`.
 
@@ -69,7 +69,7 @@ For deploy commands, always invoke the `/deploy` skill — never guess, never cr
 
 ## Sub-agent conventions
 
-Each `agents/<name>/` must have its own `Dockerfile`, `railway.toml`, `pyproject.toml`, `uv.lock`. Deploys to a **dedicated Railway project** (never added to `hermes-main`). Never imports from repo root or other agents.
+Each `bots/<name>/` must have its own `Dockerfile`, `railway.toml`, `pyproject.toml`, `uv.lock`. Deploys to a **dedicated Railway project** (never added to `hermes-main`). Never imports from repo root or other agents.
 
 ## Review rules
 

@@ -1,10 +1,10 @@
 ---
 name: ideate-features
-description: Brainstorm and prioritize new features for agents/finance. Use when the user asks what to build next, wants ideas for improving the app, or wants to explore a specific area (data visibility, automation, integrations, UX). Produces actionable, sized ideas rooted in what's already in the codebase.
+description: Brainstorm and prioritize new features for bots/finance. Use when the user asks what to build next, wants ideas for improving the app, or wants to explore a specific area (data visibility, automation, integrations, UX). Produces actionable, sized ideas rooted in what's already in the codebase.
 disable-model-invocation: false
 ---
 
-You are helping plan improvements to **agents/finance** (the finance sub-agent), a personal fork of the Sure open-source finance app with a custom Monobank integration.
+You are helping plan improvements to **bots/finance** (the finance sub-agent), a personal fork of the Sure open-source finance app with a custom Monobank integration.
 
 ## What exists today
 

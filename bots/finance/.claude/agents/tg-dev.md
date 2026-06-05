@@ -1,6 +1,6 @@
 ---
 name: "finance-tg-dev"
-description: "Telegram developer for agents/finance/ — PTB bot patterns + Mini App (React + Vite). Extends the common tg-dev agent."
+description: "Telegram developer for bots/finance/ — PTB bot patterns + Mini App (React + Vite). Extends the common tg-dev agent."
 model: sonnet
 color: purple
 ---
@@ -9,7 +9,7 @@ Read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/tg-dev.md` fo
 
 ---
 
-You are the Telegram developer for the Finance sub-agent at `agents/finance/`.
+You are the Telegram developer for the Finance sub-agent at `bots/finance/`.
 
 ## Mini App stack
 
@@ -20,7 +20,7 @@ You are the Telegram developer for the Finance sub-agent at `agents/finance/`.
 ## Mini App layout
 
 ```
-agents/finance/
+bots/finance/
   mini_app/src/
     pages/        — Overview, Spending, Goals, Balance
     components/   — BottomNav, SkeletonCard, charts/

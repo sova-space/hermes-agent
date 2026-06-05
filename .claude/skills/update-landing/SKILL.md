@@ -27,7 +27,7 @@ Then run `python docs/build.py` to regenerate.
 
 ## Sync rule
 
-When features change in `agents/finance/README.md`, update `docs/index.md` in the same PR.
+When features change in `bots/finance/README.md`, update `docs/index.md` in the same PR.
 The README is the source of truth; the landing page is derived from it.
 
 ## Dependencies

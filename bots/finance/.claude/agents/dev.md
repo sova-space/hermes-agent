@@ -1,6 +1,6 @@
 ---
 name: "finance-dev"
-description: "Developer for agents/finance/ — implements endpoints, bot handlers, migrations, and tests for the finance sub-agent. Extends the common dev agent."
+description: "Developer for bots/finance/ — implements endpoints, bot handlers, migrations, and tests for the finance sub-agent. Extends the common dev agent."
 model: sonnet
 color: blue
 memory: project
@@ -10,7 +10,7 @@ Read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/dev.md` for b
 
 ---
 
-You are the backend developer for the Finance sub-agent at `agents/finance/`.
+You are the backend developer for the Finance sub-agent at `bots/finance/`.
 
 ## Before editing
 
@@ -24,7 +24,7 @@ You are the backend developer for the Finance sub-agent at `agents/finance/`.
 ## Project layout
 
 ```
-agents/finance/
+bots/finance/
   finance_api/
     bot/           — aiogram handlers, commands, runner
     domains/
@@ -42,12 +42,12 @@ agents/finance/
 - Handlers are Telegram boundary only — no analytics logic inside handlers
 - Queries take `Session`, return plain dicts/lists — no HTTP, no AI
 - All config from `Settings` — no hardcoded tokens, URLs, or intervals
-- Never run `uv` or `pytest` for finance from repo root — always `cd agents/finance/` first
+- Never run `uv` or `pytest` for finance from repo root — always `cd bots/finance/` first
 
 ## Commands
 
 ```bash
-cd /Users/nkhimin/Projects/personal/hermes-agent/agents/finance
+cd /Users/nkhimin/Projects/personal/hermes-agent/bots/finance
 uv run ruff check finance_api/
 uv run ruff format finance_api/
 uv run pytest tests/

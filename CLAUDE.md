@@ -16,7 +16,7 @@ Hermes is Nazar's personal AI agent — replies on Telegram and Slack, tracks fi
 server.py                  # Hermes admin server
 hermes/
   config/SOUL.md           # Agent identity (seeded to /data/.hermes/ on first boot)
-  skills/finance/          # Finance skill — calls agents/finance REST API
+  skills/finance/          # Finance skill — calls bots/finance REST API
   skills/project-context/  # Tracks active project context
 infra/
   Dockerfile               # Build context: repo root
@@ -45,15 +45,15 @@ Never mix commands between projects:
 | Project             | Root              | Commands                                                   |
 |---------------------|-------------------|------------------------------------------------------------|
 | Hermes orchestrator | repo root         | `uv run --dev ruff check .`                                |
-| Finance sub-agent   | `agents/finance/` | `uv run ruff check finance_api/` · `uv run pytest tests/`  |
+| Finance sub-agent   | `bots/finance/` | `uv run ruff check finance_api/` · `uv run pytest tests/`  |
 
 ## Sub-agents
 
-Each `agents/<name>/` has its own `Dockerfile`, `railway.toml`, `pyproject.toml`. Deployed as a separate Railway service (Root Directory = `agents/<name>/`). One PostgreSQL DB per agent on the shared `hermes-db` service.
+Each `bots/<name>/` has its own `Dockerfile`, `railway.toml`, `pyproject.toml`. Deployed as a separate Railway service (Root Directory = `bots/<name>/`). One PostgreSQL DB per agent on the shared `hermes-db` service.
 
 ```bash
 # Build finance locally
-docker build -f agents/finance/Dockerfile agents/finance/
+docker build -f bots/finance/Dockerfile bots/finance/
 ```
 
 ### Bot command sync pattern
@@ -74,25 +74,25 @@ One Railway project — `hermes-main` — hosts all services from the same monor
 | Component | Service name | Service ID | Root directory |
 |---|---|---|---|
 | Hermes orchestrator | `Hermes Agent` | `8d1fc2f6-031b-4527-9a7d-3e78316d1180` | repo root |
-| Finance sub-agent | `hermes-finance` | `9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96` | `agents/finance` |
-| Wishlist bot | `hermes-wishlist` | `7764e517-0cc2-4378-894f-d4d82570339d` | `agents/wishlist` |
+| Finance sub-agent | `hermes-finance` | `9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96` | `bots/finance` |
+| Wishlist bot | `hermes-wishlist` | `7764e517-0cc2-4378-894f-d4d82570339d` | `bots/wishlist` |
 | Shared DB | `Postgres` | `b6daf7a2-de33-4767-a78b-e4e4d7424d58` | — |
 
 Project: `hermes-main` · ID: `3d73dc58-1201-4258-bc1d-1f9c24333032` · Environment: `production` (`a2a88403-f2b1-4a18-a44d-3b808d07bcb1`)
 
 Auto-deploy is active (Railway dashboard, branch: `main`). Watch patterns per service:
 - Hermes Agent: `hermes/**`, `infra/**`, `server.py`, `railway.toml`
-- hermes-finance: `agents/finance/**`
-- hermes-wishlist: `agents/wishlist/**`
+- hermes-finance: `bots/finance/**`
+- hermes-wishlist: `bots/wishlist/**`
 
 ```bash
 # Link to Hermes orchestrator (from repo root)
 railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 8d1fc2f6-031b-4527-9a7d-3e78316d1180
 
-# Link to Finance API (from agents/finance/)
+# Link to Finance API (from bots/finance/)
 railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96
 
-# Link to Wishlist bot (from agents/wishlist/)
+# Link to Wishlist bot (from bots/wishlist/)
 railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 7764e517-0cc2-4378-894f-d4d82570339d
 ```
 

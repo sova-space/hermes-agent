@@ -18,7 +18,7 @@ All code lives in `sova-claw/hermes-agent` at `/Users/nkhimin/Projects/personal/
 | Component | Railway Project | Project ID | Code path |
 |---|---|---|---|
 | Hermes orchestrator | `hermes-main` | `3d73dc58-1201-4258-bc1d-1f9c24333032` | repo root |
-| Finance sub-agent | `hermes-main` | `3d73dc58-1201-4258-bc1d-1f9c24333032` | `agents/finance/` |
+| Finance sub-agent | `hermes-main` | `3d73dc58-1201-4258-bc1d-1f9c24333032` | `bots/finance/` |
 
 Both services live in the same Railway project `hermes-main`. The old `finance-agent` project (`186cf9f1`) is decommissioned.
 
@@ -83,9 +83,9 @@ railway up --detach -m "your message"
 | Field | Value |
 |---|---|
 | Builder | Dockerfile |
-| Dockerfile | `Dockerfile` (at `agents/finance/`) |
-| Build context | `agents/finance/` |
-| Config file | `railway.toml` (at `agents/finance/`) |
+| Dockerfile | `Dockerfile` (at `bots/finance/`) |
+| Build context | `bots/finance/` |
+| Config file | `railway.toml` (at `bots/finance/`) |
 | Start command | `sh entrypoint.sh` |
 | Health check | `GET /health` — timeout 60 s |
 
@@ -138,8 +138,8 @@ FOP_ACCOUNT_IDS            # comma-separated Monobank account IDs of salary/FOP 
 
 ### Deploy
 ```bash
-# Must be at agents/finance/ — railway up uses local dir as build context
-cd /Users/nkhimin/Projects/personal/hermes-agent/agents/finance
+# Must be at bots/finance/ — railway up uses local dir as build context
+cd /Users/nkhimin/Projects/personal/hermes-agent/bots/finance
 
 # Verify context (should show hermes-main / hermes-finance)
 railway status
@@ -209,7 +209,7 @@ railway link --project ID \
 ## Hard rules
 
 - **Finance IS in `hermes-main`** — link to project `3d73dc58`, service `9bc27c48`
-- **Deploy finance from `agents/finance/`** — `railway up` uses local dir as build context; running from repo root uploads the wrong Dockerfile
+- **Deploy finance from `bots/finance/`** — `railway up` uses local dir as build context; running from repo root uploads the wrong Dockerfile
 - **Never deploy from `/Users/nkhimin/Projects/personal/hermes-finance/`** — stale archived repo
 - **Never create new services in existing projects** — all services already exist in `hermes-main`
 - **Never assume git push triggered a deploy** — it never does; always run `railway up --detach`
@@ -219,11 +219,11 @@ railway link --project ID \
 
 ## Adding a new sub-agent
 
-Each new `agents/<name>/` gets its **own Railway project**. Never add to `hermes-main` or `finance-agent`.
+Each new `bots/<name>/` gets its **own Railway project**. Never add to `hermes-main` or `finance-agent`.
 
 1. Write spec: `specs/NNN-name/spec.md`
-2. Implement `agents/<name>/` with its own `Dockerfile`, `railway.toml`, `pyproject.toml`, `uv.lock`
-3. `cd agents/<name>/ && railway init --name <name>-agent`
+2. Implement `bots/<name>/` with its own `Dockerfile`, `railway.toml`, `pyproject.toml`, `uv.lock`
+3. `cd bots/<name>/ && railway init --name <name>-agent`
 4. Add PostgreSQL via dashboard if the agent needs a DB
 5. Set `DATABASE_URL` as a reference variable pointing to the new Postgres
 6. Set all required env vars in the Railway dashboard

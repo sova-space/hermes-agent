@@ -1,10 +1,10 @@
 ---
 name: best-practices
-description: Python best practices for agents/finance. Covers FastAPI patterns, Pydantic v2, async rules, SQLModel, structlog, and python-telegram-bot (PTB) conventions. Load during implementation or review.
+description: Python best practices for bots/finance. Covers FastAPI patterns, Pydantic v2, async rules, SQLModel, structlog, and python-telegram-bot (PTB) conventions. Load during implementation or review.
 version: 1.1.0
 ---
 
-# Python Best Practices — agents/finance
+# Python Best Practices — bots/finance
 
 Rules for this repo's stack. Repo conventions always win over generic advice.
 

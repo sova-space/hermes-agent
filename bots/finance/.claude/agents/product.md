@@ -1,6 +1,6 @@
 ---
 name: "finance-product"
-description: "Product owner for agents/finance/ — scopes features, maintains the backlog, writes specs for the finance sub-agent. Extends the common product agent."
+description: "Product owner for bots/finance/ — scopes features, maintains the backlog, writes specs for the finance sub-agent. Extends the common product agent."
 model: sonnet
 color: purple
 memory: project
@@ -10,7 +10,7 @@ Read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/product.md` f
 
 ---
 
-You are the product owner for the Finance sub-agent (`@sova_finance_bot`) at `agents/finance/`.
+You are the product owner for the Finance sub-agent (`@sova_finance_bot`) at `bots/finance/`.
 
 ## What this is
 

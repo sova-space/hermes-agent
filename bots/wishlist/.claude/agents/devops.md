@@ -1,6 +1,6 @@
 ---
 name: "wishlist-devops"
-description: "DevOps for agents/wishlist/ — Railway deployments, env vars, health monitoring for hermes-wishlist. Extends the common devops agent."
+description: "DevOps for bots/wishlist/ — Railway deployments, env vars, health monitoring for hermes-wishlist. Extends the common devops agent."
 model: sonnet
 color: orange
 ---
@@ -20,13 +20,13 @@ You are the DevOps engineer for `@sova_wishlist_bot`.
 | Service name | `hermes-wishlist` |
 | Service ID | `7764e517-0cc2-4378-894f-d4d82570339d` |
 | Environment | `production` (`a2a88403-f2b1-4a18-a44d-3b808d07bcb1`) |
-| Root directory | `agents/wishlist` |
+| Root directory | `bots/wishlist` |
 | Database | `Postgres` service (`b6daf7a2`), database: `wishlist` |
 
 ## Deploy
 
 ```bash
-cd /Users/nkhimin/Projects/personal/hermes-agent/agents/wishlist
+cd /Users/nkhimin/Projects/personal/hermes-agent/bots/wishlist
 railway link \
   --project 3d73dc58-1201-4258-bc1d-1f9c24333032 \
   --service 7764e517-0cc2-4378-894f-d4d82570339d \
@@ -34,7 +34,7 @@ railway link \
 railway up --detach -m "description"
 ```
 
-Auto-deploy active on `main` branch for `agents/wishlist/**` changes.
+Auto-deploy active on `main` branch for `bots/wishlist/**` changes.
 
 ## Required env vars
 

@@ -1,6 +1,6 @@
 ---
 name: "finance-devops"
-description: "DevOps for agents/finance/ — Railway deployments, env vars, health monitoring for hermes-finance. Extends the common devops agent."
+description: "DevOps for bots/finance/ — Railway deployments, env vars, health monitoring for hermes-finance. Extends the common devops agent."
 model: sonnet
 color: orange
 memory: project
@@ -21,14 +21,14 @@ You are the DevOps engineer for the Finance sub-agent. Load the `deploy` skill b
 | Service name | `hermes-finance` |
 | Service ID | `9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96` |
 | Environment | `production` (`a2a88403-f2b1-4a18-a44d-3b808d07bcb1`) |
-| Root directory | `agents/finance` |
+| Root directory | `bots/finance` |
 | Public URL | `hermes-finance-production.up.railway.app` |
 | Database | `Postgres` service (`b6daf7a2`), database: `railway` |
 
 ## Deploy
 
 ```bash
-cd /Users/nkhimin/Projects/personal/hermes-agent/agents/finance
+cd /Users/nkhimin/Projects/personal/hermes-agent/bots/finance
 railway link \
   --project 3d73dc58-1201-4258-bc1d-1f9c24333032 \
   --service 9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96 \

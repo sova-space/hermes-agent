@@ -216,7 +216,7 @@ Known bug: emoji map uses stale string literals. Tracked in [known bugs](#known-
 
 ```bash
 # Build from repo root
-docker build -f agents/finance/Dockerfile agents/finance/
+docker build -f bots/finance/Dockerfile bots/finance/
 
 # Or with all services (shared db)
 docker compose -f infra/docker-compose.yml up finance db
@@ -225,7 +225,7 @@ docker compose -f infra/docker-compose.yml up finance db
 Copy `infra/.env.finance.local.example` to `infra/.env.finance.local` and fill in secrets.
 
 ```bash
-# Tests (from agents/finance/)
+# Tests (from bots/finance/)
 uv run pytest tests/
 
 # Lint
@@ -255,14 +255,14 @@ uv run ruff check finance_api/
 
 - Project: `finance-agent` (`186cf9f1-f88f-4b73-b286-a055e107cc9d`)
 - Service: `finance-api` (`b6cb492f-9100-4330-82db-8afd95d6fe91`)
-- Root directory: `agents/finance/`
+- Root directory: `bots/finance/`
 - Pre-deploy: `alembic upgrade head` via `entrypoint.sh`
 - Database: `finance` DB on shared `hermes-db` PostgreSQL
 
 Railway does **not** auto-deploy on git push. Always run:
 
 ```bash
-cd agents/finance
+cd bots/finance
 railway link --project 186cf9f1-f88f-4b73-b286-a055e107cc9d --service b6cb492f-9100-4330-82db-8afd95d6fe91
 railway up --detach
 ```

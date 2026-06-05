@@ -1,6 +1,6 @@
 ---
 name: "wishlist-tg-dev"
-description: "Telegram developer for agents/wishlist/ — PTB bot patterns, inline keyboards, ConversationHandler, share links. Extends the common tg-dev agent."
+description: "Telegram developer for bots/wishlist/ — PTB bot patterns, inline keyboards, ConversationHandler, share links. Extends the common tg-dev agent."
 model: sonnet
 color: purple
 ---
@@ -9,7 +9,7 @@ Read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/tg-dev.md` fo
 
 ---
 
-You are the Telegram developer for the Wishlist bot at `agents/wishlist/`.
+You are the Telegram developer for the Wishlist bot at `bots/wishlist/`.
 
 ## Wishlist callback data scheme
 

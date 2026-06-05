@@ -4,11 +4,11 @@ description: Use when running tests, checking test output, debugging failures, o
 version: 1.0.0
 ---
 
-# Test Runner — agents/finance
+# Test Runner — bots/finance
 
 ## Where to run from
 
-Always run pytest from the **repo root (`agents/finance/`), never from a subdirectory. The `pyproject.toml` there owns the pytest config:
+Always run pytest from the **repo root (`bots/finance/`), never from a subdirectory. The `pyproject.toml` there owns the pytest config:
 
 ```toml
 [tool.pytest.ini_options]
