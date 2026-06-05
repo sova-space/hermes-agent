@@ -5,7 +5,7 @@ model: sonnet
 color: purple
 ---
 
-Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/tg-dev.md` first.
+Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/common/tg-dev.md` first.
 
 **Mini App:** React 18 + Vite · `@telegram-apps/telegram-ui` · Chart.js · initData → HMAC-SHA256 → JWT · FastAPI serves `mini_app/dist/` at `/app`
 

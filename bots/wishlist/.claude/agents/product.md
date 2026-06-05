@@ -5,7 +5,7 @@ model: sonnet
 color: purple
 ---
 
-Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/product.md` first.
+Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/common/product.md` first.
 
 **Live:** create wishlist · add item (`Title ~price URL`) · share link · friend view with claim/unclaim · delete wishlist/item · multiple wishlists per user
 

@@ -5,7 +5,7 @@ model: sonnet
 color: purple
 ---
 
-Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/tg-dev.md` first.
+Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/common/tg-dev.md` first.
 
 **Share link:** `f"https://t.me/{settings.bot_username}?start=view_{wishlist['share_token']}"` — deep link opens friend view, no auth.
 

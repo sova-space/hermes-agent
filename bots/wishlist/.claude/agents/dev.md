@@ -5,7 +5,7 @@ model: sonnet
 color: blue
 ---
 
-Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/dev.md` first.
+Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/common/dev.md` first.
 
 **Root:** `bots/wishlist/` · `wishlist_api/`
 ```bash

@@ -6,7 +6,7 @@ color: purple
 memory: project
 ---
 
-Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/product.md` first.
+Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/common/product.md` first.
 
 **Live:** Monobank sync (hourly) · `/balance` · `/stats [period] [mode]` · `/budget` · REST API · Hermes skill
 

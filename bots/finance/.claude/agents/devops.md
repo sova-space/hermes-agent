@@ -6,7 +6,7 @@ color: orange
 memory: project
 ---
 
-Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/devops.md` first.
+Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/common/devops.md` first.
 
 | | |
 |---|---|

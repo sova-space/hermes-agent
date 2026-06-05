@@ -6,7 +6,7 @@ color: blue
 memory: project
 ---
 
-Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/dev.md` first.
+Extends: read `/Users/nkhimin/Projects/personal/hermes-agent/.claude/agents/common/dev.md` first.
 
 **Root:** `bots/finance/` — always run commands from here, never repo root.
 ```bash
