@@ -75,24 +75,31 @@ One Railway project — `hermes-main` — hosts all services from the same monor
 |---|---|---|---|
 | Hermes orchestrator | `Hermes Agent` | `8d1fc2f6-031b-4527-9a7d-3e78316d1180` | repo root |
 | Finance sub-agent | `hermes-finance` | `9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96` | `agents/finance` |
-| Finance DB | `Postgres` | `b6daf7a2-de33-4767-a78b-e4e4d7424d58` | — |
+| Wishlist bot | `hermes-wishlist` | `7764e517-0cc2-4378-894f-d4d82570339d` | `agents/wishlist` |
+| Shared DB | `Postgres` | `b6daf7a2-de33-4767-a78b-e4e4d7424d58` | — |
 
 Project: `hermes-main` · ID: `3d73dc58-1201-4258-bc1d-1f9c24333032` · Environment: `production` (`a2a88403-f2b1-4a18-a44d-3b808d07bcb1`)
 
 Auto-deploy is active (Railway dashboard, branch: `main`). Watch patterns per service:
 - Hermes Agent: `hermes/**`, `infra/**`, `server.py`, `railway.toml`
 - hermes-finance: `agents/finance/**`
+- hermes-wishlist: `agents/wishlist/**`
 
 ```bash
 # Link to Hermes orchestrator (from repo root)
 railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 8d1fc2f6-031b-4527-9a7d-3e78316d1180
 
-# Link to Finance API (from anywhere)
+# Link to Finance API (from agents/finance/)
 railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 9bc27c48-c35d-4dcf-9f4e-ba3c73e1ed96
+
+# Link to Wishlist bot (from agents/wishlist/)
+railway link --project 3d73dc58-1201-4258-bc1d-1f9c24333032 --service 7764e517-0cc2-4378-894f-d4d82570339d
 ```
 
+Postgres databases: `railway` (default), `finance` (hermes-finance), `wishlist` (hermes-wishlist). Reference vars: `${{Postgres.DATABASE_URL}}`, `${{Postgres.FINANCE_DATABASE_URL}}`, `${{Postgres.WISHLIST_DATABASE_URL}}`.
+
 - Do NOT use `sova-space/hermes-finance` — that repo is stale
-- Do NOT create new Railway services — all already exist in `hermes-main`
+- Do NOT create new Railway services unless adding a genuinely new sub-agent
 - The old `finance-agent` project (`186cf9f1`) has been decommissioned
 
 ## Skills
