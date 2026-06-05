@@ -8,7 +8,7 @@ When the user runs /upgrade-hermes, guide them through this workflow:
 
 1. **Check the current version**: Read the Dockerfile and show the current `HERMES_REF` value.
 
-2. **Find the latest release**: Ask the user what version tag they want to upgrade to, or check the upstream repo at https://github.com/nousresearch/hermes for recent release tags.
+2. **Find the latest release**: Ask the user what version tag they want to upgrade to, or check the upstream repo at https://github.com/NousResearch/hermes-agent for recent release tags.
 
 3. **Update HERMES_REF**: Edit the `ARG HERMES_REF=` line in the Dockerfile to the new tag.
 
