@@ -14,12 +14,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     openrouter_api_key: str
-    forge_model: str = "anthropic/claude-sonnet-4-5"
+    doer_model: str = "anthropic/claude-sonnet-4-5"
 
     github_token: str
     github_api_url: str = "https://api.github.com"
 
-    forge_bot_token: str
+    doer_bot_token: str
     telegram_chat_id: int = -1003913424869
     telegram_projects_topic_id: int = 167
 

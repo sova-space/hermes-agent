@@ -1,17 +1,17 @@
 ---
-name: forge
-description: Delegate development tasks to the Forge agent — creates PRs and merges them autonomously.
+name: doer
+description: Delegate development tasks to the Doer agent — creates PRs and merges them autonomously.
 metadata:
   hermes:
-    tags: [forge, dev, code, pr, github, do]
+    tags: [doer, dev, code, pr, github, do]
     category: development
 ---
 
-# Forge
+# Doer
 
-Forge is an autonomous developer agent. It reads the relevant code, makes changes, opens a PR, and merges it. Results appear in `#projects`.
+Doer is an autonomous developer agent. It reads the relevant code, makes changes, opens a PR, and merges it. Results appear in `#projects`.
 
-Base URL: `${AGENT_FORGE_URL}`
+Base URL: `${AGENT_DOER_URL}`
 
 ---
 
@@ -29,7 +29,7 @@ Do NOT handle conversational questions about code. Only trigger on explicit `/do
 
 ## Dispatch
 
-Call `POST ${AGENT_FORGE_URL}/task` with:
+Call `POST ${AGENT_DOER_URL}/task` with:
 
 ```json
 {
@@ -40,7 +40,7 @@ Call `POST ${AGENT_FORGE_URL}/task` with:
 
 The endpoint returns immediately with a `task_id`. Respond to the user:
 
-> Got it — Forge is working on `<project>`. I'll post the result in #projects.
+> Got it — Doer is working on `<project>`. I'll post the result in #projects.
 
 Do not wait for the task to finish. Results arrive in #projects automatically.
 
@@ -59,4 +59,4 @@ Do not wait for the task to finish. Results arrive in #projects automatically.
 ## Error handling
 
 If `POST /task` returns 400 (unknown project), tell the user the project name is not recognised and list the known ones.
-If the request fails entirely, say "Forge is unavailable right now".
+If the request fails entirely, say "Doer is unavailable right now".

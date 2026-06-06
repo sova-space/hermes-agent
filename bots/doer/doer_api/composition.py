@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
-from forge_api.routers import bot, health, tasks
+from doer_api.routers import bot, health, tasks
 
 structlog.configure(
     wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
@@ -29,14 +29,14 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.tasks = {}
-        log.info("forge_started")
+        log.info("doer_started")
         try:
             yield
         finally:
-            log.info("forge_stopped")
+            log.info("doer_stopped")
 
     app = FastAPI(
-        title="Forge API",
+        title="Doer API",
         version="0.1.0",
         description=_DESCRIPTION,
         lifespan=lifespan,

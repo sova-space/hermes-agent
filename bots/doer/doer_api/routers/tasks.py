@@ -7,8 +7,8 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from forge_api.agent import loop as agent_loop
-from forge_api.agent.projects import PROJECTS
+from doer_api.agent import loop as agent_loop
+from doer_api.agent.projects import PROJECTS
 
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/task")
@@ -47,7 +47,7 @@ async def submit_task(body: TaskRequest, request: Request) -> TaskResponse:
     log.info("task_submitted", task_id=task_id, project=body.project)
     t = asyncio.create_task(
         agent_loop.run(task_id, body.project, body.task, task_store),
-        name=f"forge-{task_id}",
+        name=f"doer-{task_id}",
     )
     _background_tasks.add(t)
     t.add_done_callback(_background_tasks.discard)

@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 router = APIRouter()
 
-# Forge owns no Telegram commands — Hermes routes /do_* via a skill.
+# Doer owns no Telegram commands — Hermes routes /do_* via a skill.
 BOT_COMMANDS: list[dict] = []
 
 

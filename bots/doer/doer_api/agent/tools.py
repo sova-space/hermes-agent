@@ -1,11 +1,11 @@
-"""GitHub REST API tool implementations for the Forge agent."""
+"""GitHub REST API tool implementations for the Doer agent."""
 
 import base64
 
 import httpx
 import structlog
 
-from forge_api.core.config import settings
+from doer_api.core.config import settings
 
 log = structlog.get_logger(__name__)
 

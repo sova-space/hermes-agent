@@ -5,10 +5,10 @@ from datetime import UTC, datetime
 import anthropic
 import structlog
 
-from forge_api.agent import tools as gh
-from forge_api.agent.projects import Project, get_project
-from forge_api.core.config import settings
-from forge_api.telegram import send_to_projects
+from doer_api.agent import tools as gh
+from doer_api.agent.projects import Project, get_project
+from doer_api.core.config import settings
+from doer_api.telegram import send_to_projects
 
 log = structlog.get_logger(__name__)
 
@@ -89,12 +89,12 @@ _TOOL_DEFS: list[dict] = [
 ]
 
 _SYSTEM = (
-    "You are Forge, an autonomous developer agent. You make surgical code changes "
+    "You are Doer, an autonomous developer agent. You make surgical code changes "
     "to GitHub repositories based on a natural-language task description.\n\n"
     "Workflow:\n"
     "1. Explore relevant files with read_file / list_directory.\n"
     "2. Identify the minimal change needed.\n"
-    "3. Create a branch named forge/<short-slug> (lowercase, hyphens only).\n"
+    "3. Create a branch named doer/<short-slug> (lowercase, hyphens only).\n"
     "4. Write the changed files one by one.\n"
     "5. Create a PR with a title and a 1-2 sentence body.\n"
     "6. Merge the PR.\n\n"
@@ -171,7 +171,7 @@ async def run(
         "status": "running",
         "started_at": datetime.now(UTC).isoformat(),
     }
-    log.info("forge_task_started", task_id=task_id, project=project_name)
+    log.info("doer_task_started", task_id=task_id, project=project_name)
 
     client = anthropic.AsyncAnthropic(
         base_url="https://openrouter.ai/api/v1",
@@ -187,7 +187,7 @@ async def run(
     try:
         for _ in range(30):  # safety cap
             response = await client.messages.create(
-                model=settings.forge_model,
+                model=settings.doer_model,
                 max_tokens=4096,
                 system=_SYSTEM,
                 tools=_TOOL_DEFS,  # type: ignore[arg-type]
@@ -229,19 +229,19 @@ async def run(
             "pr_url": pr_url,
             "merged": merged,
         }
-        log.info("forge_task_done", task_id=task_id, pr_url=pr_url, merged=merged)
+        log.info("doer_task_done", task_id=task_id, pr_url=pr_url, merged=merged)
 
         status = "merged" if merged else "PR open (merge blocked)"
         link = f'<a href="{pr_url}">{pr_url}</a>' if pr_url else "no PR created"
         await send_to_projects(
-            f"<b>Forge [{project_name}]</b> — {status}\n{link}\n<i>{task[:120]}</i>"
+            f"<b>Doer [{project_name}]</b> — {status}\n{link}\n<i>{task[:120]}</i>"
         )
 
     except Exception as exc:
-        log.error("forge_task_failed", task_id=task_id, error=str(exc))
+        log.error("doer_task_failed", task_id=task_id, error=str(exc))
         task_store[task_id] = {"status": "failed", "error": str(exc)}
         short = str(exc)[:200]
         await send_to_projects(
-            f"<b>Forge [{project_name}]</b> — failed\n"
+            f"<b>Doer [{project_name}]</b> — failed\n"
             f"<i>{task[:80]}</i>\n<code>{short}</code>"
         )
