@@ -3,13 +3,11 @@ import os
 import httpx
 
 _agent_commands: set[str] = set()
-_commands_loaded = False
+_doer_projects: list[str] = []
+_config_loaded = False
 
 # Commands Hermes routes to the Doer agent: do_<project>
 _DOER_PREFIX = "do_"
-
-# Known doer projects (lowercase)
-_DOER_PROJECTS = {"finance", "wishlist", "hermes"}
 
 # In-memory project context per chat: {chat_id: project_name}
 _selected_projects: dict[int, str] = {}
@@ -18,10 +16,11 @@ _selected_projects: dict[int, str] = {}
 _pending_selection: set[int] = set()
 
 
-def _load_commands() -> None:
-    global _commands_loaded
-    if _commands_loaded:
+def _load_config() -> None:
+    global _config_loaded
+    if _config_loaded:
         return
+
     urls = [
         v
         for k, v in os.environ.items()
@@ -36,7 +35,21 @@ def _load_commands() -> None:
             _agent_commands.update(c["command"] for c in resp.json())
         except Exception:
             pass
-    _commands_loaded = True
+        try:
+            resp = httpx.get(f"{url}/bot/projects", timeout=5)
+            projects = resp.json()
+            if isinstance(projects, list):
+                _doer_projects.extend(p for p in projects if isinstance(p, str))
+        except Exception:
+            pass
+
+    _config_loaded = True
+
+
+def _get_projects() -> list[str]:
+    """Return the doer project list, loading it if not yet fetched."""
+    _load_config()
+    return _doer_projects
 
 
 def _get_chat_and_thread(event) -> tuple[int | None, int | None]:
@@ -95,7 +108,7 @@ def _dispatch_doer(chat_id: int, thread_id: int | None, project: str, task: str)
 
 
 def pre_dispatch(event, **kwargs):
-    _load_commands()
+    _load_config()
 
     text = getattr(event, "text", "") or ""
     cmd = event.get_command() if hasattr(event, "get_command") else None
@@ -104,7 +117,7 @@ def pre_dispatch(event, **kwargs):
     # Handle project selection from keyboard tap (plain text, no command)
     if cmd is None and chat_id is not None and chat_id in _pending_selection:
         chosen = text.strip().lower()
-        if chosen in _DOER_PROJECTS:
+        if chosen in _get_projects():
             _pending_selection.discard(chat_id)
             _selected_projects[chat_id] = chosen
             _send_telegram_message(
@@ -120,8 +133,12 @@ def pre_dispatch(event, **kwargs):
 
     # /project — show project picker keyboard
     if cmd == "project":
+        projects = _get_projects()
+        if not projects:
+            _send_telegram_message(chat_id, thread_id, "Doer is unavailable — no projects loaded.")
+            return {"action": "skip", "reason": "doer project picker unavailable"}
         _pending_selection.add(chat_id)
-        buttons = [[{"text": p.capitalize()} for p in sorted(_DOER_PROJECTS)]]
+        buttons = [[{"text": p.capitalize()} for p in projects]]
         _send_telegram_message(
             chat_id,
             thread_id,
@@ -173,6 +190,17 @@ def pre_dispatch(event, **kwargs):
     return None
 
 
+def _cmd_project(raw_args: str) -> str:
+    projects = _get_projects()
+    return "Projects: " + ", ".join(projects) if projects else "No projects loaded."
+
+
+def _cmd_do(raw_args: str) -> str:
+    return "Usage: /do <task description>"
+
+
 def register(ctx) -> None:
     ctx.register_hook("pre_gateway_dispatch", pre_dispatch)
-    _load_commands()
+    ctx.register_command("project", handler=_cmd_project, description="Pick active project for Doer")
+    ctx.register_command("do", handler=_cmd_do, description="Run task on active project via Doer", args_hint="<task>")
+    _load_config()

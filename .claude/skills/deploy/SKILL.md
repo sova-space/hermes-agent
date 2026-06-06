@@ -5,22 +5,25 @@ model: sonnet
 version: 1.4.0
 ---
 
-Topology and service IDs: see CLAUDE.md. Auto-deploy active on `main` push; `entrypoint.sh` runs `alembic upgrade head` — migration errors crash before health check.
+Topology and service IDs: see CLAUDE.md. Auto-deploy active on `main` push per watch pattern; `entrypoint.sh` runs `alembic upgrade head` — migration errors crash before health check.
 
-## Link + deploy
+## Deploy
 
-```bash
-# Hermes Agent (from repo root)
-railway link --project 3d73dc58 --service 8d1fc2f6 --environment a2a88403
-railway up --detach -m "msg"
+**Code changes** → `git push origin main` — all services auto-deploy on main push. Never use `railway up`.
 
-# Finance (from bots/finance/)
-railway link --project 3d73dc58 --service 9bc27c48 --environment a2a88403
-railway up --detach -m "msg"
+**Env-var-only change** → use Railway MCP plugin:
+```
+mcp__plugin_railway_railway__set_variables(project_id, environment_id, service_id, variables={...})
+```
+This triggers a redeploy automatically.
 
-# Wishlist (from bots/wishlist/)
-railway link --project 3d73dc58 --service 7764e517 --environment a2a88403
-railway up --detach -m "msg"
+## Check status
+
+```
+mcp__plugin_railway_railway__environment_status(
+  project_id="3d73dc58-1201-4258-bc1d-1f9c24333032",
+  environment_id="a2a88403-f2b1-4a18-a44d-3b808d07bcb1"
+)
 ```
 
 ## Health URLs
