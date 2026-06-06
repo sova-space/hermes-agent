@@ -17,13 +17,14 @@ Base URL: `${AGENT_DOER_URL}`
 
 ## Routing — read this first
 
-**Trigger**: any message starting with `/do_finance`, `/do_wishlist`, or `/do_hermes` (with or without bot suffix).
+The `agent-silence` plugin intercepts all doer commands before they reach Hermes. You only see doer-related messages if the plugin is not loaded.
 
-Extract:
-- **project**: the part after `/do_` (e.g. `finance`)
-- **task**: the rest of the message (everything after the command)
+**Triggers:**
+- `/project` — shows a project picker keyboard (Finance / Wishlist / Hermes)
+- `/do <task>` — runs task on the currently selected project
+- `/do_<project> <task>` — runs task on an explicit project (also updates the stored project)
 
-Do NOT handle conversational questions about code. Only trigger on explicit `/do_<project>` commands.
+Do NOT handle conversational questions about code. Only trigger on explicit doer commands.
 
 ---
 
@@ -48,11 +49,11 @@ Do not wait for the task to finish. Results arrive in #projects automatically.
 
 ## Projects
 
-| Command | Project |
+| Project | Repo |
 |---|---|
-| `/do_finance` | finance |
-| `/do_wishlist` | wishlist |
-| `/do_hermes` | hermes |
+| `finance` | sova-claw/hermes-finance |
+| `wishlist` | sova-claw/hermes-wishlist |
+| `hermes` | nkhimin/hermes-agent |
 
 ---
 

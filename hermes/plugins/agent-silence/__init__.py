@@ -8,6 +8,15 @@ _commands_loaded = False
 # Commands Hermes routes to the Doer agent: do_<project>
 _DOER_PREFIX = "do_"
 
+# Known doer projects (lowercase)
+_DOER_PROJECTS = {"finance", "wishlist", "hermes"}
+
+# In-memory project context per chat: {chat_id: project_name}
+_selected_projects: dict[int, str] = {}
+
+# Chat IDs awaiting a project selection button tap
+_pending_selection: set[int] = set()
+
 
 def _load_commands() -> None:
     global _commands_loaded
@@ -30,11 +39,44 @@ def _load_commands() -> None:
     _commands_loaded = True
 
 
-def _dispatch_doer(event, project: str) -> None:
-    """Call Doer API and send an ack message to Telegram."""
-    text = getattr(event, "text", "") or ""
-    parts = text.split(None, 1)
-    task = parts[1].strip() if len(parts) > 1 else ""
+def _get_chat_and_thread(event) -> tuple[int | None, int | None]:
+    chat_id = (
+        getattr(event, "chat_id", None)
+        or getattr(getattr(event, "chat", None), "id", None)
+        or getattr(getattr(event, "message", None), "chat", {}).get("id")
+    )
+    thread_id = (
+        getattr(event, "message_thread_id", None)
+        or getattr(getattr(event, "message", None), "message_thread_id", None)
+    )
+    return chat_id, thread_id
+
+
+def _send_telegram_message(
+    chat_id: int,
+    thread_id: int | None,
+    text: str,
+    reply_markup: dict | None = None,
+) -> None:
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not bot_token or not chat_id:
+        return
+    payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+    if thread_id:
+        payload["message_thread_id"] = thread_id
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+    try:
+        httpx.post(
+            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+            json=payload,
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
+def _dispatch_doer(chat_id: int, thread_id: int | None, project: str, task: str) -> None:
     if not task:
         return
 
@@ -45,52 +87,86 @@ def _dispatch_doer(event, project: str) -> None:
         except Exception:
             pass
 
-    # Ack the user in the same chat/topic.
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    chat_id = (
-        getattr(event, "chat_id", None)
-        or getattr(getattr(event, "chat", None), "id", None)
-        or getattr(getattr(event, "message", None), "chat", {}).get("id")
+    _send_telegram_message(
+        chat_id,
+        thread_id,
+        f"Got it — Doer is working on `{project}`. Result in #projects.",
     )
-    thread_id = (
-        getattr(event, "message_thread_id", None)
-        or getattr(getattr(event, "message", None), "message_thread_id", None)
-    )
-
-    if bot_token and chat_id:
-        payload: dict = {
-            "chat_id": chat_id,
-            "text": f"Got it — Doer is working on `{project}`. Result in #projects.",
-            "parse_mode": "Markdown",
-        }
-        if thread_id:
-            payload["message_thread_id"] = thread_id
-        try:
-            httpx.post(
-                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json=payload,
-                timeout=5,
-            )
-        except Exception:
-            pass
 
 
 def pre_dispatch(event, **kwargs):
     _load_commands()
+
+    text = getattr(event, "text", "") or ""
     cmd = event.get_command() if hasattr(event, "get_command") else None
+    chat_id, thread_id = _get_chat_and_thread(event)
+
+    # Handle project selection from keyboard tap (plain text, no command)
+    if cmd is None and chat_id is not None and chat_id in _pending_selection:
+        chosen = text.strip().lower()
+        if chosen in _DOER_PROJECTS:
+            _pending_selection.discard(chat_id)
+            _selected_projects[chat_id] = chosen
+            _send_telegram_message(
+                chat_id,
+                thread_id,
+                f"Project set to *{chosen}*. Use `/do <task>` to run a task.",
+                reply_markup={"remove_keyboard": True},
+            )
+            return {"action": "skip", "reason": "doer project selected"}
+
     if not cmd:
         return None
 
-    # Route /do_<project> commands to Doer before the framework can reject them.
+    # /project — show project picker keyboard
+    if cmd == "project":
+        _pending_selection.add(chat_id)
+        buttons = [[{"text": p.capitalize()} for p in sorted(_DOER_PROJECTS)]]
+        _send_telegram_message(
+            chat_id,
+            thread_id,
+            "Select a project:",
+            reply_markup={"keyboard": buttons, "one_time_keyboard": True, "resize_keyboard": True},
+        )
+        return {"action": "skip", "reason": "doer project picker"}
+
+    # /do <task> — dispatch to stored project
+    if cmd == "do":
+        project = _selected_projects.get(chat_id) if chat_id else None
+        if not project:
+            _send_telegram_message(
+                chat_id,
+                thread_id,
+                "No project selected. Use `/project` to pick one first.",
+            )
+            return {"action": "skip", "reason": "no doer project selected"}
+        parts = text.split(None, 1)
+        task = parts[1].strip() if len(parts) > 1 else ""
+        if not task:
+            _send_telegram_message(
+                chat_id,
+                thread_id,
+                f"Active project: *{project}*. Usage: `/do <task description>`",
+            )
+            return {"action": "skip", "reason": "doer no task"}
+        _dispatch_doer(chat_id, thread_id, project, task)
+        return {"action": "skip", "reason": "doer command"}
+
+    # /do_<project> <task> — explicit project, also updates stored project
     if cmd.startswith(_DOER_PREFIX):
         project = cmd[len(_DOER_PREFIX):]
-        _dispatch_doer(event, project)
+        if chat_id is not None:
+            _selected_projects[chat_id] = project
+        parts = text.split(None, 1)
+        task = parts[1].strip() if len(parts) > 1 else ""
+        if not task:
+            return {"action": "skip", "reason": "doer no task"}
+        _dispatch_doer(chat_id, thread_id, project, task)
         return {"action": "skip", "reason": "doer command"}
 
     # Silence commands owned by other bots (only when @-addressed).
     if cmd not in _agent_commands:
         return None
-    text = getattr(event, "text", "") or ""
     command_token = text.split()[0] if text else ""
     if "@" in command_token:
         return {"action": "skip", "reason": "agent bot command"}

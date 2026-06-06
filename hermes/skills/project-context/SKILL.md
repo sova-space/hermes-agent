@@ -27,35 +27,13 @@ context is relevant (e.g., `[hermes-finance] Sync completed`).
 
 ## Commands
 
-### Show current project
+`/project` is intercepted by the `agent-silence` plugin before reaching Hermes.
 
-When the user sends `/project` with no arguments:
+- `/project` — sends a keyboard with [Finance] [Wishlist] [Hermes] buttons. Tapping sets the active doer project.
+- `/do <task>` — runs the task against the active project via Doer.
+- `/do_<project> <task>` — runs on an explicit project and updates the stored selection.
 
-```bash
-python /data/.hermes/skills/project-context/project.py get
-```
-
-Reply: `Active project: <name>`
-
-### Switch project
-
-When the user sends `/project <name>`:
-
-```bash
-python /data/.hermes/skills/project-context/project.py set <name>
-```
-
-Reply: `Switched to <name>`
-
-### List projects
-
-When the user sends `/project list`:
-
-```bash
-python /data/.hermes/skills/project-context/project.py list
-```
-
-Reply with the returned list, marking the active one with `*`.
+Project state is held in-memory in the plugin (resets on redeploy). No file I/O needed.
 
 ## Known projects
 

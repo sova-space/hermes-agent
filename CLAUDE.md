@@ -1,11 +1,8 @@
 # CLAUDE.md
 
-Hermes is Nazar's personal AI agent — Telegram + Slack, finance tracking, self-improvement via GitHub PRs.
+Hermes is Nazar's personal AI agent — Telegram, finance tracking, self-improvement via GitHub PRs.
 
 ## Rules
-
-- One feature, one branch (`NNN-short-slug`), one PR — no direct pushes to `main`
-- Secrets in Railway Variables only — never in code
 - Skills = `hermes/skills/<name>/SKILL.md` (markdown only, companion script for code)
 - Python 3.11+, type hints, `ruff check` + `ruff format` before merge
 
@@ -30,6 +27,7 @@ Project: `hermes-main` · `3d73dc58` · environment `production` · `a2a88403`
 | Hermes Agent | `8d1fc2f6` | repo root |
 | hermes-finance | `9bc27c48` | `bots/finance/` |
 | hermes-wishlist | `7764e517` | `bots/wishlist/` |
+| hermes-doer | (see Railway) | `bots/doer/` |
 | Postgres | `b6daf7a2` | — |
 
 DB names: `railway` (hermes) · `finance` · `wishlist`. Ref vars: `${{Postgres.DATABASE_URL}}` etc.

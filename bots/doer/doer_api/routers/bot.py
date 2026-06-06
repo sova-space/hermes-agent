@@ -4,8 +4,10 @@ from fastapi import APIRouter
 
 router = APIRouter()
 
-# Doer owns no Telegram commands — Hermes routes /do_* via a skill.
-BOT_COMMANDS: list[dict] = []
+BOT_COMMANDS: list[dict] = [
+    {"command": "project", "description": "Pick active project for Doer (Finance / Wishlist / Hermes)"},
+    {"command": "do", "description": "Run a task on the active project via Doer"},
+]
 
 
 @router.get("/bot/commands", include_in_schema=False)
