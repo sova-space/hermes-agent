@@ -50,6 +50,11 @@ if [ -d /app/skills ]; then
   # Any ${VAR} in a skill file is replaced with the runtime env value at startup.
   find /data/.hermes/skills -name "*.md" | while read -r f; do
     sed -i "s|\${FINANCE_API_URL}|${FINANCE_API_URL}|g" "$f"
+    # Substitute all AGENT_*_URL variables so any skill can reference them portably.
+    for _var in $(env | grep -oE '^AGENT_[A-Z_]+_URL' | sort -u); do
+      _val=$(eval "echo \"\$$_var\"")
+      sed -i "s|\${$_var}|${_val}|g" "$f"
+    done
   done
 fi
 if [ -d /app/plugins ]; then
