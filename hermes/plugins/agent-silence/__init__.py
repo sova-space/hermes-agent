@@ -1,264 +1,122 @@
-import os
+"""Hermes plugin: silences other agents' @-addressed commands in group chats,
+and hosts the /project + /do Doer command surface.
 
-import httpx
+This module is intentionally thin — it wires the gateway hook/command
+registration to the pieces that hold the actual logic:
 
+- ``chat_context``    — typed extraction of chat/thread ids from MessageEvent
+- ``telegram_client`` — raw Telegram Bot API access
+- ``doer``            — agent discovery, project list, per-chat session state
+- ``commands``        — /project, /do handlers + the pattern for adding more
+
+See ``commands.py`` for "how do I add a new command", and ``README.md`` for
+the full architecture writeup (in particular: why ``event.source``, not
+``event``, is where chat/thread ids live — that one cost a debugging session).
+"""
+
+from .chat_context import ChatContext
+from .commands import (
+    COMMAND_DO,
+    COMMAND_PROJECT,
+    CommandContext,
+    handle_pending_selection,
+    route,
+    skip,
+)
 from .config import CONFIG
+from .doer import DoerGateway, DoerSession
+from .telegram_client import BotCommand, TelegramClient
 
-_agent_commands: set[str] = set()
-_doer_projects: list[str] = []
-_config_loaded = False
-
-# Commands Hermes routes to the Doer agent: do_<project>
-_DOER_PREFIX = "do_"
-
-# In-memory project context per chat: {chat_id: project_name}
-# Keyed by str — SessionSource.chat_id (see _get_chat_and_thread) is a string,
-# not the raw Telegram integer ID.
-_selected_projects: dict[str, str] = {}
-
-# Chat IDs awaiting a project selection button tap
-_pending_selection: set[str] = set()
-
-# Telegram Bot API base URL template — single place owning the endpoint shape,
-# used by every raw call this plugin makes (see _call_telegram_api).
-_TELEGRAM_API_URL = "https://api.telegram.org/bot{token}/{method}"
-
-# Telegram command-scope type understood by setMyCommands; see _register_group_commands.
-_SCOPE_ALL_GROUP_CHATS = "all_group_chats"
-
-# Forum "General" topic sentinel. Telegram's sendMessage rejects an explicit
-# message_thread_id=1 for the General topic — the gateway's own adapter omits
-# it in that case (see _message_thread_id_for_send in gateway/platforms/telegram.py),
-# and we mirror that here so replies in General don't silently fail the same way
-# the missing event.source.chat_id read used to.
-_GENERAL_TOPIC_THREAD_ID = "1"
-
-# Doer commands pushed to Telegram's all_group_chats scope (see _register_group_commands).
-# Plain dicts (not python-telegram-bot's typed BotCommand) because that library
-# isn't a gateway dependency — plugins run inside the shared Hermes process and
-# only have httpx/stdlib, so raw JSON matching the Bot API schema is the only option.
-_GROUP_VISIBLE_COMMANDS: list[dict[str, str]] = [
-    {"command": "project", "description": "Pick active project for Doer"},
-    {"command": "do", "description": "Run task on active project via Doer"},
+# Commands surfaced in Telegram's `/` menu *inside group chats*. This is a
+# separate registration path from ctx.register_command below — group chats
+# don't surface default-scope commands at all (see
+# TelegramClient.register_group_commands / SCOPE_ALL_GROUP_CHATS for why).
+GROUP_VISIBLE_COMMANDS = [
+    BotCommand(COMMAND_PROJECT, "Pick active project for Doer"),
+    BotCommand(COMMAND_DO, "Run task on active project via Doer"),
 ]
 
+_telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
+_doer = DoerGateway(CONFIG.DOER_URL)
+_session = DoerSession()
 
-def _call_telegram_api(method: str, payload: dict) -> None:
-    """POST to a Telegram Bot API method, swallowing errors.
 
-    Shared by every raw Telegram call this plugin makes (sendMessage,
-    setMyCommands, …) so the URL shape, token guard, and error-swallowing
-    contract live in exactly one place — add new methods here, not as
-    one-off httpx.post blocks.
+def _command_args(text: str) -> str:
+    """Everything after the command token, e.g. ``"/do fix bug"`` -> ``"fix bug"``."""
+    parts = text.split(None, 1)
+    return parts[1].strip() if len(parts) > 1 else ""
+
+
+def _silence_if_owned_elsewhere(cmd: str, text: str) -> dict[str, str] | None:
+    """Swallow @-addressed commands that belong to other registered agent
+    bots, so Hermes doesn't reply "unknown command" on their behalf in
+    multi-bot group chats like Sova Space.
+
+    Only @-addressed invocations are silenced — a bare ``/balance`` (no
+    ``@sova_finance_bot`` suffix) is ambiguous enough that staying silent
+    could hide a genuine Hermes-side "unknown command", so we only act when
+    the user explicitly disambiguated which bot they meant.
     """
-    if not CONFIG.TELEGRAM_BOT_TOKEN:
-        return
-    try:
-        httpx.post(
-            _TELEGRAM_API_URL.format(token=CONFIG.TELEGRAM_BOT_TOKEN, method=method),
-            json=payload,
-            timeout=5,
-        )
-    except Exception:
-        pass
-
-
-def _register_group_commands() -> None:
-    """Push /project and /do to Telegram's all_group_chats command scope.
-
-    Hermes registers commands only in the default scope, and Telegram does
-    not surface default-scope commands in group chats — only scopes set
-    explicitly for groups (all_group_chats / chat) appear there. Without
-    this, /project and /do are invisible in group chats like Sova Space.
-    """
-    _call_telegram_api(
-        "setMyCommands",
-        {
-            "commands": _GROUP_VISIBLE_COMMANDS,
-            "scope": {"type": _SCOPE_ALL_GROUP_CHATS},
-        },
-    )
-
-
-def _load_config() -> None:
-    global _config_loaded
-    if _config_loaded:
-        return
-
-    urls = [
-        v
-        for k, v in os.environ.items()
-        if k.startswith("AGENT_") and k.endswith("_URL")
-    ]
-    for base_url in urls:
-        url = base_url.rstrip("/")
-        if not url.startswith("http"):
-            url = f"https://{url}"
-        try:
-            resp = httpx.get(f"{url}/bot/commands", timeout=5)
-            _agent_commands.update(c["command"] for c in resp.json())
-        except Exception:
-            pass
-        try:
-            resp = httpx.get(f"{url}/bot/projects", timeout=5)
-            projects = resp.json()
-            if isinstance(projects, list):
-                _doer_projects.extend(p for p in projects if isinstance(p, str))
-        except Exception:
-            pass
-
-    _config_loaded = True
-
-
-def _get_projects() -> list[str]:
-    """Return the doer project list, loading it if not yet fetched."""
-    _load_config()
-    return _doer_projects
-
-
-def _get_chat_and_thread(event) -> tuple[str | None, str | None]:
-    """Pull chat/topic identifiers from Hermes's normalized MessageEvent.
-
-    These live on event.source (a SessionSource), not on the event itself —
-    event.source.chat_id / .thread_id, both plain strings (Telegram's numeric
-    IDs included). See gateway/session.py:SessionSource in NousResearch/hermes-agent.
-    """
-    source = getattr(event, "source", None)
-    return getattr(source, "chat_id", None), getattr(source, "thread_id", None)
-
-
-def _send_telegram_message(
-    chat_id: str,
-    thread_id: str | None,
-    text: str,
-    reply_markup: dict | None = None,
-) -> None:
-    if not chat_id:
-        return
-    payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
-    if thread_id and thread_id != _GENERAL_TOPIC_THREAD_ID:
-        # Telegram's Bot API requires message_thread_id as an integer;
-        # SessionSource carries every ID as a string. The General topic (id "1")
-        # is omitted — Telegram rejects sends that set it explicitly.
-        payload["message_thread_id"] = int(thread_id)
-    if reply_markup is not None:
-        payload["reply_markup"] = reply_markup
-    _call_telegram_api("sendMessage", payload)
-
-
-def _dispatch_doer(chat_id: str, thread_id: str | None, project: str, task: str) -> None:
-    if not task:
-        return
-
-    doer_url = CONFIG.DOER_URL.rstrip("/")
-    if doer_url:
-        try:
-            httpx.post(f"{doer_url}/task", json={"project": project, "task": task}, timeout=5)
-        except Exception:
-            pass
-
-    _send_telegram_message(
-        chat_id,
-        thread_id,
-        f"Got it — Doer is working on `{project}`. Result in #projects.",
-    )
-
-
-def pre_dispatch(event, **kwargs):
-    _load_config()
-
-    text = getattr(event, "text", "") or ""
-    cmd = event.get_command() if hasattr(event, "get_command") else None
-    chat_id, thread_id = _get_chat_and_thread(event)
-
-    # Handle project selection from keyboard tap (plain text, no command)
-    if cmd is None and chat_id is not None and chat_id in _pending_selection:
-        chosen = text.strip().lower()
-        if chosen in _get_projects():
-            _pending_selection.discard(chat_id)
-            _selected_projects[chat_id] = chosen
-            _send_telegram_message(
-                chat_id,
-                thread_id,
-                f"Project set to *{chosen}*. Use `/do <task>` to run a task.",
-                reply_markup={"remove_keyboard": True},
-            )
-            return {"action": "skip", "reason": "doer project selected"}
-
-    if not cmd:
-        return None
-
-    # /project — show project picker keyboard
-    if cmd == "project":
-        projects = _get_projects()
-        if not projects:
-            _send_telegram_message(chat_id, thread_id, "Doer is unavailable — no projects loaded.")
-            return {"action": "skip", "reason": "doer project picker unavailable"}
-        _pending_selection.add(chat_id)
-        buttons = [[{"text": p.capitalize()} for p in projects]]
-        _send_telegram_message(
-            chat_id,
-            thread_id,
-            "Select a project:",
-            reply_markup={"keyboard": buttons, "one_time_keyboard": True, "resize_keyboard": True},
-        )
-        return {"action": "skip", "reason": "doer project picker"}
-
-    # /do <task> — dispatch to stored project
-    if cmd == "do":
-        project = _selected_projects.get(chat_id) if chat_id else None
-        if not project:
-            _send_telegram_message(
-                chat_id,
-                thread_id,
-                "No project selected. Use `/project` to pick one first.",
-            )
-            return {"action": "skip", "reason": "no doer project selected"}
-        parts = text.split(None, 1)
-        task = parts[1].strip() if len(parts) > 1 else ""
-        if not task:
-            _send_telegram_message(
-                chat_id,
-                thread_id,
-                f"Active project: *{project}*. Usage: `/do <task description>`",
-            )
-            return {"action": "skip", "reason": "doer no task"}
-        _dispatch_doer(chat_id, thread_id, project, task)
-        return {"action": "skip", "reason": "doer command"}
-
-    # /do_<project> <task> — explicit project, also updates stored project
-    if cmd.startswith(_DOER_PREFIX):
-        project = cmd[len(_DOER_PREFIX):]
-        if chat_id is not None:
-            _selected_projects[chat_id] = project
-        parts = text.split(None, 1)
-        task = parts[1].strip() if len(parts) > 1 else ""
-        if not task:
-            return {"action": "skip", "reason": "doer no task"}
-        _dispatch_doer(chat_id, thread_id, project, task)
-        return {"action": "skip", "reason": "doer command"}
-
-    # Silence commands owned by other bots (only when @-addressed).
-    if cmd not in _agent_commands:
+    if cmd not in _doer.agent_commands:
         return None
     command_token = text.split()[0] if text else ""
     if "@" in command_token:
-        return {"action": "skip", "reason": "agent bot command"}
+        return skip("agent bot command")
     return None
 
 
-def _cmd_project(raw_args: str) -> str:
-    projects = _get_projects()
+def pre_dispatch(event, **kwargs):
+    _doer.load()
+
+    text = getattr(event, "text", "") or ""
+    cmd = event.get_command() if hasattr(event, "get_command") else None
+    chat = ChatContext.from_event(event)
+    ctx = CommandContext(
+        chat=chat,
+        text=text,
+        args=_command_args(text),
+        telegram=_telegram,
+        doer=_doer,
+        session=_session,
+    )
+
+    if cmd is None:
+        return handle_pending_selection(ctx)
+
+    routed = route(cmd, ctx)
+    if routed is not None:
+        return routed
+
+    return _silence_if_owned_elsewhere(cmd, text)
+
+
+def _default_scope_project(raw_args: str) -> str:
+    """Fallback text reply for the *default* command scope (DMs, etc).
+
+    The interactive picker keyboard only runs through ``pre_dispatch`` /
+    ``GROUP_VISIBLE_COMMANDS`` — group chats need that separate registration
+    (see module docstring), so this plain-text path covers everywhere else.
+    """
+    projects = _doer.projects
     return "Projects: " + ", ".join(projects) if projects else "No projects loaded."
 
 
-def _cmd_do(raw_args: str) -> str:
+def _default_scope_do(raw_args: str) -> str:
     return "Usage: /do <task description>"
 
 
 def register(ctx) -> None:
     ctx.register_hook("pre_gateway_dispatch", pre_dispatch)
-    ctx.register_command("project", handler=_cmd_project, description="Pick active project for Doer")
-    ctx.register_command("do", handler=_cmd_do, description="Run task on active project via Doer", args_hint="<task>")
-    _register_group_commands()
-    _load_config()
+    ctx.register_command(
+        COMMAND_PROJECT,
+        handler=_default_scope_project,
+        description="Pick active project for Doer",
+    )
+    ctx.register_command(
+        COMMAND_DO,
+        handler=_default_scope_do,
+        description="Run task on active project via Doer",
+        args_hint="<task>",
+    )
+    _telegram.register_group_commands(GROUP_VISIBLE_COMMANDS)
+    _doer.load()
