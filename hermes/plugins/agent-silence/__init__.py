@@ -2,6 +2,8 @@ import os
 
 import httpx
 
+from .config import CONFIG
+
 _agent_commands: set[str] = set()
 _doer_projects: list[str] = []
 _config_loaded = False
@@ -15,11 +17,41 @@ _selected_projects: dict[int, str] = {}
 # Chat IDs awaiting a project selection button tap
 _pending_selection: set[int] = set()
 
-# Doer commands pushed to Telegram's all_group_chats scope (see _register_group_commands)
+# Telegram Bot API base URL template — single place owning the endpoint shape,
+# used by every raw call this plugin makes (see _call_telegram_api).
+_TELEGRAM_API_URL = "https://api.telegram.org/bot{token}/{method}"
+
+# Telegram command-scope type understood by setMyCommands; see _register_group_commands.
+_SCOPE_ALL_GROUP_CHATS = "all_group_chats"
+
+# Doer commands pushed to Telegram's all_group_chats scope (see _register_group_commands).
+# Plain dicts (not python-telegram-bot's typed BotCommand) because that library
+# isn't a gateway dependency — plugins run inside the shared Hermes process and
+# only have httpx/stdlib, so raw JSON matching the Bot API schema is the only option.
 _GROUP_VISIBLE_COMMANDS: list[dict[str, str]] = [
     {"command": "project", "description": "Pick active project for Doer"},
     {"command": "do", "description": "Run task on active project via Doer"},
 ]
+
+
+def _call_telegram_api(method: str, payload: dict) -> None:
+    """POST to a Telegram Bot API method, swallowing errors.
+
+    Shared by every raw Telegram call this plugin makes (sendMessage,
+    setMyCommands, …) so the URL shape, token guard, and error-swallowing
+    contract live in exactly one place — add new methods here, not as
+    one-off httpx.post blocks.
+    """
+    if not CONFIG.TELEGRAM_BOT_TOKEN:
+        return
+    try:
+        httpx.post(
+            _TELEGRAM_API_URL.format(token=CONFIG.TELEGRAM_BOT_TOKEN, method=method),
+            json=payload,
+            timeout=5,
+        )
+    except Exception:
+        pass
 
 
 def _register_group_commands() -> None:
@@ -30,20 +62,13 @@ def _register_group_commands() -> None:
     explicitly for groups (all_group_chats / chat) appear there. Without
     this, /project and /do are invisible in group chats like Sova Space.
     """
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    if not bot_token:
-        return
-    try:
-        httpx.post(
-            f"https://api.telegram.org/bot{bot_token}/setMyCommands",
-            json={
-                "commands": _GROUP_VISIBLE_COMMANDS,
-                "scope": {"type": "all_group_chats"},
-            },
-            timeout=5,
-        )
-    except Exception:
-        pass
+    _call_telegram_api(
+        "setMyCommands",
+        {
+            "commands": _GROUP_VISIBLE_COMMANDS,
+            "scope": {"type": _SCOPE_ALL_GROUP_CHATS},
+        },
+    )
 
 
 def _load_config() -> None:
@@ -101,29 +126,21 @@ def _send_telegram_message(
     text: str,
     reply_markup: dict | None = None,
 ) -> None:
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    if not bot_token or not chat_id:
+    if not chat_id:
         return
     payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
     if thread_id:
         payload["message_thread_id"] = thread_id
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
-    try:
-        httpx.post(
-            f"https://api.telegram.org/bot{bot_token}/sendMessage",
-            json=payload,
-            timeout=5,
-        )
-    except Exception:
-        pass
+    _call_telegram_api("sendMessage", payload)
 
 
 def _dispatch_doer(chat_id: int, thread_id: int | None, project: str, task: str) -> None:
     if not task:
         return
 
-    doer_url = os.environ.get("AGENT_DOER_URL", "").rstrip("/")
+    doer_url = CONFIG.DOER_URL.rstrip("/")
     if doer_url:
         try:
             httpx.post(f"{doer_url}/task", json={"project": project, "task": task}, timeout=5)
