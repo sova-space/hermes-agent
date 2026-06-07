@@ -23,7 +23,7 @@ python /data/.hermes/skills/project-context/project.py get
 ```
 
 Tag task updates, cron results, and autonomous output with `[<project>]` when the
-context is relevant (e.g., `[hermes-finance] Sync completed`).
+context is relevant (e.g., `[finance] Sync completed`).
 
 ## Commands
 
@@ -37,7 +37,9 @@ Project state is held in-memory in the plugin (resets on redeploy). No file I/O 
 
 ## Known projects
 
-- `hermes-agent` — this agent's own repo (sova-claw/hermes-agent)
-- `hermes-finance` — Monobank finance API + bot (sova-claw/hermes-finance)
-- `coxit` — work contract at COXIT
-- `personal` — personal tasks with no specific repo
+Mirrors the Doer project registry (`bots/doer/doer_api/agent/projects.py`) so the
+labels here always match what `/project <name>` switches to:
+
+- `finance` — Monobank finance API + bot (sova-claw/hermes-finance)
+- `wishlist` — wishlist bot (sova-claw/hermes-wishlist)
+- `hermes` — this agent's own repo (nkhimin/hermes-agent)

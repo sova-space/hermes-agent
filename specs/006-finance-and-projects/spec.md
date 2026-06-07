@@ -3,7 +3,7 @@
 ## Items
 
 ### 1. Project context skill
-Track the active project (hermes-agent / hermes-finance / coxit / personal) in a state
+Track the active project (finance / wishlist / hermes) in a state
 file at `/data/.hermes/current_project.txt`. Hermes tags relevant output with the active
 project and responds to `/project` commands to switch or inspect it.
 

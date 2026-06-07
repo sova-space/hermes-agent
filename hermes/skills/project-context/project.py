@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 STATE_FILE = Path("/data/.hermes/current_project.txt")
-DEFAULT_PROJECT = "hermes-agent"
-KNOWN_PROJECTS = ["hermes-agent", "hermes-finance", "coxit", "personal"]
+DEFAULT_PROJECT = "hermes"
+KNOWN_PROJECTS = ["finance", "wishlist", "hermes"]
 
 
 def cmd_get() -> None:
