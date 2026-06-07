@@ -1,16 +1,29 @@
-"""The /project and /do command surface, and the pattern for adding more.
+"""The /project command surface, and the pattern for adding more.
 
-## Adding a new Doer command
+``/project`` does double duty:
+
+- ``/project`` (no name) — show the chat's active project (if any) and the
+  list of available ones.
+- ``/project <name>`` — make ``<name>`` the chat's active project. From then
+  on, every plain-text message in that chat (no leading ``/``) is dispatched
+  to it as a Doer task — see ``handle_active_project_task``. No separate
+  ``/do`` command needed; switching projects is just ``/project <name>``
+  again.
+
+Every reply that touches the active project restates its name (e.g. "Doer is
+working on `hermes`") — in a busy group chat it's easy to lose track of which
+project plain messages are now being routed to, and a silent mode is exactly
+the kind of thing that produces "wait, why did it do that?" later.
+
+## Adding a new command
 
 1. Write a handler with the signature ``(ctx: CommandContext) -> dict | None``:
    - Reply via ``ctx.telegram.send_message(ctx.chat, ...)`` — never build a
      chat/thread id by hand (see ``chat_context.ChatContext`` for why that
      bit us once).
    - Return ``skip(reason)`` to tell the gateway "handled, don't fall through
-     to normal agent dispatch"; return ``None`` to let it fall through.
-2. Register it in ``COMMANDS`` (exact-name match). Prefix-style commands like
-   ``/do_<project>`` are routed in ``route()`` directly — extend that if you
-   need another prefix family.
+     to normal agent dispatch"; return ``None`` to let it.
+2. Register it in ``COMMANDS`` (exact-name match).
 3. If the command should appear in Telegram's ``/`` menu *inside group
    chats*, add a ``BotCommand`` to ``GROUP_VISIBLE_COMMANDS`` in
    ``__init__.py``. That's a separate registration path (the
@@ -30,14 +43,10 @@ from .chat_context import ChatContext
 from .doer import DoerGateway, DoerSession
 from .telegram_client import TelegramClient
 
-# Slash-command names this module owns. Matched against
+# The one slash-command name this module owns. Matched against
 # ``event.get_command()``, which the gateway already lowercases and strips
 # any "@botname" disambiguation suffix from — handlers never see raw text.
 COMMAND_PROJECT = "project"
-COMMAND_DO = "do"
-
-# Prefix family for the explicit-project shorthand: /do_<project> <task>
-DO_PROJECT_PREFIX = "do_"
 
 # Hook return action telling the gateway "handled — stop here, don't fall
 # through to normal agent dispatch". See pre_gateway_dispatch in
@@ -66,70 +75,66 @@ class CommandContext:
 CommandHandler = Callable[[CommandContext], dict[str, str] | None]
 
 
-def handle_pending_selection(ctx: CommandContext) -> dict[str, str] | None:
-    """Plain-text reply to the ``/project`` picker keyboard (no slash
-    command — the user tapped a button, which Telegram sends as text)."""
-    if not ctx.session.is_awaiting_selection(ctx.chat.chat_id):
-        return None
-    chosen = ctx.text.strip().lower()
-    if chosen not in ctx.doer.projects:
-        return None
-    ctx.session.select(ctx.chat.chat_id, chosen)
+def handle_project(ctx: CommandContext) -> dict[str, str] | None:
+    """``/project`` — show active project + choices, or switch to one.
+
+    ``/project`` alone reports status; ``/project <name>`` switches (the
+    first whitespace-delimited token is the name — anything after it is
+    ignored, since selecting and dispatching are deliberately separate
+    steps; send the task as a follow-up plain message).
+    """
+    projects = ctx.doer.projects
+    if not projects:
+        ctx.telegram.send_message(ctx.chat, "Doer is unavailable — no projects loaded.")
+        return skip("doer projects unavailable")
+
+    if not ctx.args:
+        return _report_status(ctx, projects)
+    return _switch_project(ctx, projects, name=ctx.args.split()[0].lower())
+
+
+def _report_status(ctx: CommandContext, projects: list[str]) -> dict[str, str]:
+    active = ctx.session.active_project(ctx.chat.chat_id)
+    headline = f"Active project: *{active}*." if active else "No project selected."
     ctx.telegram.send_message(
         ctx.chat,
-        f"Project set to *{chosen}*. Use `/do <task>` to run a task.",
-        reply_markup={"remove_keyboard": True},
+        f"{headline}\nAvailable: {', '.join(projects)}.\nUse `/project <name>` to switch.",
+    )
+    return skip("doer project status")
+
+
+def _switch_project(
+    ctx: CommandContext, projects: list[str], name: str
+) -> dict[str, str]:
+    if name not in projects:
+        ctx.telegram.send_message(
+            ctx.chat, f"Unknown project `{name}`. Available: {', '.join(projects)}."
+        )
+        return skip("doer unknown project")
+    ctx.session.select(ctx.chat.chat_id, name)
+    ctx.telegram.send_message(
+        ctx.chat,
+        f"Project set to *{name}*. Send a plain message to run it as a task on `{name}`.",
     )
     return skip("doer project selected")
 
 
-def handle_project(ctx: CommandContext) -> dict[str, str] | None:
-    """``/project`` — show the project picker keyboard."""
-    projects = ctx.doer.projects
-    if not projects:
-        ctx.telegram.send_message(ctx.chat, "Doer is unavailable — no projects loaded.")
-        return skip("doer project picker unavailable")
-    ctx.session.await_selection(ctx.chat.chat_id)
-    buttons = [[{"text": project.capitalize()} for project in projects]]
-    ctx.telegram.send_message(
-        ctx.chat,
-        "Select a project:",
-        reply_markup={
-            "keyboard": buttons,
-            "one_time_keyboard": True,
-            "resize_keyboard": True,
-        },
-    )
-    return skip("doer project picker")
+def handle_active_project_task(ctx: CommandContext) -> dict[str, str] | None:
+    """Plain-text message (no slash command) in a chat with an active
+    project — dispatch it to that project as a Doer task.
 
-
-def handle_do(ctx: CommandContext) -> dict[str, str] | None:
-    """``/do <task>`` — dispatch ``<task>`` to the chat's active project."""
+    Returns ``None`` (let the gateway fall through to normal agent dispatch)
+    when there's no active project or no chat to key it by — that's the
+    "ordinary conversation" case, not a task.
+    """
     project = ctx.session.active_project(ctx.chat.chat_id)
     if not project:
-        ctx.telegram.send_message(
-            ctx.chat, "No project selected. Use `/project` to pick one first."
-        )
-        return skip("no doer project selected")
-    if not ctx.args:
-        ctx.telegram.send_message(
-            ctx.chat,
-            f"Active project: *{project}*. Usage: `/do <task description>`",
-        )
-        return skip("doer no task")
-    _dispatch(ctx, project, ctx.args)
-    return skip("doer command")
-
-
-def handle_do_project(ctx: CommandContext, project: str) -> dict[str, str] | None:
-    """``/do_<project> <task>`` — explicit-project shorthand; also makes
-    ``<project>`` the chat's active project for subsequent plain ``/do``."""
-    if ctx.chat.chat_id is not None:
-        ctx.session.select(ctx.chat.chat_id, project)
-    if not ctx.args:
-        return skip("doer no task")
-    _dispatch(ctx, project, ctx.args)
-    return skip("doer command")
+        return None
+    task = ctx.text.strip()
+    if not task:
+        return None
+    _dispatch(ctx, project, task)
+    return skip("doer task dispatched")
 
 
 def _dispatch(ctx: CommandContext, project: str, task: str) -> None:
@@ -142,7 +147,6 @@ def _dispatch(ctx: CommandContext, project: str, task: str) -> None:
 # Exact-name command -> handler. See module docstring for how to extend this.
 COMMANDS: dict[str, CommandHandler] = {
     COMMAND_PROJECT: handle_project,
-    COMMAND_DO: handle_do,
 }
 
 
@@ -156,6 +160,4 @@ def route(cmd: str, ctx: CommandContext) -> dict[str, str] | None:
     handler = COMMANDS.get(cmd)
     if handler is not None:
         return handler(ctx)
-    if cmd.startswith(DO_PROJECT_PREFIX):
-        return handle_do_project(ctx, project=cmd[len(DO_PROJECT_PREFIX) :])
     return None

@@ -16,10 +16,9 @@ the full architecture writeup (in particular: why ``event.source``, not
 
 from .chat_context import ChatContext
 from .commands import (
-    COMMAND_DO,
     COMMAND_PROJECT,
     CommandContext,
-    handle_pending_selection,
+    handle_active_project_task,
     route,
     skip,
 )
@@ -32,8 +31,7 @@ from .telegram_client import BotCommand, TelegramClient
 # don't surface default-scope commands at all (see
 # TelegramClient.register_group_commands / SCOPE_ALL_GROUP_CHATS for why).
 GROUP_VISIBLE_COMMANDS = [
-    BotCommand(COMMAND_PROJECT, "Pick active project for Doer"),
-    BotCommand(COMMAND_DO, "Run task on active project via Doer"),
+    BotCommand(COMMAND_PROJECT, "Show/switch the chat's active Doer project"),
 ]
 
 _telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
@@ -81,7 +79,7 @@ def pre_dispatch(event, **kwargs):
     )
 
     if cmd is None:
-        return handle_pending_selection(ctx)
+        return handle_active_project_task(ctx)
 
     routed = route(cmd, ctx)
     if routed is not None:
@@ -93,7 +91,7 @@ def pre_dispatch(event, **kwargs):
 def _default_scope_project(raw_args: str) -> str:
     """Fallback text reply for the *default* command scope (DMs, etc).
 
-    The interactive picker keyboard only runs through ``pre_dispatch`` /
+    The rich status/switch flow only runs through ``pre_dispatch`` /
     ``GROUP_VISIBLE_COMMANDS`` — group chats need that separate registration
     (see module docstring), so this plain-text path covers everywhere else.
     """
@@ -101,22 +99,13 @@ def _default_scope_project(raw_args: str) -> str:
     return "Projects: " + ", ".join(projects) if projects else "No projects loaded."
 
 
-def _default_scope_do(raw_args: str) -> str:
-    return "Usage: /do <task description>"
-
-
 def register(ctx) -> None:
     ctx.register_hook("pre_gateway_dispatch", pre_dispatch)
     ctx.register_command(
         COMMAND_PROJECT,
         handler=_default_scope_project,
-        description="Pick active project for Doer",
-    )
-    ctx.register_command(
-        COMMAND_DO,
-        handler=_default_scope_do,
-        description="Run task on active project via Doer",
-        args_hint="<task>",
+        description="Show/switch the active Doer project",
+        args_hint="[name]",
     )
     _telegram.register_group_commands(GROUP_VISIBLE_COMMANDS)
     _doer.load()

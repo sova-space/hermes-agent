@@ -96,29 +96,19 @@ class DoerGateway:
 
 @dataclass
 class DoerSession:
-    """Per-chat Doer state: which project is active, and whether the chat is
-    waiting on a keyboard-tap project selection.
+    """Per-chat Doer state: which project is active.
 
-    Keyed by ``ChatContext.chat_id`` (a string — see ``chat_context.py`` for
-    why that matters: it's the same id Telegram's *string* ``SessionSource``
-    carries, not a raw integer).
+    Once a chat has an active project, every plain-text message it sends
+    (no leading ``/``) is dispatched to that project as a task — see
+    ``commands.handle_active_project_task``. Keyed by ``ChatContext.chat_id``
+    (a string — see ``chat_context.py`` for why that matters: it's the same
+    id Telegram's *string* ``SessionSource`` carries, not a raw integer).
     """
 
     _active_project: dict[str, str] = field(default_factory=dict)
-    _awaiting_selection: set[str] = field(default_factory=set)
 
     def active_project(self, chat_id: str | None) -> str | None:
         return self._active_project.get(chat_id) if chat_id else None
 
     def select(self, chat_id: str, project: str) -> None:
-        """Record ``project`` as active for ``chat_id`` and clear any pending
-        picker state — used both by the keyboard-tap flow and the
-        ``/do_<project>`` shorthand."""
-        self._awaiting_selection.discard(chat_id)
         self._active_project[chat_id] = project
-
-    def await_selection(self, chat_id: str) -> None:
-        self._awaiting_selection.add(chat_id)
-
-    def is_awaiting_selection(self, chat_id: str | None) -> bool:
-        return chat_id is not None and chat_id in self._awaiting_selection
