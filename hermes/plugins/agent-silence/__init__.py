@@ -15,6 +15,36 @@ _selected_projects: dict[int, str] = {}
 # Chat IDs awaiting a project selection button tap
 _pending_selection: set[int] = set()
 
+# Doer commands pushed to Telegram's all_group_chats scope (see _register_group_commands)
+_GROUP_VISIBLE_COMMANDS: list[dict[str, str]] = [
+    {"command": "project", "description": "Pick active project for Doer"},
+    {"command": "do", "description": "Run task on active project via Doer"},
+]
+
+
+def _register_group_commands() -> None:
+    """Push /project and /do to Telegram's all_group_chats command scope.
+
+    Hermes registers commands only in the default scope, and Telegram does
+    not surface default-scope commands in group chats — only scopes set
+    explicitly for groups (all_group_chats / chat) appear there. Without
+    this, /project and /do are invisible in group chats like Sova Space.
+    """
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not bot_token:
+        return
+    try:
+        httpx.post(
+            f"https://api.telegram.org/bot{bot_token}/setMyCommands",
+            json={
+                "commands": _GROUP_VISIBLE_COMMANDS,
+                "scope": {"type": "all_group_chats"},
+            },
+            timeout=5,
+        )
+    except Exception:
+        pass
+
 
 def _load_config() -> None:
     global _config_loaded
@@ -203,4 +233,5 @@ def register(ctx) -> None:
     ctx.register_hook("pre_gateway_dispatch", pre_dispatch)
     ctx.register_command("project", handler=_cmd_project, description="Pick active project for Doer")
     ctx.register_command("do", handler=_cmd_do, description="Run task on active project via Doer", args_hint="<task>")
+    _register_group_commands()
     _load_config()
