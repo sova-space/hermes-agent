@@ -12,10 +12,12 @@ _config_loaded = False
 _DOER_PREFIX = "do_"
 
 # In-memory project context per chat: {chat_id: project_name}
-_selected_projects: dict[int, str] = {}
+# Keyed by str — SessionSource.chat_id (see _get_chat_and_thread) is a string,
+# not the raw Telegram integer ID.
+_selected_projects: dict[str, str] = {}
 
 # Chat IDs awaiting a project selection button tap
-_pending_selection: set[int] = set()
+_pending_selection: set[str] = set()
 
 # Telegram Bot API base URL template — single place owning the endpoint shape,
 # used by every raw call this plugin makes (see _call_telegram_api).
@@ -23,6 +25,13 @@ _TELEGRAM_API_URL = "https://api.telegram.org/bot{token}/{method}"
 
 # Telegram command-scope type understood by setMyCommands; see _register_group_commands.
 _SCOPE_ALL_GROUP_CHATS = "all_group_chats"
+
+# Forum "General" topic sentinel. Telegram's sendMessage rejects an explicit
+# message_thread_id=1 for the General topic — the gateway's own adapter omits
+# it in that case (see _message_thread_id_for_send in gateway/platforms/telegram.py),
+# and we mirror that here so replies in General don't silently fail the same way
+# the missing event.source.chat_id read used to.
+_GENERAL_TOPIC_THREAD_ID = "1"
 
 # Doer commands pushed to Telegram's all_group_chats scope (see _register_group_commands).
 # Plain dicts (not python-telegram-bot's typed BotCommand) because that library
@@ -107,36 +116,37 @@ def _get_projects() -> list[str]:
     return _doer_projects
 
 
-def _get_chat_and_thread(event) -> tuple[int | None, int | None]:
-    chat_id = (
-        getattr(event, "chat_id", None)
-        or getattr(getattr(event, "chat", None), "id", None)
-        or getattr(getattr(event, "message", None), "chat", {}).get("id")
-    )
-    thread_id = (
-        getattr(event, "message_thread_id", None)
-        or getattr(getattr(event, "message", None), "message_thread_id", None)
-    )
-    return chat_id, thread_id
+def _get_chat_and_thread(event) -> tuple[str | None, str | None]:
+    """Pull chat/topic identifiers from Hermes's normalized MessageEvent.
+
+    These live on event.source (a SessionSource), not on the event itself —
+    event.source.chat_id / .thread_id, both plain strings (Telegram's numeric
+    IDs included). See gateway/session.py:SessionSource in NousResearch/hermes-agent.
+    """
+    source = getattr(event, "source", None)
+    return getattr(source, "chat_id", None), getattr(source, "thread_id", None)
 
 
 def _send_telegram_message(
-    chat_id: int,
-    thread_id: int | None,
+    chat_id: str,
+    thread_id: str | None,
     text: str,
     reply_markup: dict | None = None,
 ) -> None:
     if not chat_id:
         return
     payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
-    if thread_id:
-        payload["message_thread_id"] = thread_id
+    if thread_id and thread_id != _GENERAL_TOPIC_THREAD_ID:
+        # Telegram's Bot API requires message_thread_id as an integer;
+        # SessionSource carries every ID as a string. The General topic (id "1")
+        # is omitted — Telegram rejects sends that set it explicitly.
+        payload["message_thread_id"] = int(thread_id)
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
     _call_telegram_api("sendMessage", payload)
 
 
-def _dispatch_doer(chat_id: int, thread_id: int | None, project: str, task: str) -> None:
+def _dispatch_doer(chat_id: str, thread_id: str | None, project: str, task: str) -> None:
     if not task:
         return
 
