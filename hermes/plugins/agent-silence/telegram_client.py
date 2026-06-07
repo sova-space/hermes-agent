@@ -83,6 +83,23 @@ class TelegramClient:
             },
         )
 
+    def clear_chat_command_overrides(self, chat_id: str) -> None:
+        """Delete any commands registered for ``chat_id``'s own scope.
+
+        Per-chat (``BotCommandScopeChat``) registrations shadow
+        ``all_group_chats`` for that one chat — Telegram resolves the most
+        specific scope first. ``setMyCommands`` only ever *replaces* the
+        scope you target, so re-pushing the group-wide list (as
+        ``register_group_commands`` does on every boot) can never reach or
+        remove a stale per-chat override left behind by, say, an old
+        debugging probe that mirrored the finance bot's chat-scoped
+        registration. An explicit ``deleteMyCommands`` for that chat's own
+        scope is the only thing that clears it — falling back to the
+        group-wide list this plugin already keeps correct. No-op (and
+        Telegram-API-cheap) when no override exists.
+        """
+        self._call("deleteMyCommands", {"scope": {"type": "chat", "chat_id": chat_id}})
+
     def _call(self, method: str, payload: dict) -> None:
         if not self._token:
             return

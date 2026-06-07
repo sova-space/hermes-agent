@@ -38,6 +38,30 @@ _telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
 _doer = DoerGateway(CONFIG.DOER_URL)
 _session = DoerSession()
 
+# Chats whose per-chat command-scope override we've already cleared this
+# process lifetime — see _clear_stale_chat_override. A plain set is enough:
+# it's a one-shot-per-chat cleanup, not state that needs to survive restarts.
+_cleared_chat_overrides: set[str] = set()
+
+
+def _clear_stale_chat_override(chat_id: str | None) -> None:
+    """Make sure ``chat_id`` has no leftover per-chat command override.
+
+    Self-healing, once per chat per process: an old debugging probe once
+    pushed a chat-scoped ``setMyCommands`` here (mirroring how the finance
+    bot scopes ``/balance`` etc. to #finance) to test a hypothesis that
+    didn't pan out — but the registration itself likely succeeded and stuck,
+    silently shadowing every later ``all_group_chats`` update for that one
+    chat (that's how a removed command like the old ``/do`` can keep showing
+    up in the menu even after the group-wide list is correct). Clearing it
+    is a single cheap, idempotent ``deleteMyCommands`` — see
+    ``TelegramClient.clear_chat_command_overrides``.
+    """
+    if chat_id is None or chat_id in _cleared_chat_overrides:
+        return
+    _telegram.clear_chat_command_overrides(chat_id)
+    _cleared_chat_overrides.add(chat_id)
+
 
 def _command_args(text: str) -> str:
     """Everything after the command token, e.g. ``"/do fix bug"`` -> ``"fix bug"``."""
@@ -69,6 +93,7 @@ def pre_dispatch(event, **kwargs):
     text = getattr(event, "text", "") or ""
     cmd = event.get_command() if hasattr(event, "get_command") else None
     chat = ChatContext.from_event(event)
+    _clear_stale_chat_override(chat.chat_id)
     ctx = CommandContext(
         chat=chat,
         text=text,
