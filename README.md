@@ -1,6 +1,10 @@
 # Sova — Personal AI Agent Family
 
-> Personal AI assistant living in Telegram. Conversations routed by Hermes, finances tracked by Sova Finance. Self-hosted on Railway.
+> We are building a Telegram-based AI workspace system powered by the Hermes Agent framework in Python, where each domain-specific AI profile maps to one of the system's projects (finance, wishlist, …) and delegates its tasks to an autonomous AI worker that executes using tools, memory, and (optionally) subagents — not a chatbot, a profile-based AI execution environment.
+>
+> **Stack:** Python · Claude Code · Telegram · Railway
+
+This is the *direction* the system is converging on, not a finished state — see [the gap between today and the target](#architecture) and [spec 014](specs/014-profile-router/spec.md) for what's left to build. Self-hosted on Railway.
 
 Built on the [NousResearch Hermes Agent](https://github.com/NousResearch/hermes-agent) runtime — configured, not forked.
 
@@ -35,27 +39,47 @@ Sova is a personal AI agent ecosystem for one user. It lives in a Telegram super
 | `#projects` | Scheduled digests, status updates |
 | `#finance` | Balance checks, spending queries |
 
-Two bots, one monorepo, no shared state between services.
+Three bots today (Hermes, Finance, Wishlist), plus a fourth (Doer) slated for retirement — see [Architecture](#architecture). One monorepo, no shared state between independent services.
 
 ---
 
 ## Architecture
 
+Profile-based dispatch — see [spec 014](specs/014-profile-router/spec.md) for the build-out:
+
 ```
-Telegram / Slack
-      │
-      ▼
-Sova Hermes (@sova_hermes_bot)        NousResearch runtime + server.py
-  hermes/skills/
-    finance/SKILL.md  ──HTTP──►  Sova Finance (@sova_finance_bot)
-    project-context/                   FastAPI + PostgreSQL
-                                       aiogram bot
-                                       Monobank sync (hourly, APScheduler)
+                    Telegram (supergroup, topic-routed)
+                                  │
+                                  ▼
+            ┌──────────────────────────────────────────────┐
+            │   Hermes (orchestrator)                      │
+            │   /profile <name>                            │
+            │                                              │
+            │   ├─ devops capability (BUILT IN — absorbed  │
+            │   │  from Doer's generic GitHub loop;        │
+            │   │  scoped to the selected profile's repo   │
+            │   │  via the PROJECTS-style registry)        │
+            │   │                                          │
+            │   └─ domain conversation → routes to the     │
+            │      profile-owning bot's assistant          │
+            └──────────────────────┬───────────────────────┘
+                                   │  (only for domain Q&A —
+                                   │   devops stays in Hermes)
+        ┌──────────────────────────┼──────────────────────────┐
+        ▼                          ▼                          ▼
+   finance bot's              wishlist bot's              <next> bot's
+   assistant                  assistant                   assistant
+   (own tools + memory,       (own tools + memory,        (own tools + memory,
+    own DB — domain logic      own DB — domain logic       own DB — domain logic
+    stays where the data is)   stays where the data is)    stays where the data is)
 ```
 
-Skills are declarative markdown (`SKILL.md`) — no Python modules. Each sub-agent owns its own DB, Railway service, and bot token.
+- **Devops intent** ("fix a bug in the finance bot") → handled by Hermes itself, via its built-in generic GitHub loop scoped to that profile's repo
+- **Domain intent** ("what did I spend on food?") → routed to the profile-owning bot's own assistant, which holds the data and domain tools
 
-Request flow inside Finance API:
+Skills are declarative markdown (`SKILL.md`) — no Python modules. Each domain bot owns its own DB, Railway service, and bot token; domain logic stays where the data lives.
+
+Request flow inside each domain API (e.g. Finance):
 
 | Layer | Responsibility |
 |-------|---------------|
@@ -67,21 +91,21 @@ Request flow inside Finance API:
 
 ## Services
 
-### Sova Hermes — AI Orchestrator
+### Sova Hermes — AI Orchestrator + Profile Router
 
-Bot: `@sova_hermes_bot` · Service: `hermes-orchestrator` · Railway project: `hermes-main`
+Bot: `@pull_hermes_bot` · Service: `Hermes Agent` · Railway project: `hermes-main`
 
-Handles conversations on Telegram and Slack. Routes user intent to skills. Proposes its own codebase improvements via GitHub PRs.
+Handles conversations on Telegram. Routes by active profile: domain Q&A goes to the profile-owning bot's assistant; devops requests run through Hermes' own built-in GitHub loop, scoped to that profile's repo (see [Architecture](#architecture)).
 
 **Skills:**
 - `finance/SKILL.md` — routes money questions to the Finance REST API
-- `project-context/` — tracks active project context across conversations
+- `project-context/` — tracks the active profile across conversations
 
 ### Sova Finance — Finance Bot
 
 Bot: `@sova_finance_bot` · Service: `hermes-finance` · Railway project: `hermes-main`
 
-Monobank sync, spending analytics, budget tracking. Full documentation: [`agents/finance/README.md`](agents/finance/README.md).
+Monobank sync, spending analytics, budget tracking — plus a conversational assistant for free-form money questions (`finance_api/domains/assistant/`). Full documentation: [`bots/finance/README.md`](bots/finance/README.md).
 
 **Quick reference — bot commands:**
 
@@ -92,7 +116,13 @@ Monobank sync, spending analytics, budget tracking. Full documentation: [`agents
 | `/budget` | Monthly limits vs current spending |
 | `/sync` | Trigger Monobank sync immediately |
 
-See [`agents/finance/README.md`](agents/finance/README.md) for the full REST API reference, spending categories, roadmap, and known bugs.
+Or just ask in plain text — the conversational assistant answers free-form money questions directly.
+
+### Sova Wishlist — Wishlist Bot
+
+Bot: `@sova_wishlist_bot` · Service: `hermes-wishlist` · Railway project: `hermes-main`
+
+Tracks wishlist items via Telegram, with AI-assisted item entry — describe what you want and the bot fills in the details.
 
 ---
 
@@ -103,24 +133,26 @@ See [`agents/finance/README.md`](agents/finance/README.md) for the full REST API
 ├── server.py                     # Hermes admin server — manages + reverse-proxies the runtime
 ├── hermes/
 │   ├── config/                   # SOUL.md, STYLE.md, channels.md, telegram.yaml, slack.yaml
+│   ├── plugins/agent-silence/    # /profile command surface + chat-context plumbing
 │   └── skills/
 │       ├── finance/SKILL.md      # Calls Finance REST API to answer money questions
 │       └── project-context/      # Tracks active project context
-├── agents/
-│   └── finance/                  # @sova_finance_bot — separate Railway service
-│       ├── finance_api/
-│       │   ├── core/             # config, logging, db
-│       │   ├── domains/
-│       │   │   ├── accounts/     # Account model
-│       │   │   ├── bot/          # aiogram handlers, formatter, runner
-│       │   │   ├── budgets/      # Budget model + queries
-│       │   │   ├── insights/     # Analytics queries (spending, trend, transactions)
-│       │   │   ├── sync/         # Monobank client, sync pipeline, MCC mapping
-│       │   │   └── transactions/ # Transaction model + category mapping
-│       │   ├── routers/          # REST endpoints called by Hermes finance skill
-│       │   └── schemas.py        # Shared response schemas
-│       ├── alembic/              # DB migrations
-│       └── tests/                # pytest unit tests
+├── bots/
+│   ├── finance/                  # @sova_finance_bot — own DB, Dockerfile, Railway service
+│   │   └── finance_api/
+│   │       ├── core/             # config, logging, db
+│   │       ├── domains/
+│   │       │   ├── accounts/     # Account model
+│   │       │   ├── assistant/    # conversational assistant — tools + memory over finance domains
+│   │       │   ├── bot/          # aiogram handlers, formatter, runner
+│   │       │   ├── budgets/      # Budget model + queries
+│   │       │   ├── insights/     # Analytics queries (spending, trend, transactions)
+│   │       │   ├── sync/         # Monobank client, sync pipeline, MCC mapping
+│   │       │   └── transactions/ # Transaction model + category mapping
+│   │       ├── routers/          # REST endpoints
+│   │       └── schemas.py        # Shared response schemas
+│   ├── wishlist/                 # @sova_wishlist_bot — own DB, Dockerfile, Railway service
+│   └── doer/                     # generic GitHub dev-loop — being absorbed into Hermes (spec 014)
 ├── infra/
 │   ├── Dockerfile                # Hermes image (build context: repo root)
 │   ├── start.sh                  # Container entrypoint
@@ -153,7 +185,7 @@ docker build -t hermes-agent .
 docker run --rm -it -p 8080:8080 -e PORT=8080 -e ADMIN_PASSWORD=changeme -v hermes-data:/data hermes-agent
 
 # Finance only
-docker build -f agents/finance/Dockerfile agents/finance/
+docker build -f bots/finance/Dockerfile bots/finance/
 ```
 
 | Service | Local URL |
@@ -169,14 +201,16 @@ One Railway project — `hermes-main` — hosts all services:
 | Service | Name | Root directory |
 |---------|------|---------------|
 | Hermes orchestrator | `Hermes Agent` | repo root |
-| Finance sub-agent | `hermes-finance` | `agents/finance/` |
+| Finance | `hermes-finance` | `bots/finance/` |
+| Wishlist | `hermes-wishlist` | `bots/wishlist/` |
+| Doer (devops, retiring — see [spec 014](specs/014-profile-router/spec.md)) | `hermes-doer` | `bots/doer/` |
 | PostgreSQL | `Postgres` | — |
 
 **Auto-deploy is active.** Push to `main` → Railway deploys only the affected service via watch patterns. No manual `railway up` needed.
 
 Services communicate over **private networking** (`*.railway.internal`) using Railway reference variables — no public URLs in config.
 
-Environment variables are set in Railway Variables only — never in the repo. See [`agents/finance/README.md`](agents/finance/README.md#environment-variables) for the full variable list.
+Environment variables are set in Railway Variables only — never in the repo. See [`bots/finance/README.md`](bots/finance/README.md#environment-variables) for the full variable list.
 
 ---
 
@@ -184,7 +218,7 @@ Environment variables are set in Railway Variables only — never in the repo. S
 
 ### Logging
 
-Both services use [structlog](https://www.structlog.org/) to stdout. No file logging.
+Each service uses [structlog](https://www.structlog.org/) to stdout. No file logging.
 
 ```bash
 docker compose -f infra/docker-compose.yml logs -f finance
@@ -196,7 +230,7 @@ On Railway: service → **Deployments** → active deployment → **Logs** tab.
 ### Tests
 
 ```bash
-cd agents/finance
+cd bots/finance
 uv run pytest tests/ -v
 ```
 
@@ -204,23 +238,23 @@ Tests cover MCC category mapping, period math, and transaction categorization. A
 
 ### Lint & Format
 
-Two independent Python projects — run from their own roots:
+Each `bots/<name>/` is an independent Python project — run lint from its own root:
 
 ```bash
 # Hermes orchestrator (repo root)
 uv run --dev ruff check .
 
-# Finance sub-agent
-cd agents/finance && uv run ruff check finance_api/
+# Finance
+cd bots/finance && uv run ruff check finance_api/
 ```
 
-After editing `pyproject.toml` in either project, run `uv lock` from that project's root.
+After editing `pyproject.toml` in any project, run `uv lock` from that project's root.
 
 ---
 
 ## Contributing
 
-1. Read [`docs/constitution.md`](docs/constitution.md) — project values and constraints
+1. Read [`CLAUDE.md`](CLAUDE.md) — repo rules, Railway topology, project conventions
 2. Open an issue or start a discussion before building
 3. Every feature needs a spec: `specs/NNN-feature-slug/spec.md` before any code
 4. Branch names: `NNN-short-slug`. No direct pushes to `main`
