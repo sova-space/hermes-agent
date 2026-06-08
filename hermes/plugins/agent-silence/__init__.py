@@ -137,6 +137,11 @@ def _default_scope_profile(raw_args: str) -> str:
     return "Profiles: " + ", ".join(profiles) if profiles else "No profiles loaded."
 
 
+def _default_scope_mode(raw_args: str) -> str:
+    """Fallback text reply for /mode in the default command scope (DMs, etc)."""
+    return "Use /mode inside the group chat to show or switch routing mode."
+
+
 def register(ctx) -> None:
     ctx.register_hook("pre_gateway_dispatch", pre_dispatch)
     ctx.register_command(
@@ -150,6 +155,12 @@ def register(ctx) -> None:
         handler=_default_scope_profile,
         description="Show/switch the active profile (alias for /profile)",
         args_hint="[name]",
+    )
+    ctx.register_command(
+        COMMAND_MODE,
+        handler=_default_scope_mode,
+        description="Show/switch routing mode: client or dev",
+        args_hint="[client|dev]",
     )
     _telegram.register_group_commands(GROUP_VISIBLE_COMMANDS)
     _doer.load()
