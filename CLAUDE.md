@@ -1,6 +1,7 @@
 # CLAUDE.md
 
 Hermes is Nazar's personal AI agent — Telegram, finance tracking, self-improvement via GitHub PRs.
+Bot: `@sovaa_hermes_bot`
 
 ## Rules
 - Skills = `hermes/skills/<name>/SKILL.md` (markdown only, companion script for code)
@@ -9,7 +10,7 @@ Hermes is Nazar's personal AI agent — Telegram, finance tracking, self-improve
 ## Repo structure
 
 ```
-server.py / hermes/        — Hermes orchestrator
+server.py / hermes/        — Hermes orchestrator + plugins
 infra/                     — Dockerfile, start.sh, docker-compose.yml
 bots/finance/              — @sova_finance_bot (FastAPI + aiogram + APScheduler)
 bots/wishlist/             — @sova_wishlist_bot (FastAPI + PTB)
@@ -27,11 +28,20 @@ Project: `hermes-main` · `3d73dc58` · environment `production` · `a2a88403`
 | Hermes Agent | `8d1fc2f6` | repo root |
 | hermes-finance | `9bc27c48` | `bots/finance/` |
 | hermes-wishlist | `7764e517` | `bots/wishlist/` |
-| hermes-doer | (see Railway) | `bots/doer/` |
 | Postgres | `b6daf7a2` | — |
 
 DB names: `railway` (hermes) · `finance` · `wishlist`. Ref vars: `${{Postgres.DATABASE_URL}}` etc.
 Auto-deploy on `main` push per watch pattern. See `@finance-devops` / `@wishlist-devops` for link commands.
+
+## Profile + mode routing
+
+Hermes has three profiles, one per project: `finance` / `wishlist` / `hermes`.
+
+- `/profile <name>` — switch the active profile for this chat
+- `/mode client` — plain messages go to that profile's domain assistant (Q&A)
+- `/mode dev` — plain messages run as devops tasks against that profile's GitHub repo
+
+The devops loop (`/mode dev`) runs in-process via `hermes/plugins/agent-silence/devops.py` — no separate service. It uses GitHub + OpenRouter (Haiku model by default) and posts results to `#projects`.
 
 ## Bot command sync
 
@@ -39,21 +49,10 @@ Auto-deploy on `main` push per watch pattern. See `@finance-devops` / `@wishlist
 
 ## Project slugs (single source of truth)
 
-Two mechanisms track "active project" and **must use identical slugs** —
-`finance` / `wishlist` / `hermes` — or they drift out of sync (this happened once:
-stale names like `hermes-agent`, `hermes-finance`, `personal`, `coxit` ended up in
-one but not the other):
+Slugs must be identical everywhere or routing breaks (`finance` / `wishlist` / `hermes`):
 
-- **Source of truth**: `bots/doer/doer_api/agent/projects.py` (`PROJECTS` dict) —
-  drives `/project <name>` and Doer task dispatch.
-- **Mirror**: `hermes/skills/project-context/` (`KNOWN_PROJECTS` in `project.py` +
-  "Known projects" in `SKILL.md`) — only used for self-tagging Hermes' own
-  cron/autonomous output as `[<project>]`; it does not dispatch anything.
-
-When adding/renaming a Doer project, update both — and check the live state at
-`/data/.hermes/current_project.txt` (via `railway ssh --service "Hermes Agent" --
-python /data/.hermes/skills/project-context/project.py set <slug>`), since it isn't
-in the repo and can hold a stale value across deploys.
+- **Source of truth**: `hermes/plugins/agent-silence/devops.py` (`PROJECTS` dict) — drives `/profile <name>` and devops dispatch.
+- **Mirror**: `hermes/skills/project-context/` (`KNOWN_PROJECTS` in `project.py` + `SKILL.md`) — used only for self-tagging Hermes' own cron output as `[<project>]`.
 
 ## Hermes gotchas
 
