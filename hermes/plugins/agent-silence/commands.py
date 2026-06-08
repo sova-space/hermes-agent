@@ -1,25 +1,36 @@
-"""The /profile command surface, and the pattern for adding more.
+"""The /profile + /mode command surface, and the pattern for adding more.
 
-``/profile`` is the single entry point for picking which domain you're
-working in (see ``specs/014-profile-router/spec.md`` — the profile router):
+``/profile`` is the entry point for picking which domain you're working in,
+and ``/mode`` decides how plain text in that profile gets routed (see
+``specs/014-profile-router/spec.md`` — the profile router; the mode toggle is
+an evolution of its original ``/do``-vs-plain-text design, see below):
 
 - ``/profile`` (no name) — show the chat's active profile (if any) and the
   list of available ones.
 - ``/profile <name>`` — make ``<name>`` the chat's active profile (``/project``
-  is kept as a backward-compatible alias — same handler, same state).
+  is kept as a backward-compatible alias — same handler, same state). New
+  profiles start in ``client`` mode — the safer no-op default.
+- ``/mode`` (no name) — show the chat's active mode.
+- ``/mode <client|dev>`` — switch how plain-text messages route in the active
+  profile.
 
-Once a profile is active, two distinct things route two different ways —
-intent is signalled explicitly, never guessed:
+Once a profile is active, its *mode* decides how a plain-text message (no
+leading ``/``) routes — intent is signalled explicitly via the mode switch,
+never guessed per-message (spec 014's original ``/do`` design made the same
+point with a per-message verb; a sticky mode carries the same explicitness
+with less typing):
 
-- ``/do <task>`` — runs a devops task (code change, bug fix, …) against that
-  profile's repo, via Doer's generic GitHub loop. Explicit because routing a
-  GitHub-editing loop off an LLM's guess at "is this a bug report or a
-  question" is exactly the kind of thing that quietly does the wrong thing.
-- a plain-text message (no leading ``/``) — domain Q&A, routed to the
-  profile-owning bot's own conversational assistant (``handle_profile_message``).
+- ``client`` mode — domain Q&A, routed to the profile-owning bot's own
+  conversational assistant (``handle_profile_message`` → ``ask_profile``).
   If no owner is registered for that profile (e.g. ``hermes`` — Hermes *is*
   the orchestrator, it doesn't run a separate domain API), the message falls
   through to ordinary Hermes conversation instead of being forced anywhere.
+- ``dev`` mode — the message *is* a devops task description (code change,
+  bug fix, …), run against that profile's repo via the absorbed GitHub loop
+  (``DevopsLoop.dispatch`` — see ``devops.py``). Routing a GitHub-editing
+  loop off an LLM's guess at "is this a bug report or a question" is exactly
+  the kind of thing that quietly does the wrong thing — ``dev`` mode makes
+  that guess the user's, made once via ``/mode dev``, not per message.
 
 Every reply that touches the active profile restates its name (e.g. "Doer is
 working on `hermes`") — in a busy group chat it's easy to lose track of which
@@ -51,7 +62,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .chat_context import ChatContext
-from .doer import DoerGateway, DoerSession
+from .devops import DevopsLoop
+from .doer import MODE_CLIENT, MODE_DEV, MODES, DoerGateway, DoerSession
 from .telegram_client import TelegramClient
 
 # Slash-command names this module owns. Matched against
@@ -59,7 +71,7 @@ from .telegram_client import TelegramClient
 # any "@botname" disambiguation suffix from — handlers never see raw text.
 COMMAND_PROFILE = "profile"
 COMMAND_PROJECT_ALIAS = "project"  # back-compat — same handler, same state
-COMMAND_DO = "do"
+COMMAND_MODE = "mode"
 
 # Hook return action telling the gateway "handled — stop here, don't fall
 # through to normal agent dispatch". See pre_gateway_dispatch in
@@ -82,6 +94,7 @@ class CommandContext:
     args: str
     telegram: TelegramClient
     doer: DoerGateway
+    devops: DevopsLoop
     session: DoerSession
 
 
@@ -113,8 +126,8 @@ def _report_status(ctx: CommandContext, profiles: list[str]) -> dict[str, str]:
     ctx.telegram.send_message(
         ctx.chat,
         f"{headline}\nAvailable: {', '.join(profiles)}.\n"
-        "Use `/profile <name>` to switch, `/do <task>` for devops, "
-        "or just ask a question.",
+        "Use `/profile <name>` to switch, `/mode client|dev` to choose how "
+        "plain messages route, then just talk.",
     )
     return skip("doer profile status")
 
@@ -128,37 +141,67 @@ def _switch_profile(
         )
         return skip("doer unknown profile")
     ctx.session.select(ctx.chat.chat_id, name)
+    mode = ctx.session.active_mode(ctx.chat.chat_id)
     owner = ctx.doer.profiles.get(name)
     hint = (
-        f"Ask a question and `{name}`'s assistant will answer, "
-        f"or `/do <task>` to change its code."
-        if owner is not None
-        else f"Send `/do <task>` to run a devops task on `{name}`."
+        f"Mode is *{mode}* — "
+        + (
+            f"ask a question and `{name}`'s assistant will answer."
+            if mode == MODE_CLIENT and owner is not None
+            else "ordinary conversation (no assistant registered for this profile)."
+            if mode == MODE_CLIENT
+            else f"plain messages run as devops tasks against `{name}`'s repo."
+        )
+        + " Switch with `/mode client|dev`."
     )
     ctx.telegram.send_message(ctx.chat, f"Profile set to *{name}*. {hint}")
     return skip("doer profile selected")
 
 
-def handle_devops_task(ctx: CommandContext) -> dict[str, str] | None:
-    """``/do <task>`` — run a devops task against the active profile's repo.
+def handle_mode(ctx: CommandContext) -> dict[str, str] | None:
+    """``/mode`` — show or switch the active profile's routing mode.
 
-    Explicit verb, not inferred from plain text — see module docstring for
-    why guessing "is this a bug report or a question" from an LLM is exactly
-    the kind of thing that quietly misroutes.
+    The explicit, sticky signal that replaced ``/do``-vs-plain-text (see
+    module docstring): ``client`` routes plain messages to the profile's
+    domain assistant, ``dev`` runs them as devops tasks against its repo.
+    Requires an active profile — mode is meaningless without one.
     """
     profile = ctx.session.active_profile(ctx.chat.chat_id)
     if not profile:
         ctx.telegram.send_message(
             ctx.chat, "No active profile. Use `/profile <name>` first."
         )
-        return skip("devops no active profile")
-    task = ctx.args.strip()
-    if not task:
+        return skip("mode no active profile")
+
+    if not ctx.args:
+        mode = ctx.session.active_mode(ctx.chat.chat_id)
         ctx.telegram.send_message(
-            ctx.chat, "Usage: `/do <task>` — e.g. `/do fix the balance rounding bug`."
+            ctx.chat,
+            f"Mode for `{profile}` is *{mode}*. Switch with `/mode client|dev`.",
         )
-        return skip("devops missing task")
-    ctx.doer.dispatch(profile, task)
+        return skip("mode status")
+
+    name = ctx.args.split()[0].lower()
+    if name not in MODES:
+        ctx.telegram.send_message(
+            ctx.chat, f"Unknown mode `{name}`. Choose `client` or `dev`."
+        )
+        return skip("mode unknown")
+
+    ctx.session.set_mode(ctx.chat.chat_id, name)
+    hint = (
+        f"plain messages now go to `{profile}`'s assistant."
+        if name == MODE_CLIENT
+        else f"plain messages now run as devops tasks against `{profile}`'s repo "
+        "— results land in #projects."
+    )
+    ctx.telegram.send_message(ctx.chat, f"Mode set to *{name}* — {hint}")
+    return skip("mode switched")
+
+
+def _handle_dev_task(ctx: CommandContext, profile: str, task: str) -> dict[str, str]:
+    """``dev``-mode plain message — run it as a devops task on ``profile``'s repo."""
+    ctx.devops.dispatch(profile, task)
     ctx.telegram.send_message(
         ctx.chat, f"Got it — Doer is working on `{profile}`. Result in #projects."
     )
@@ -167,13 +210,17 @@ def handle_devops_task(ctx: CommandContext) -> dict[str, str] | None:
 
 def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
     """Plain-text message (no slash command) in a chat with an active
-    profile — domain Q&A, routed to that profile owner's conversational
-    assistant.
+    profile — routed by the chat's mode (see module docstring):
+
+    - ``client`` → domain Q&A, routed to that profile owner's conversational
+      assistant
+    - ``dev`` → the message is a devops task description, run against the
+      profile's repo via the absorbed GitHub loop
 
     Returns ``None`` (let the gateway fall through to normal agent dispatch)
-    when there's no active profile, no text, or no assistant registered for
-    the active profile — those are all "ordinary conversation" cases, not
-    domain questions this plugin can answer.
+    whenever there's nothing this plugin should handle — no active profile,
+    no text, ``client`` mode with no assistant registered — those are all
+    "ordinary conversation" cases.
     """
     profile = ctx.session.active_profile(ctx.chat.chat_id)
     if not profile:
@@ -181,6 +228,10 @@ def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
     text = ctx.text.strip()
     if not text:
         return None
+
+    if ctx.session.active_mode(ctx.chat.chat_id) == MODE_DEV:
+        return _handle_dev_task(ctx, profile, text)
+
     reply = ctx.doer.ask_profile(profile, ctx.chat.chat_id, text)
     if reply is None:
         return None
@@ -192,7 +243,7 @@ def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
 COMMANDS: dict[str, CommandHandler] = {
     COMMAND_PROFILE: handle_profile,
     COMMAND_PROJECT_ALIAS: handle_profile,
-    COMMAND_DO: handle_devops_task,
+    COMMAND_MODE: handle_mode,
 }
 
 

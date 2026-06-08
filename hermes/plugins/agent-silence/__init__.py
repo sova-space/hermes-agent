@@ -1,13 +1,14 @@
 """Hermes plugin: silences other agents' @-addressed commands in group chats,
-and hosts the /profile + /do profile-router command surface.
+and hosts the /profile + /mode profile-router command surface.
 
 This module is intentionally thin — it wires the gateway hook/command
 registration to the pieces that hold the actual logic:
 
 - ``chat_context``    — typed extraction of chat/thread ids from MessageEvent
 - ``telegram_client`` — raw Telegram Bot API access
-- ``doer``            — agent discovery, profile registry, dispatch + ask
-- ``commands``        — /profile, /do, message-routing + the pattern for more
+- ``doer``            — agent discovery, profile registry, session (profile + mode)
+- ``devops``          — the absorbed GitHub agent loop (formerly Doer's own service)
+- ``commands``        — /profile, /mode, message-routing + the pattern for more
 
 See ``commands.py`` for "how do I add a new command", ``specs/014-profile-router/``
 for the routing design, and ``README.md`` for the full architecture writeup
@@ -17,7 +18,7 @@ live — that one cost a debugging session).
 
 from .chat_context import ChatContext
 from .commands import (
-    COMMAND_DO,
+    COMMAND_MODE,
     COMMAND_PROFILE,
     COMMAND_PROJECT_ALIAS,
     CommandContext,
@@ -26,6 +27,7 @@ from .commands import (
     skip,
 )
 from .config import CONFIG
+from .devops import DevopsLoop
 from .doer import DoerGateway, DoerSession
 from .telegram_client import BotCommand, TelegramClient
 
@@ -35,11 +37,17 @@ from .telegram_client import BotCommand, TelegramClient
 # TelegramClient.register_group_commands / SCOPE_ALL_GROUP_CHATS for why).
 GROUP_VISIBLE_COMMANDS = [
     BotCommand(COMMAND_PROFILE, "Show/switch the chat's active profile"),
-    BotCommand(COMMAND_DO, "Run a devops task on the active profile's repo"),
+    BotCommand(COMMAND_MODE, "Switch how plain messages route: client or dev"),
 ]
 
 _telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
-_doer = DoerGateway(CONFIG.DOER_URL)
+_doer = DoerGateway()
+_devops = DevopsLoop(
+    github_token=CONFIG.GITHUB_TOKEN,
+    llm_api_key=CONFIG.OPENROUTER_API_KEY,
+    model=CONFIG.DEVOPS_MODEL,
+    telegram=_telegram,
+)
 _session = DoerSession()
 
 # Chats whose per-chat command-scope override we've already cleared this
@@ -104,6 +112,7 @@ def pre_dispatch(event, **kwargs):
         args=_command_args(text),
         telegram=_telegram,
         doer=_doer,
+        devops=_devops,
         session=_session,
     )
 

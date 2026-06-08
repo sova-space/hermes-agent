@@ -1,4 +1,4 @@
-"""Discovery of, and dispatch to, Doer-capable agent services.
+"""Discovery of profile owners, and routing of domain Q&A to them.
 
 Hermes exposes registered agent services through ``AGENT_*_URL`` env vars — a
 dynamic, unbounded set (hence the prefix scan rather than a fixed config key;
@@ -7,22 +7,29 @@ Each one may expose:
 
 - ``GET /bot/commands`` — slash commands that agent owns, so this plugin can
   silence @-addressed duplicates Hermes would otherwise reply "unknown" to.
-- ``GET /bot/projects`` — project names the Doer can run devops tasks against.
 - ``GET /bot/profile`` — domain-Q&A registration: ``{name, description,
   dispatch_path}``. A bot that owns a profile (e.g. ``finance``) answers
   free-form questions at ``{base_url}{dispatch_path}`` — see ``ask_profile``.
 
-``DoerGateway`` owns that discovery plus dispatching: devops tasks to the
-Doer, domain questions to the profile-owning bot's assistant. ``DoerSession``
-separately tracks each chat's active profile and pending-selection state —
-that's per-conversation memory, not service discovery, hence the split.
+``DoerGateway`` owns that discovery plus routing domain questions to the
+profile-owning bot's assistant. ``DoerSession`` separately tracks each chat's
+active profile *and* mode — that's per-conversation memory, not service
+discovery, hence the split.
 
-Two distinct things route two different ways once a profile is active (see
-``specs/014-profile-router/spec.md``):
+Devops dispatch no longer lives here: per spec 014 step 2 ("absorb Doer"),
+the generic GitHub loop now runs in-process — see ``devops.DevopsLoop``. The
+profile list is the local ``devops.PROJECTS`` registry directly; there is no
+``GET /bot/projects`` to discover anymore (that contract retired with the
+standalone Doer service).
 
-- ``/do <task>`` (explicit devops verb) → ``dispatch`` → Doer's generic
-  GitHub loop, scoped to the profile's repo
-- a plain-text message → ``ask_profile`` → the profile-owning bot's own
+Two distinct things route two different ways once a profile is active, now
+governed by the chat's *mode* (``/mode client|dev`` — see
+``specs/014-profile-router/spec.md`` for the original design, since evolved
+from the per-message ``/do``-vs-plain-text split to a sticky toggle):
+
+- *dev* mode → ``DevopsLoop.dispatch`` → the absorbed GitHub loop, scoped to
+  the profile's repo
+- *client* mode → ``ask_profile`` → the profile-owning bot's own
   conversational assistant, if one is registered; otherwise falls through
   to ordinary Hermes conversation (no domain owner to ask)
 """
@@ -32,8 +39,10 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from .devops import PROJECTS
+
 # Env var prefix/suffix this plugin scans for agent base URLs, e.g.
-# AGENT_DOER_URL, AGENT_RESEARCH_URL, ... Anything matching is probed.
+# AGENT_FINANCE_URL, AGENT_RESEARCH_URL, ... Anything matching is probed.
 _AGENT_URL_PREFIX = "AGENT_"
 _AGENT_URL_SUFFIX = "_URL"
 
@@ -48,19 +57,18 @@ class ProfileOwner:
 
 
 class DoerGateway:
-    """Lazily discovers agent commands/projects/profiles, dispatches devops
-    tasks to the Doer, and routes domain Q&A to profile owners."""
+    """Lazily discovers agent commands and profile owners, and routes domain
+    Q&A to them. Profiles themselves come from the local ``PROJECTS``
+    registry — no remote discovery needed now that devops runs in-process."""
 
-    def __init__(self, dispatch_url: str):
-        self._dispatch_url = dispatch_url.rstrip("/")
+    def __init__(self):
         self._loaded = False
         self.agent_commands: set[str] = set()
-        self.projects: list[str] = []
+        self.projects: list[str] = sorted(PROJECTS)
         self.profiles: dict[str, ProfileOwner] = {}
 
     def load(self) -> None:
-        """Discover agent commands, Doer projects, and profile owners once,
-        lazily.
+        """Discover agent commands and profile owners once, lazily.
 
         Cheap to call on every dispatch — it's a no-op after the first
         successful pass, mirroring how the rest of the gateway treats
@@ -71,24 +79,8 @@ class DoerGateway:
         for base_url in self._discover_agent_urls():
             url = self._normalize(base_url)
             self._load_commands(url)
-            self._load_projects(url)
             self._load_profile(url)
         self._loaded = True
-
-    def dispatch(self, project: str, task: str) -> None:
-        """POST a devops task to the Doer's dispatch endpoint, swallowing
-        errors — the user-visible confirmation is sent separately by the
-        caller."""
-        if not self._dispatch_url:
-            return
-        try:
-            httpx.post(
-                f"{self._dispatch_url}/task",
-                json={"project": project, "task": task},
-                timeout=5,
-            )
-        except Exception:
-            pass
 
     def ask_profile(self, profile: str, chat_id: str, text: str) -> str | None:
         """POST a domain question to the profile owner's assistant.
@@ -133,15 +125,6 @@ class DoerGateway:
         except Exception:
             pass
 
-    def _load_projects(self, url: str) -> None:
-        try:
-            resp = httpx.get(f"{url}/bot/projects", timeout=5)
-            projects = resp.json()
-            if isinstance(projects, list):
-                self.projects.extend(p for p in projects if isinstance(p, str))
-        except Exception:
-            pass
-
     def _load_profile(self, url: str) -> None:
         try:
             resp = httpx.get(f"{url}/bot/profile", timeout=5)
@@ -158,23 +141,45 @@ class DoerGateway:
             pass
 
 
+# Mode names — the explicit, sticky signal that replaced the old
+# /do-vs-plain-text per-message split (see module docstring + commands.py).
+# CLIENT is the default: the safer no-op mode to land a chat in (asking a
+# question can't accidentally kick off a GitHub-editing loop).
+MODE_CLIENT = "client"
+MODE_DEV = "dev"
+MODES = (MODE_CLIENT, MODE_DEV)
+
+
 @dataclass
 class DoerSession:
-    """Per-chat state: which profile is active.
+    """Per-chat state: which profile is active, and in which mode.
 
-    Once a chat has an active profile, ``/do <task>`` runs a devops task
-    against that profile's repo, and plain-text messages (no leading ``/``)
-    go to the profile owner's conversational assistant (if one is
-    registered) — see ``commands.handle_devops_task`` and
-    ``commands.handle_profile_message``. Keyed by ``ChatContext.chat_id``
-    (a string — see ``chat_context.py`` for why that matters: it's the same
-    id Telegram's *string* ``SessionSource`` carries, not a raw integer).
+    Once a chat has an active profile, its *mode* decides how plain-text
+    messages route — ``client`` to the profile owner's conversational
+    assistant, ``dev`` to the absorbed devops loop scoped to that profile's
+    repo (see ``commands.handle_profile_message``). Mode is sticky and
+    explicit by design: switching modes IS signalling intent, so routing
+    never has to guess "is this a question or a task" from an LLM's read of
+    the message — exactly the ambiguity spec 014 called out as dangerous to
+    infer. Keyed by ``ChatContext.chat_id`` (a string — see ``chat_context.py``
+    for why that matters: it's the same id Telegram's *string* ``SessionSource``
+    carries, not a raw integer).
     """
 
     _active_profile: dict[str, str] = field(default_factory=dict)
+    _active_mode: dict[str, str] = field(default_factory=dict)
 
     def active_profile(self, chat_id: str | None) -> str | None:
         return self._active_profile.get(chat_id) if chat_id else None
 
     def select(self, chat_id: str, profile: str) -> None:
         self._active_profile[chat_id] = profile
+        self._active_mode.setdefault(chat_id, MODE_CLIENT)
+
+    def active_mode(self, chat_id: str | None) -> str:
+        if chat_id is None:
+            return MODE_CLIENT
+        return self._active_mode.get(chat_id, MODE_CLIENT)
+
+    def set_mode(self, chat_id: str, mode: str) -> None:
+        self._active_mode[chat_id] = mode
