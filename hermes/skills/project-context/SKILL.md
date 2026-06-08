@@ -46,8 +46,8 @@ Profile state is held in-memory in the plugin (resets on redeploy). No file I/O 
 
 ## Known projects
 
-Mirrors the Doer project registry (`bots/doer/doer_api/agent/projects.py`) so the
-labels here always match what `/profile <name>` switches to:
+Mirrors the devops registry (`hermes/plugins/agent-silence/devops.py` → `PROJECTS`)
+so the labels here always match what `/profile <name>` switches to:
 
 - `finance` — Monobank finance API + bot (sova-claw/hermes-finance)
 - `wishlist` — wishlist bot (sova-claw/hermes-wishlist)
