@@ -1,24 +1,27 @@
 """Hermes plugin: silences other agents' @-addressed commands in group chats,
-and hosts the /project + /do Doer command surface.
+and hosts the /profile + /do profile-router command surface.
 
 This module is intentionally thin — it wires the gateway hook/command
 registration to the pieces that hold the actual logic:
 
 - ``chat_context``    — typed extraction of chat/thread ids from MessageEvent
 - ``telegram_client`` — raw Telegram Bot API access
-- ``doer``            — agent discovery, project list, per-chat session state
-- ``commands``        — /project, /do handlers + the pattern for adding more
+- ``doer``            — agent discovery, profile registry, dispatch + ask
+- ``commands``        — /profile, /do, message-routing + the pattern for more
 
-See ``commands.py`` for "how do I add a new command", and ``README.md`` for
-the full architecture writeup (in particular: why ``event.source``, not
-``event``, is where chat/thread ids live — that one cost a debugging session).
+See ``commands.py`` for "how do I add a new command", ``specs/014-profile-router/``
+for the routing design, and ``README.md`` for the full architecture writeup
+(in particular: why ``event.source``, not ``event``, is where chat/thread ids
+live — that one cost a debugging session).
 """
 
 from .chat_context import ChatContext
 from .commands import (
-    COMMAND_PROJECT,
+    COMMAND_DO,
+    COMMAND_PROFILE,
+    COMMAND_PROJECT_ALIAS,
     CommandContext,
-    handle_active_project_task,
+    handle_profile_message,
     route,
     skip,
 )
@@ -31,7 +34,8 @@ from .telegram_client import BotCommand, TelegramClient
 # don't surface default-scope commands at all (see
 # TelegramClient.register_group_commands / SCOPE_ALL_GROUP_CHATS for why).
 GROUP_VISIBLE_COMMANDS = [
-    BotCommand(COMMAND_PROJECT, "Show/switch the chat's active Doer project"),
+    BotCommand(COMMAND_PROFILE, "Show/switch the chat's active profile"),
+    BotCommand(COMMAND_DO, "Run a devops task on the active profile's repo"),
 ]
 
 _telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
@@ -104,7 +108,7 @@ def pre_dispatch(event, **kwargs):
     )
 
     if cmd is None:
-        return handle_active_project_task(ctx)
+        return handle_profile_message(ctx)
 
     routed = route(cmd, ctx)
     if routed is not None:
@@ -113,23 +117,29 @@ def pre_dispatch(event, **kwargs):
     return _silence_if_owned_elsewhere(cmd, text)
 
 
-def _default_scope_project(raw_args: str) -> str:
+def _default_scope_profile(raw_args: str) -> str:
     """Fallback text reply for the *default* command scope (DMs, etc).
 
     The rich status/switch flow only runs through ``pre_dispatch`` /
     ``GROUP_VISIBLE_COMMANDS`` — group chats need that separate registration
     (see module docstring), so this plain-text path covers everywhere else.
     """
-    projects = _doer.projects
-    return "Projects: " + ", ".join(projects) if projects else "No projects loaded."
+    profiles = _doer.projects
+    return "Profiles: " + ", ".join(profiles) if profiles else "No profiles loaded."
 
 
 def register(ctx) -> None:
     ctx.register_hook("pre_gateway_dispatch", pre_dispatch)
     ctx.register_command(
-        COMMAND_PROJECT,
-        handler=_default_scope_project,
-        description="Show/switch the active Doer project",
+        COMMAND_PROFILE,
+        handler=_default_scope_profile,
+        description="Show/switch the active profile",
+        args_hint="[name]",
+    )
+    ctx.register_command(
+        COMMAND_PROJECT_ALIAS,
+        handler=_default_scope_profile,
+        description="Show/switch the active profile (alias for /profile)",
         args_hint="[name]",
     )
     _telegram.register_group_commands(GROUP_VISIBLE_COMMANDS)

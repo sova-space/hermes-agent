@@ -1,18 +1,29 @@
-"""The /project command surface, and the pattern for adding more.
+"""The /profile command surface, and the pattern for adding more.
 
-``/project`` does double duty:
+``/profile`` is the single entry point for picking which domain you're
+working in (see ``specs/014-profile-router/spec.md`` — the profile router):
 
-- ``/project`` (no name) — show the chat's active project (if any) and the
+- ``/profile`` (no name) — show the chat's active profile (if any) and the
   list of available ones.
-- ``/project <name>`` — make ``<name>`` the chat's active project. From then
-  on, every plain-text message in that chat (no leading ``/``) is dispatched
-  to it as a Doer task — see ``handle_active_project_task``. No separate
-  ``/do`` command needed; switching projects is just ``/project <name>``
-  again.
+- ``/profile <name>`` — make ``<name>`` the chat's active profile (``/project``
+  is kept as a backward-compatible alias — same handler, same state).
 
-Every reply that touches the active project restates its name (e.g. "Doer is
+Once a profile is active, two distinct things route two different ways —
+intent is signalled explicitly, never guessed:
+
+- ``/do <task>`` — runs a devops task (code change, bug fix, …) against that
+  profile's repo, via Doer's generic GitHub loop. Explicit because routing a
+  GitHub-editing loop off an LLM's guess at "is this a bug report or a
+  question" is exactly the kind of thing that quietly does the wrong thing.
+- a plain-text message (no leading ``/``) — domain Q&A, routed to the
+  profile-owning bot's own conversational assistant (``handle_profile_message``).
+  If no owner is registered for that profile (e.g. ``hermes`` — Hermes *is*
+  the orchestrator, it doesn't run a separate domain API), the message falls
+  through to ordinary Hermes conversation instead of being forced anywhere.
+
+Every reply that touches the active profile restates its name (e.g. "Doer is
 working on `hermes`") — in a busy group chat it's easy to lose track of which
-project plain messages are now being routed to, and a silent mode is exactly
+profile plain messages are now being routed to, and a silent mode is exactly
 the kind of thing that produces "wait, why did it do that?" later.
 
 ## Adding a new command
@@ -43,10 +54,12 @@ from .chat_context import ChatContext
 from .doer import DoerGateway, DoerSession
 from .telegram_client import TelegramClient
 
-# The one slash-command name this module owns. Matched against
+# Slash-command names this module owns. Matched against
 # ``event.get_command()``, which the gateway already lowercases and strips
 # any "@botname" disambiguation suffix from — handlers never see raw text.
-COMMAND_PROJECT = "project"
+COMMAND_PROFILE = "profile"
+COMMAND_PROJECT_ALIAS = "project"  # back-compat — same handler, same state
+COMMAND_DO = "do"
 
 # Hook return action telling the gateway "handled — stop here, don't fall
 # through to normal agent dispatch". See pre_gateway_dispatch in
@@ -75,78 +88,111 @@ class CommandContext:
 CommandHandler = Callable[[CommandContext], dict[str, str] | None]
 
 
-def handle_project(ctx: CommandContext) -> dict[str, str] | None:
-    """``/project`` — show active project + choices, or switch to one.
+def handle_profile(ctx: CommandContext) -> dict[str, str] | None:
+    """``/profile`` (or its ``/project`` alias) — show active profile +
+    choices, or switch to one.
 
-    ``/project`` alone reports status; ``/project <name>`` switches (the
-    first whitespace-delimited token is the name — anything after it is
-    ignored, since selecting and dispatching are deliberately separate
-    steps; send the task as a follow-up plain message).
+    Bare form reports status; ``/profile <name>`` switches (the first
+    whitespace-delimited token is the name — anything after it is ignored,
+    since selecting and dispatching are deliberately separate steps: follow
+    up with ``/do <task>`` for devops or a plain message for domain Q&A).
     """
-    projects = ctx.doer.projects
-    if not projects:
-        ctx.telegram.send_message(ctx.chat, "Doer is unavailable — no projects loaded.")
-        return skip("doer projects unavailable")
+    profiles = ctx.doer.projects
+    if not profiles:
+        ctx.telegram.send_message(ctx.chat, "Doer is unavailable — no profiles loaded.")
+        return skip("doer profiles unavailable")
 
     if not ctx.args:
-        return _report_status(ctx, projects)
-    return _switch_project(ctx, projects, name=ctx.args.split()[0].lower())
+        return _report_status(ctx, profiles)
+    return _switch_profile(ctx, profiles, name=ctx.args.split()[0].lower())
 
 
-def _report_status(ctx: CommandContext, projects: list[str]) -> dict[str, str]:
-    active = ctx.session.active_project(ctx.chat.chat_id)
-    headline = f"Active project: *{active}*." if active else "No project selected."
+def _report_status(ctx: CommandContext, profiles: list[str]) -> dict[str, str]:
+    active = ctx.session.active_profile(ctx.chat.chat_id)
+    headline = f"Active profile: *{active}*." if active else "No profile selected."
     ctx.telegram.send_message(
         ctx.chat,
-        f"{headline}\nAvailable: {', '.join(projects)}.\nUse `/project <name>` to switch.",
+        f"{headline}\nAvailable: {', '.join(profiles)}.\n"
+        "Use `/profile <name>` to switch, `/do <task>` for devops, "
+        "or just ask a question.",
     )
-    return skip("doer project status")
+    return skip("doer profile status")
 
 
-def _switch_project(
-    ctx: CommandContext, projects: list[str], name: str
+def _switch_profile(
+    ctx: CommandContext, profiles: list[str], name: str
 ) -> dict[str, str]:
-    if name not in projects:
+    if name not in profiles:
         ctx.telegram.send_message(
-            ctx.chat, f"Unknown project `{name}`. Available: {', '.join(projects)}."
+            ctx.chat, f"Unknown profile `{name}`. Available: {', '.join(profiles)}."
         )
-        return skip("doer unknown project")
+        return skip("doer unknown profile")
     ctx.session.select(ctx.chat.chat_id, name)
-    ctx.telegram.send_message(
-        ctx.chat,
-        f"Project set to *{name}*. Send a plain message to run it as a task on `{name}`.",
+    owner = ctx.doer.profiles.get(name)
+    hint = (
+        f"Ask a question and `{name}`'s assistant will answer, "
+        f"or `/do <task>` to change its code."
+        if owner is not None
+        else f"Send `/do <task>` to run a devops task on `{name}`."
     )
-    return skip("doer project selected")
+    ctx.telegram.send_message(ctx.chat, f"Profile set to *{name}*. {hint}")
+    return skip("doer profile selected")
 
 
-def handle_active_project_task(ctx: CommandContext) -> dict[str, str] | None:
+def handle_devops_task(ctx: CommandContext) -> dict[str, str] | None:
+    """``/do <task>`` — run a devops task against the active profile's repo.
+
+    Explicit verb, not inferred from plain text — see module docstring for
+    why guessing "is this a bug report or a question" from an LLM is exactly
+    the kind of thing that quietly misroutes.
+    """
+    profile = ctx.session.active_profile(ctx.chat.chat_id)
+    if not profile:
+        ctx.telegram.send_message(
+            ctx.chat, "No active profile. Use `/profile <name>` first."
+        )
+        return skip("devops no active profile")
+    task = ctx.args.strip()
+    if not task:
+        ctx.telegram.send_message(
+            ctx.chat, "Usage: `/do <task>` — e.g. `/do fix the balance rounding bug`."
+        )
+        return skip("devops missing task")
+    ctx.doer.dispatch(profile, task)
+    ctx.telegram.send_message(
+        ctx.chat, f"Got it — Doer is working on `{profile}`. Result in #projects."
+    )
+    return skip("devops task dispatched")
+
+
+def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
     """Plain-text message (no slash command) in a chat with an active
-    project — dispatch it to that project as a Doer task.
+    profile — domain Q&A, routed to that profile owner's conversational
+    assistant.
 
     Returns ``None`` (let the gateway fall through to normal agent dispatch)
-    when there's no active project or no chat to key it by — that's the
-    "ordinary conversation" case, not a task.
+    when there's no active profile, no text, or no assistant registered for
+    the active profile — those are all "ordinary conversation" cases, not
+    domain questions this plugin can answer.
     """
-    project = ctx.session.active_project(ctx.chat.chat_id)
-    if not project:
+    profile = ctx.session.active_profile(ctx.chat.chat_id)
+    if not profile:
         return None
-    task = ctx.text.strip()
-    if not task:
+    text = ctx.text.strip()
+    if not text:
         return None
-    _dispatch(ctx, project, task)
-    return skip("doer task dispatched")
-
-
-def _dispatch(ctx: CommandContext, project: str, task: str) -> None:
-    ctx.doer.dispatch(project, task)
-    ctx.telegram.send_message(
-        ctx.chat, f"Got it — Doer is working on `{project}`. Result in #projects."
-    )
+    reply = ctx.doer.ask_profile(profile, ctx.chat.chat_id, text)
+    if reply is None:
+        return None
+    ctx.telegram.send_message(ctx.chat, reply)
+    return skip("profile assistant replied")
 
 
 # Exact-name command -> handler. See module docstring for how to extend this.
 COMMANDS: dict[str, CommandHandler] = {
-    COMMAND_PROJECT: handle_project,
+    COMMAND_PROFILE: handle_profile,
+    COMMAND_PROJECT_ALIAS: handle_profile,
+    COMMAND_DO: handle_devops_task,
 }
 
 

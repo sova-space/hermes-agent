@@ -60,13 +60,28 @@ Extend the discovery contract so each domain bot can register itself as a profil
     stays where the data is)   stays where the data is)    stays where the data is)
 ```
 
+## Rollout (staged — router first, absorption second)
+
+Shipped in two steps so the user-visible half can be tested live without
+gating on a destructive infra change:
+
+1. **Router (this pass):** `/profile` ships, intent is split *explicitly*
+   (`/do <task>` for devops, plain text for domain Q&A — never inferred from
+   an LLM guess), and `GET /bot/profile` lets domain bots register
+   themselves. Devops execution still dispatches to the *existing, running*
+   Doer service — nothing destructive, fully testable today.
+2. **Absorption + retirement (follow-up):** fold Doer's generic GitHub loop
+   into Hermes, then retire `bots/doer/` as a standalone Railway service.
+   Done last, once the router is proven live — add-then-retire, not
+   retire-then-rebuild.
+
 ## Acceptance criteria
 
-- [ ] `/profile finance` + a domain question routes to the finance bot's conversational assistant (not through any GitHub-editing path)
-- [ ] `/profile finance` + a devops-flavored request ("fix this bug") runs Hermes' built-in loop scoped to `sova-claw/hermes-finance` — same end capability Doer provides today, no separate service in the hop
-- [ ] `bots/doer/` is retired as a standalone Railway service with zero loss of capability (grep-verified: no other callers)
-- [ ] Profile discovery is generic (`AGENT_*_URL` + `GET /bot/profile`) — adding a new domain bot doesn't require touching the router's code
-- [ ] Active-profile state migrates cleanly from `/project` to `/profile` (migration note or compatibility alias for existing users)
+- [x] `/profile finance` + a domain question routes to the finance bot's conversational assistant (not through any GitHub-editing path) — via `GET /bot/profile` discovery + `POST /bot/assistant`
+- [x] `/profile finance` + `/do <task>` runs the devops loop scoped to `sova-claw/hermes-finance` — dispatched to Doer (still a separate service in step 1; absorbed in step 2)
+- [ ] `bots/doer/` is retired as a standalone Railway service with zero loss of capability (grep-verified: no other callers) — **step 2, not yet done**
+- [x] Profile discovery is generic (`AGENT_*_URL` + `GET /bot/profile`) — adding a new domain bot doesn't require touching the router's code
+- [x] Active-profile state migrates cleanly from `/project` to `/profile` — `/project` kept as a compatibility alias (same handler, same `DoerSession._active_profile` state)
 
 ## Cite for implementers
 
