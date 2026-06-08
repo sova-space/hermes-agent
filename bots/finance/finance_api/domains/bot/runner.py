@@ -1,6 +1,12 @@
 """Build the Telegram bot application."""
 
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
 
 from finance_api.domains.bot.commands import BOT_COMMANDS
 from finance_api.domains.bot.handlers import (
@@ -19,6 +25,7 @@ from finance_api.domains.bot.handlers import (
     callback_spending_category,
     callback_subs,
     callback_sync,
+    chat,
     cmd_finance_app,
     sync,
 )
@@ -55,4 +62,7 @@ def create_bot(token: str) -> Application:
         )
     )
     app.add_handler(CallbackQueryHandler(callback_subs, pattern=f"^{SUBS_CALLBACK}$"))
+    # Catch-all for free-form text — registered last so commands/callbacks above
+    # always match first and the existing button UX stays untouched.
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
     return app

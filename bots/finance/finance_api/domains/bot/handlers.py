@@ -4,11 +4,13 @@ import asyncio
 
 import structlog
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, Update
+from telegram.constants import ChatAction
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from finance_api.bot.telegram_fmt import PARSE_MODE, code
 from finance_api.core.config import settings
+from finance_api.domains.assistant.loop import answer as assistant_answer
 from finance_api.domains.bot.formatter import (
     format_balance,
     format_income_summary,
@@ -331,3 +333,30 @@ async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         _sync_running = False
         log.error("sync_callback_failed", error=str(e))
         await _edit(query, f"❌ Sync failed: {code(e)}", parse_mode=PARSE_MODE)
+
+
+async def chat(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle free-form text — conversational money Q&A via the assistant.
+
+    Registered last so it only fires when no command/callback matched, leaving
+    the existing button-driven flows untouched.
+    """
+    user = update.effective_user
+    message = update.message
+    if user is None or message is None or not message.text:
+        return
+    if user.id != settings.telegram_owner_id:
+        return
+    await ctx.bot.send_chat_action(
+        chat_id=update.effective_chat.id, action=ChatAction.TYPING
+    )
+    try:
+        reply = await assistant_answer(update.effective_chat.id, message.text)
+    except Exception as e:
+        log.error("assistant_failed", error=str(e))
+        reply = f"❌ Error: {code(e)}"
+    await ctx.bot.send_message(
+        chat_id=update.effective_chat.id,
+        message_thread_id=_thread_id(message),
+        text=reply,
+    )
