@@ -27,7 +27,7 @@ from .commands import (
     skip,
 )
 from .config import CONFIG
-from .devops import DevopsLoop
+from .agent_loop import AgentLoop
 from .doer import DoerGateway, DoerSession
 from .telegram_client import BotCommand, TelegramClient
 
@@ -42,9 +42,9 @@ GROUP_VISIBLE_COMMANDS = [
 
 _telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
 _doer = DoerGateway()
-_devops = DevopsLoop(
+_devops = AgentLoop(
     github_token=CONFIG.GITHUB_TOKEN,
-    llm_api_key=CONFIG.OPENROUTER_API_KEY,
+    llm_api_key=CONFIG.NOUS_API_KEY,
     agent_model=CONFIG.AGENT_MODEL,
     quick_model=CONFIG.QUICK_MODEL,
     telegram=_telegram,

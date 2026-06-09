@@ -27,7 +27,7 @@ with less typing):
   through to ordinary Hermes conversation instead of being forced anywhere.
 - ``dev`` mode — the message *is* a devops task description (code change,
   bug fix, …), run against that profile's repo via the absorbed GitHub loop
-  (``DevopsLoop.dispatch`` — see ``devops.py``). Routing a GitHub-editing
+  (``AgentLoop.dispatch`` — see ``agent_loop.py``). Routing a GitHub-editing
   loop off an LLM's guess at "is this a bug report or a question" is exactly
   the kind of thing that quietly does the wrong thing — ``dev`` mode makes
   that guess the user's, made once via ``/mode dev``, not per message.
@@ -62,7 +62,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .chat_context import ChatContext
-from .devops import DevopsLoop
+from .agent_loop import AgentLoop
 from .doer import MODE_CLIENT, MODE_DEV, MODES, DoerGateway, DoerSession
 from .telegram_client import TelegramClient
 
@@ -94,7 +94,7 @@ class CommandContext:
     args: str
     telegram: TelegramClient
     doer: DoerGateway
-    devops: DevopsLoop
+    devops: AgentLoop
     session: DoerSession
 
 

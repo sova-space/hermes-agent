@@ -13,17 +13,16 @@ class Config:
     broken, so surface that at import time rather than failing silently
     on every Telegram call.
 
-    GITHUB_TOKEN / OPENROUTER_API_KEY / AGENT_MODEL / QUICK_MODEL back the absorbed
-    devops loop (formerly Doer's own service — see ``devops.py``). OPENROUTER_API_KEY
-    is shared with Hermes's own LLM provider config (``server.py``'s env registry
-    already lists it) — no separate credential needed. The dev loop uses two models:
-    AGENT_MODEL (Sonnet) for code writing, QUICK_MODEL (Haiku) for mechanical ops
-    like file reads, git diff analysis, and PR creation.
+    GITHUB_TOKEN / NOUS_API_KEY / AGENT_MODEL / QUICK_MODEL back the absorbed
+    devops loop (formerly Doer's own service — see ``agent_loop.py``). NOUS_API_KEY
+    authenticates against the Nous Research inference API (OpenAI-compatible).
+    The dev loop uses two models: AGENT_MODEL for code writing, QUICK_MODEL for
+    mechanical ops like file reads, git diff analysis, and PR creation.
     """
 
     TELEGRAM_BOT_TOKEN: str = os.environ["TELEGRAM_BOT_TOKEN"]
     GITHUB_TOKEN: str = os.environ.get("GITHUB_TOKEN", "")
-    OPENROUTER_API_KEY: str = os.environ.get("OPENROUTER_API_KEY", "")
+    NOUS_API_KEY: str = os.environ.get("NOUS_API_KEY", "")
     # AGENT_MODEL handles code writing and architectural decisions in the dev loop.
     # QUICK_MODEL handles mechanical work: file reads, git diff, PR creation — saving
     # tokens on turns that don't need deep reasoning.

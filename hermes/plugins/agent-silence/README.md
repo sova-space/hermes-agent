@@ -22,7 +22,7 @@ Mode is sticky per chat. Default is `client` — the safe no-op that can't accid
 | `chat_context.py` | Typed extraction of chat/topic ids from `MessageEvent` |
 | `telegram_client.py` | Raw Telegram Bot API (`sendMessage`, `setMyCommands`) |
 | `doer.py` | Agent discovery (`AGENT_*_URL`), profile list, per-chat session state (profile + mode) |
-| `devops.py` | In-process GitHub agent loop — reads/writes code, opens PRs, posts to #projects |
+| `agent_loop.py` | In-process GitHub agent loop — reads/writes code, opens PRs, posts to #projects |
 | `commands.py` | `/profile`, `/mode` handlers + the pattern for adding more |
 | `config.py` | Env-var config (`TELEGRAM_BOT_TOKEN`, `GITHUB_TOKEN`, `OPENROUTER_API_KEY`, `DEVOPS_MODEL`) |
 | `__init__.py` | Thin glue: gateway hook + command registration |

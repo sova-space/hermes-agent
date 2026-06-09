@@ -39,7 +39,7 @@ from .telegram_client import TelegramClient
 log = logging.getLogger(__name__)
 
 _GITHUB_API_URL = "https://api.github.com"
-_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+_NOUS_BASE_URL = "https://inference.nousresearch.com/v1"
 
 # Where devops results land — same #projects topic Doer posted to
 # (`bots/doer/.env.example`'s TELEGRAM_CHAT_ID / TELEGRAM_PROJECTS_TOPIC_ID).
@@ -309,7 +309,6 @@ def _run_loop(
             system=_SYSTEM,
             tools=tools,  # type: ignore[arg-type]
             messages=messages,  # type: ignore[arg-type]
-            extra_body={"provider": {"require_parameters": True}},
         )
         tool_calls = [b for b in response.content if b.type == "tool_use"]
         tool_results = []
@@ -344,7 +343,6 @@ def _run_pr_phase(
             system=_SYSTEM,
             tools=_PR_TOOLS,  # type: ignore[arg-type]
             messages=messages,  # type: ignore[arg-type]
-            extra_body={"provider": {"require_parameters": True}},
         )
         tool_calls = [b for b in response.content if b.type == "tool_use"]
         tool_results = []
@@ -367,7 +365,7 @@ def _run_pr_phase(
 
 
 @dataclass(frozen=True)
-class DevopsLoop:
+class AgentLoop:
     """Runs the absorbed agentic loop against a profile's repo.
 
     Three-phase execution:
@@ -403,7 +401,7 @@ class DevopsLoop:
     def _run(self, profile: str, project: Project, task: str) -> None:
         log.info("devops_task_started profile=%s task=%s", profile, task[:120])
         gh = _GitHub(self.github_token)
-        client = anthropic.Anthropic(base_url=_OPENROUTER_BASE_URL, api_key=self.llm_api_key)
+        client = anthropic.Anthropic(base_url=_NOUS_BASE_URL, api_key=self.llm_api_key)
         messages: list[dict] = [
             {"role": "user", "content": f"Project: {profile}\n\nTask: {task}"}
         ]

@@ -31,8 +31,8 @@ class Settings(BaseSettings):
 
     mini_app_url: str
 
-    openrouter_api_key: str
-    finance_assistant_model: str = "anthropic/claude-sonnet-4-5"
+    nous_api_key: str
+    agent_model: str = "anthropic/claude-sonnet-4-5"
 
 
 @lru_cache

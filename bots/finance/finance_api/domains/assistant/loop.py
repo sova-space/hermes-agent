@@ -1,4 +1,4 @@
-"""OpenRouter-backed conversational agent for free-form money questions.
+"""Conversational agent for free-form money questions.
 
 Mirrors the tool-calling loop pattern in `doer_api/agent/loop.py`, scoped to
 read-only Finance API queries instead of GitHub operations.
@@ -28,8 +28,8 @@ _MAX_TOOL_TURNS = 8  # safety cap on tool-calling round-trips per message
 _MAX_HISTORY = 20  # trimmed message count kept per chat
 
 _client = anthropic.AsyncAnthropic(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=settings.openrouter_api_key,
+    base_url="https://inference.nousresearch.com/v1",
+    api_key=settings.nous_api_key,
 )
 
 _sessions: dict[int, list[dict]] = {}
@@ -169,7 +169,7 @@ async def answer(chat_id: int, text: str) -> str:
     reply = "Sorry, I couldn't come up with an answer."
     for _ in range(_MAX_TOOL_TURNS):
         response = await _client.messages.create(
-            model=settings.finance_assistant_model,
+            model=settings.agent_model,
             max_tokens=1024,
             system=_SYSTEM,
             tools=_TOOL_DEFS,  # type: ignore[arg-type]

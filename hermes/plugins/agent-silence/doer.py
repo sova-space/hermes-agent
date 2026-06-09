@@ -17,8 +17,8 @@ active profile *and* mode — that's per-conversation memory, not service
 discovery, hence the split.
 
 Devops dispatch no longer lives here: per spec 014 step 2 ("absorb Doer"),
-the generic GitHub loop now runs in-process — see ``devops.DevopsLoop``. The
-profile list is the local ``devops.PROJECTS`` registry directly; there is no
+the generic GitHub loop now runs in-process — see ``agent_loop.AgentLoop``. The
+profile list is the local ``agent_loop.PROJECTS`` registry directly; there is no
 ``GET /bot/projects`` to discover anymore (that contract retired with the
 standalone Doer service).
 
@@ -27,7 +27,7 @@ governed by the chat's *mode* (``/mode client|dev`` — see
 ``specs/014-profile-router/spec.md`` for the original design, since evolved
 from the per-message ``/do``-vs-plain-text split to a sticky toggle):
 
-- *dev* mode → ``DevopsLoop.dispatch`` → the absorbed GitHub loop, scoped to
+- *dev* mode → ``AgentLoop.dispatch`` → the absorbed GitHub loop, scoped to
   the profile's repo
 - *client* mode → ``ask_profile`` → the profile-owning bot's own
   conversational assistant, if one is registered; otherwise falls through
@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from .devops import PROJECTS
+from .agent_loop import PROJECTS
 
 # Env var prefix/suffix this plugin scans for agent base URLs, e.g.
 # AGENT_FINANCE_URL, AGENT_RESEARCH_URL, ... Anything matching is probed.
