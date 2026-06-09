@@ -15,7 +15,7 @@ if [ ! -f /data/.hermes/config.yaml ] && [ -f /opt/hermes-agent/cli-config.yaml.
   cp /opt/hermes-agent/cli-config.yaml.example /data/.hermes/config.yaml
 fi
 
-[ ! -f /data/.hermes/.env ] && touch /data/.hermes/.env
+python3 /app/infra/bootstrap_env.py
 
 # Bootstrap OAuth tokens from env var (e.g. xAI Grok SuperGrok).
 # Set HERMES_AUTH_JSON_BOOTSTRAP to the contents of a locally-generated

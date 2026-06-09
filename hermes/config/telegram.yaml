@@ -1,8 +1,6 @@
 # Telegram integration config
-# Supergroup: Hermes PI
-#
+# Supergroup: Sova Space (-1003913424869)
 # Topic IDs are real Telegram message_thread_id values.
-# Verified: 2026-05-25
 
 telegram:
   # Supergroup ID (negative number)
