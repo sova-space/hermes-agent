@@ -94,6 +94,23 @@ def sync_model_config(model: str, provider: str) -> None:
         ms["default"] = model
     ms["provider"] = provider
     merged["model"] = ms
+
+    # Auto-configure auxiliary providers so context compression, vision, etc.
+    # work without the "No auxiliary LLM provider configured" warning.
+    aux_defaults = {
+        "vision": "openrouter",
+        "compression": "openrouter",
+        "web_extract": "openrouter",
+        "approval": "openrouter",
+        "title_generation": "openrouter",
+    }
+    aux = dict(merged.get("auxiliary", {}) if isinstance(merged.get("auxiliary"), dict) else {})
+    for task, aux_provider in aux_defaults.items():
+        task_cfg = dict(aux.get(task, {}) if isinstance(aux.get(task), dict) else {})
+        task_cfg.setdefault("provider", aux_provider)
+        aux[task] = task_cfg
+    merged["auxiliary"] = aux
+
     CONFIG_FILE.write_text(yaml.safe_dump(merged, sort_keys=False, default_flow_style=False))
 
 
