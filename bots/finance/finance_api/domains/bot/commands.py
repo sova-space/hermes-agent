@@ -10,6 +10,7 @@ from telegram import (
     BotCommandScopeAllGroupChats,
     BotCommandScopeChat,
 )
+from telegram.error import BadRequest
 
 from finance_api.core.config import get_settings
 
@@ -24,10 +25,17 @@ async def _register_commands(bot: Bot) -> None:
     settings = get_settings()
     await bot.set_my_commands(BOT_COMMANDS)
     await bot.set_my_commands(BOT_COMMANDS, scope=BotCommandScopeAllGroupChats())
-    await bot.set_my_commands(
-        BOT_COMMANDS,
-        scope=BotCommandScopeChat(chat_id=settings.telegram_chat_id),
-    )
+    try:
+        await bot.set_my_commands(
+            BOT_COMMANDS,
+            scope=BotCommandScopeChat(chat_id=settings.telegram_chat_id),
+        )
+    except BadRequest as exc:
+        log.warning(
+            "bot_commands_chat_scope_failed",
+            chat_id=settings.telegram_chat_id,
+            error=str(exc),
+        )
     log.info("bot_commands_registered", count=len(BOT_COMMANDS))
 
 
