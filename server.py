@@ -77,8 +77,11 @@ def build_env() -> dict[str, str]:
 
 
 def sync_model_config(model: str, provider: str) -> None:
-    """Write model.default + model.provider, preserving existing config."""
+    """Write model.default + model.provider + env overrides, preserving existing config."""
     import yaml
+    env = build_env()
+    agent_model = env.get("AGENT_MODEL", "")
+    quick_model = env.get("QUICK_MODEL", "")
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     existing: dict = {}
     if CONFIG_FILE.exists():
@@ -116,7 +119,21 @@ def sync_model_config(model: str, provider: str) -> None:
     if provider == "openrouter" and (model in ("openrouter/auto",) or "free" in model):
         ms.setdefault("max_tokens", 4096)
 
+    # Stamp agent/quick models into env block so /profile displays correctly.
+    merged_env = dict(merged.get("env", {}) if isinstance(merged.get("env"), dict) else {})
+    if agent_model:
+        merged_env["AGENT_MODEL"] = agent_model
+    if quick_model:
+        merged_env["QUICK_MODEL"] = quick_model
+    merged["env"] = merged_env
+
     CONFIG_FILE.write_text(yaml.safe_dump(merged, sort_keys=False, default_flow_style=False))
+
+    # Also sync default profile, finance, wishlist so /profile displays correctly.
+    for profile_name in ("default", "hermes", "finance", "wishlist"):
+        profile_config = HERMES_HOME / "profiles" / profile_name / "config.yaml"
+        profile_config.parent.mkdir(parents=True, exist_ok=True)
+        profile_config.write_text(yaml.safe_dump(merged, sort_keys=False, default_flow_style=False))
 
 
 # ---------------------------------------------------------------------------
