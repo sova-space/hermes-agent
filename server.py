@@ -53,6 +53,31 @@ def _read_env(path: Path) -> dict[str, str]:
     return out
 
 
+def _write_model_config(model: str, provider: str) -> None:
+    """Write just model.default + model.provider to config.yaml, preserving
+    the rest of the file (user-managed keys like mcp_servers, telegram, etc.)."""
+    import yaml
+    config_path = Path(HERMES_HOME) / "config.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict = {}
+    if config_path.exists():
+        try:
+            with config_path.open() as f:
+                loaded = yaml.safe_load(f)
+            if isinstance(loaded, dict):
+                existing = loaded
+        except Exception:
+            pass
+    merged = dict(existing)
+    merged_model = dict(merged.get("model") if isinstance(merged.get("model"), dict) else {})
+    if model:
+        merged_model["default"] = model
+    merged_model["provider"] = provider
+    merged["model"] = merged_model
+    with config_path.open("w") as f:
+        yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False)
+
+
 # ---------------------------------------------------------------------------
 # Gateway subprocess
 # ---------------------------------------------------------------------------
@@ -72,10 +97,13 @@ class Gateway:
             env = {**os.environ, "HERMES_HOME": HERMES_HOME}
             env.update(_read_env(ENV_FILE))
             model = env.get("LLM_MODEL", "")
+            provider = env.get("PROVIDER", "auto")
             print(
-                f"[gateway] model={model or 'NOT SET'}",
+                f"[gateway] model={model or 'NOT SET'} | provider={provider}",
                 flush=True,
             )
+            # Write minimal config so hermes picks up model + provider
+            _write_model_config(model, provider)
             self.proc = await asyncio.create_subprocess_exec(
                 "hermes", "gateway",
                 stdout=asyncio.subprocess.PIPE,
