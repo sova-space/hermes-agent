@@ -50,6 +50,7 @@ class TelegramClient:
         chat: ChatContext,
         text: str,
         reply_markup: dict | None = None,
+        parse_mode: str = "Markdown",
     ) -> None:
         """Send ``text`` to ``chat``, replying in its forum topic if any.
 
@@ -62,7 +63,7 @@ class TelegramClient:
         payload: dict = {
             "chat_id": chat.chat_id,
             "text": text,
-            "parse_mode": "Markdown",
+            "parse_mode": parse_mode,
         }
         thread_id = chat.thread_id_for_send
         if thread_id is not None:
@@ -70,6 +71,32 @@ class TelegramClient:
         if reply_markup is not None:
             payload["reply_markup"] = reply_markup
         self._call("sendMessage", payload)
+
+    def edit_message_text(
+        self,
+        chat: ChatContext,
+        message_id: str | int | None,
+        text: str,
+        reply_markup: dict | None = None,
+        parse_mode: str = "Markdown",
+    ) -> None:
+        """Edit an existing Telegram message in place when callback metadata is available."""
+        if not chat.chat_id or message_id is None:
+            return
+        payload: dict = {
+            "chat_id": chat.chat_id,
+            "message_id": int(message_id),
+            "text": text,
+            "parse_mode": parse_mode,
+        }
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+        self._call("editMessageText", payload)
+
+    def answer_callback_query(self, callback_query_id: str | None) -> None:
+        """Acknowledge a Telegram inline-button tap to stop the spinner."""
+        if callback_query_id:
+            self._call("answerCallbackQuery", {"callback_query_id": callback_query_id})
 
     def register_group_commands(self, commands: list[BotCommand]) -> None:
         """Push ``commands`` into the ``all_group_chats`` scope so they show

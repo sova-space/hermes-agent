@@ -36,6 +36,7 @@ def create_bot(token: str) -> Application:
     app = Application.builder().token(token).build()
     handler_map = {
         "finance_app": cmd_finance_app,
+        "finance": balance,
         "balance": balance,
         "sync": sync,
     }

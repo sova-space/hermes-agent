@@ -24,6 +24,7 @@ from .commands import (
     COMMAND_PROFILE,
     COMMAND_PROJECT_ALIAS,
     CommandContext,
+    handle_finance_callback,
     handle_profile_message,
     route,
     skip,
@@ -39,7 +40,7 @@ from .telegram_client import BotCommand, TelegramClient
 # TelegramClient.register_group_commands / SCOPE_ALL_GROUP_CHATS for why).
 GROUP_VISIBLE_COMMANDS = [
     BotCommand(COMMAND_PROFILE, "Show/switch profile + mode"),
-    BotCommand(COMMAND_FINANCE, "💰 Account balances"),
+    BotCommand(COMMAND_FINANCE, "Open finance"),
 ]
 
 _telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
@@ -84,6 +85,32 @@ def _command_args(text: str) -> str:
     return parts[1].strip() if len(parts) > 1 else ""
 
 
+def _first_attr(obj, names: tuple[str, ...]):
+    for name in names:
+        value = getattr(obj, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _callback_meta(event) -> tuple[str | None, str | None, str | int | None]:
+    """Best-effort extraction for Telegram callback-query events.
+
+    Hermes' gateway surface for callbacks can vary across versions, so support
+    both normalized event/source attrs and raw-like callback_query attrs.
+    """
+    source = getattr(event, "source", None)
+    query = getattr(event, "callback_query", None)
+    message = getattr(query, "message", None) if query is not None else None
+    return (
+        _first_attr(event, ("callback_data", "data")) or getattr(query, "data", None),
+        _first_attr(event, ("callback_query_id", "query_id")) or getattr(query, "id", None),
+        _first_attr(event, ("callback_message_id", "message_id"))
+        or _first_attr(source, ("message_id", "callback_message_id"))
+        or getattr(message, "message_id", None),
+    )
+
+
 def _silence_if_owned_elsewhere(cmd: str, text: str) -> dict[str, str] | None:
     """Swallow @-addressed commands that belong to other registered agent
     bots, so Hermes doesn't reply "unknown command" on their behalf in
@@ -108,6 +135,7 @@ def pre_dispatch(event, **kwargs):
     text = getattr(event, "text", "") or ""
     cmd = event.get_command() if hasattr(event, "get_command") else None
     chat = ChatContext.from_event(event)
+    callback_data, callback_query_id, callback_message_id = _callback_meta(event)
     _clear_stale_chat_override(chat.chat_id)
     ctx = CommandContext(
         chat=chat,
@@ -117,7 +145,14 @@ def pre_dispatch(event, **kwargs):
         doer=_doer,
         devops=_devops,
         session=_session,
+        callback_data=callback_data,
+        callback_query_id=callback_query_id,
+        callback_message_id=callback_message_id,
     )
+
+    callback_routed = handle_finance_callback(ctx)
+    if callback_routed is not None:
+        return callback_routed
 
     if cmd is None:
         return handle_profile_message(ctx)
@@ -167,8 +202,8 @@ def register(ctx) -> None:
     )
     ctx.register_command(
         COMMAND_FINANCE,
-        handler=lambda _: "Use /finance in a group chat to see account balances.",
-        description="Show account balances",
+        handler=lambda _: "Use /finance in a group chat to open finance.",
+        description="Open finance",
     )
     _telegram.register_group_commands(GROUP_VISIBLE_COMMANDS)
     _doer.load()

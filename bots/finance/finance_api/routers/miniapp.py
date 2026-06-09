@@ -1,6 +1,7 @@
 """Mini App HTML endpoint and bot trigger."""
 
 import os
+import threading
 
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 from finance_api.domains.assistant.loop import answer as assistant_answer
 from finance_api.domains.bot.commands import BOT_COMMANDS
 from finance_api.domains.bot.notifications import send_finance_app_button
+from finance_api.domains.bot.ui import balance_keyboard, view_payload
+from finance_api.domains.sync.monobank import run_sync
 
 router = APIRouter()
 
@@ -75,3 +78,32 @@ async def bot_assistant(request: AssistantRequest) -> AssistantResponse:
     """
     reply = await assistant_answer(request.chat_id, request.text)
     return AssistantResponse(reply=reply)
+
+
+@router.get("/bot/ui/finance", include_in_schema=False)
+async def bot_finance_ui() -> dict:
+    """Initial /finance payload for Hermes' single-bot command surface."""
+    return view_payload("balance")
+
+
+@router.get("/bot/ui/finance/{view}", include_in_schema=False)
+async def bot_finance_view(view: str) -> dict:
+    """Return a Telegram-ready finance view payload for inline callbacks."""
+    return view_payload(view)
+
+
+@router.get("/bot/ui/finance/spending/{category}", include_in_schema=False)
+async def bot_finance_spending_category(category: str) -> dict:
+    """Return one spending category drill-down payload."""
+    return view_payload("spending_category", category=category)
+
+
+@router.post("/bot/ui/finance/sync", include_in_schema=False)
+async def bot_finance_sync() -> dict:
+    """Start sync and return an immediate same-message progress payload."""
+    threading.Thread(target=run_sync, daemon=True).start()
+    return {
+        "text": "🔄 Syncing…",
+        "parse_mode": "HTML",
+        "reply_markup": balance_keyboard(),
+    }

@@ -61,6 +61,7 @@ the chat_id bug from coming back.
 from collections.abc import Callable
 from dataclasses import dataclass
 import os
+from urllib.parse import quote
 
 from .chat_context import ChatContext
 from .agent_loop import AgentLoop
@@ -99,6 +100,9 @@ class CommandContext:
     doer: DoerGateway
     devops: AgentLoop
     session: DoerSession
+    callback_data: str | None = None
+    callback_query_id: str | None = None
+    callback_message_id: str | int | None = None
 
 
 CommandHandler = Callable[[CommandContext], dict[str, str] | None]
@@ -284,63 +288,98 @@ def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
     return skip("profile assistant replied")
 
 
-_CURRENCY_FLAG = {"UAH": "🇺🇦", "USD": "🇺🇸", "EUR": "🇪🇺", "GBP": "🇬🇧"}
+_FINANCE_CALLBACK_VIEW = {
+    "balance_cb": "balance",
+    "income": "income",
+    "spending": "spending",
+    "subs": "subs",
+    "skipped": "skipped",
+}
+_FINANCE_SYNC_CALLBACK = "sync"
+_FINANCE_SPENDING_PREFIX = "spd:"
 
 
-def _fmt_balance(accounts: list[dict]) -> str:
-    """Replicate finance bot's format_balance with currency totals + breakdown."""
-    from collections import defaultdict
-    by_currency: dict[str, list[dict]] = defaultdict(list)
-    for a in accounts:
-        by_currency[a["currency"]].append(a)
-
-    lines = ["💰 *Balance*\n"]
-    for currency, group in by_currency.items():
-        flag = _CURRENCY_FLAG.get(currency, "💱")
-        total = round(sum(a["balance"] for a in group))
-        lines.append(f"{flag} {currency}  *{total:,}*")
-
-    lines.append(f"\n*Breakdown*")
-    for a in accounts:
-        name = a["name"]
-        balance = round(a["balance"])
-        curr = a["currency"]
-        lines.append(f"  {name}: {balance:,} {curr}")
-
-    return "\n".join(lines)
+def _finance_base_url() -> str:
+    """Finance API base URL; AGENT_FINANCE_URL is the profile-router source of truth."""
+    url = os.environ.get("AGENT_FINANCE_URL") or os.environ.get("FINANCE_API_URL", "")
+    url = url.rstrip("/")
+    return url if url.startswith("http") else f"https://{url}" if url else ""
 
 
-def handle_balance(ctx: CommandContext) -> dict[str, str] | None:
-    """``/balance`` — fetch and display account balances from finance API."""
+def _finance_payload(path: str, method: str = "GET") -> dict | None:
+    """Fetch a Telegram-ready UI payload from finance_api's /bot/ui endpoints."""
     import httpx
 
-    finance_url = os.environ.get("FINANCE_API_URL", "")
-    if not finance_url:
-        ctx.telegram.send_message(ctx.chat, "Finance API URL not configured.")
-        return skip("balance no url")
-    if not finance_url.startswith("http"):
-        finance_url = f"https://{finance_url}"
-
+    base_url = _finance_base_url()
+    if not base_url:
+        return None
     try:
-        resp = httpx.get(f"{finance_url}/accounts", timeout=10)
+        if method == "POST":
+            resp = httpx.post(f"{base_url}{path}", timeout=10)
+        else:
+            resp = httpx.get(f"{base_url}{path}", timeout=10)
         resp.raise_for_status()
         data = resp.json()
+        return data if isinstance(data, dict) else None
     except Exception:
-        ctx.telegram.send_message(ctx.chat, "Could not fetch balance.")
-        return skip("balance fetch failed")
+        return None
 
-    accounts = data if isinstance(data, list) else data.get("accounts", [])
-    if not accounts:
-        ctx.telegram.send_message(ctx.chat, "No accounts synced yet.")
-        return skip("balance empty")
 
-    text = _fmt_balance(accounts)
-    keyboard = {
-        "keyboard": [[{"text": "/finance"}, {"text": "/profile"}]],
-        "resize_keyboard": True, "one_time_keyboard": True,
-    }
-    ctx.telegram.send_message(ctx.chat, text, reply_markup=keyboard)
-    return skip("balance")
+def _send_finance_payload(ctx: CommandContext, payload: dict | None) -> dict[str, str]:
+    if not payload:
+        ctx.telegram.send_message(ctx.chat, "Could not fetch finance UI.")
+        return skip("finance ui fetch failed")
+    ctx.telegram.send_message(
+        ctx.chat,
+        payload.get("text", ""),
+        reply_markup=payload.get("reply_markup"),
+        parse_mode=payload.get("parse_mode", "HTML"),
+    )
+    return skip("finance ui")
+
+
+def _edit_finance_payload(ctx: CommandContext, payload: dict | None) -> dict[str, str]:
+    ctx.telegram.answer_callback_query(ctx.callback_query_id)
+    if not payload:
+        ctx.telegram.send_message(ctx.chat, "Could not fetch finance UI.")
+        return skip("finance callback fetch failed")
+    if ctx.callback_message_id is None:
+        return _send_finance_payload(ctx, payload)
+    ctx.telegram.edit_message_text(
+        ctx.chat,
+        ctx.callback_message_id,
+        payload.get("text", ""),
+        reply_markup=payload.get("reply_markup"),
+        parse_mode=payload.get("parse_mode", "HTML"),
+    )
+    return skip("finance callback")
+
+
+def handle_finance(ctx: CommandContext) -> dict[str, str] | None:
+    """``/finance`` — show the finance_api one-message inline UI."""
+    return _send_finance_payload(ctx, _finance_payload("/bot/ui/finance"))
+
+
+def handle_finance_callback(ctx: CommandContext) -> dict[str, str] | None:
+    """Inline finance buttons — edit the same Telegram message in place."""
+    data = ctx.callback_data
+    if not data:
+        return None
+    if data == _FINANCE_SYNC_CALLBACK:
+        return _edit_finance_payload(ctx, _finance_payload("/bot/ui/finance/sync", method="POST"))
+    if data.startswith(_FINANCE_SPENDING_PREFIX):
+        category = data[len(_FINANCE_SPENDING_PREFIX) :]
+        path = f"/bot/ui/finance/spending/{quote(category, safe='')}"
+        return _edit_finance_payload(ctx, _finance_payload(path))
+    view = _FINANCE_CALLBACK_VIEW.get(data)
+    if view is None:
+        return None
+    return _edit_finance_payload(ctx, _finance_payload(f"/bot/ui/finance/{view}"))
+
+
+# Back-compat: /balance in the Hermes bot opens the same UI, but /finance is the menu entry.
+def handle_balance(ctx: CommandContext) -> dict[str, str] | None:
+    return handle_finance(ctx)
 
 
 # Exact-name command -> handler. See module docstring for how to extend this.
@@ -348,7 +387,7 @@ COMMANDS: dict[str, CommandHandler] = {
     COMMAND_PROFILE: handle_profile,
     COMMAND_PROJECT_ALIAS: handle_profile,
     COMMAND_MODE: handle_mode,
-    COMMAND_FINANCE: handle_balance,
+    COMMAND_FINANCE: handle_finance,
     COMMAND_BALANCE: handle_balance,
 }
 
