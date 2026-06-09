@@ -111,6 +111,10 @@ def sync_model_config(model: str, provider: str) -> None:
         aux[task] = task_cfg
     merged["auxiliary"] = aux
 
+    # Cap max_tokens for free-tier providers to avoid 402 credit errors
+    if provider == "openrouter" and "free" in model:
+        ms.setdefault("max_tokens", 4096)
+
     CONFIG_FILE.write_text(yaml.safe_dump(merged, sort_keys=False, default_flow_style=False))
 
 
