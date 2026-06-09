@@ -36,7 +36,9 @@ RUN apt-get update && \
 # this template actually uses so first-message latency is instant.
 # When bumping HERMES_REF, re-check hermes-agent's pyproject.toml [all] and
 # the extras below against the new release's pyproject.toml.
+COPY infra/patch_telegram_finance_callbacks.py /tmp/patch_telegram_finance_callbacks.py
 RUN git clone --depth 1 --branch ${HERMES_REF} https://github.com/NousResearch/hermes-agent.git /opt/hermes-agent && \
+    python3 /tmp/patch_telegram_finance_callbacks.py && \
     cd /opt/hermes-agent && \
     uv pip install --system --no-cache -e ".[all,messaging,tts-premium,honcho,bedrock,anthropic,edge-tts,hindsight]" && \
     cd /opt/hermes-agent/web && \
