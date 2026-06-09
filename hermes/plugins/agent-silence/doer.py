@@ -66,6 +66,9 @@ class DoerGateway:
         self.agent_commands: set[str] = set()
         self.projects: list[str] = sorted(PROJECTS)
         self.profiles: dict[str, ProfileOwner] = {}
+        self.llm_model = os.environ.get("LLM_MODEL", "unknown")
+        self.agent_model = os.environ.get("AGENT_MODEL", "unknown")
+        self.quick_model = os.environ.get("QUICK_MODEL", "unknown")
 
     def load(self) -> None:
         """Discover agent commands and profile owners once, lazily.

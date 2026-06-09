@@ -122,13 +122,29 @@ def handle_profile(ctx: CommandContext) -> dict[str, str] | None:
 
 def _report_status(ctx: CommandContext, profiles: list[str]) -> dict[str, str]:
     active = ctx.session.active_profile(ctx.chat.chat_id)
-    headline = f"Active profile: *{active}*." if active else "No profile selected."
-    ctx.telegram.send_message(
-        ctx.chat,
-        f"{headline}\nAvailable: {', '.join(profiles)}.\n"
-        "Use `/profile <name>` to switch, `/mode client|dev` to choose how "
-        "plain messages route, then just talk.",
+    mode = ctx.session.active_mode(ctx.chat.chat_id) if active else "client"
+    llm_model = ctx.doer.llm_model
+    agent_model = ctx.doer.agent_model
+    quick_model = ctx.doer.quick_model
+
+    keyboard = {
+        "keyboard": [
+            [{"text": f"/profile {p}"} for p in profiles],
+            [{"text": "/mode client"}, {"text": "/mode dev"}],
+        ],
+        "resize_keyboard": True,
+        "one_time_keyboard": True,
+    }
+
+    active_info = f"Active: *{active}* — mode: *{mode}*" if active else "No profile selected"
+    text = (
+        f"{active_info}\n\n"
+        f"*LLM:* {llm_model}\n"
+        f"*Agent:* {agent_model}\n"
+        f"*Quick:* {quick_model}\n\n"
+        "Select a profile or mode:"
     )
+    ctx.telegram.send_message(ctx.chat, text, reply_markup=keyboard)
     return skip("doer profile status")
 
 
