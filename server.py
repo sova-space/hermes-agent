@@ -799,8 +799,9 @@ class Gateway:
                 f"[gateway] model={model or '⚠ NOT SET'} | provider_key={'set' if provider_key else '⚠ NOT SET'}",
                 flush=True,
             )
-            # Write config.yaml so hermes picks up the model (env vars alone aren't always enough)
-            write_config_yaml(read_env(ENV_FILE))
+            # Write config.yaml so hermes picks up the model (env vars alone aren't always enough).
+            # Use the merged env dict (Railway vars + .env) so PROVIDER, LLM_MODEL, etc. are visible.
+            write_config_yaml(env)
             self.proc = await asyncio.create_subprocess_exec(
                 "hermes",
                 "gateway",
