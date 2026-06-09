@@ -130,8 +130,7 @@ def _report_status(ctx: CommandContext, profiles: list[str]) -> dict[str, str]:
 
     keyboard = {
         "keyboard": [
-            [{"text": f"/profile {p}"} for p in profiles],
-            [{"text": "/mode client"}, {"text": "/mode dev"}],
+            [{"text": p} for p in profiles],
         ],
         "resize_keyboard": True,
         "one_time_keyboard": True,
@@ -143,7 +142,7 @@ def _report_status(ctx: CommandContext, profiles: list[str]) -> dict[str, str]:
         f"*LLM:* {llm_model}\n"
         f"*Agent:* {agent_model}\n"
         f"*Quick:* {quick_model}\n\n"
-        "Select a profile or mode:"
+        "Select a profile:"
     )
     ctx.telegram.send_message(ctx.chat, text, reply_markup=keyboard)
     return skip("doer profile status")
@@ -158,20 +157,29 @@ def _switch_profile(
         )
         return skip("doer unknown profile")
     ctx.session.select(ctx.chat.chat_id, name)
+
+    keyboard = {
+        "keyboard": [
+            [{"text": "💬 client"}, {"text": "🔧 dev"}],
+        ],
+        "resize_keyboard": True,
+        "one_time_keyboard": True,
+    }
+
     mode = ctx.session.active_mode(ctx.chat.chat_id)
     owner = ctx.doer.profiles.get(name)
     hint = (
-        f"Mode is *{mode}* — "
-        + (
-            f"ask a question and `{name}`'s assistant will answer."
-            if mode == MODE_CLIENT and owner is not None
-            else "ordinary conversation (no assistant registered for this profile)."
-            if mode == MODE_CLIENT
-            else f"plain messages run as devops tasks against `{name}`'s repo."
-        )
-        + " Switch with `/mode client|dev`."
+        "ask a question and assistant will answer."
+        if mode == MODE_CLIENT and owner is not None
+        else "ordinary conversation (no assistant for this profile)."
+        if mode == MODE_CLIENT
+        else "plain messages run as devops tasks against repo."
     )
-    ctx.telegram.send_message(ctx.chat, f"Profile set to *{name}*. {hint}")
+    ctx.telegram.send_message(
+        ctx.chat,
+        f"Profile: *{name}* — mode: *{mode}*\n{hint}\n\nSelect mode:",
+        reply_markup=keyboard,
+    )
     return skip("doer profile selected")
 
 
@@ -234,18 +242,37 @@ def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
     - ``dev`` → the message is a devops task description, run against the
       profile's repo via the absorbed GitHub loop
 
+    Also handles custom keyboard taps:
+    - Profile names → switch profile
+    - \"💬 client\" / \"🔧 dev\" → switch mode
+
     Returns ``None`` (let the gateway fall through to normal agent dispatch)
     whenever there's nothing this plugin should handle — no active profile,
     no text, ``client`` mode with no assistant registered — those are all
     "ordinary conversation" cases.
     """
-    profile = ctx.session.active_profile(ctx.chat.chat_id)
-    if not profile:
-        return None
     text = ctx.text.strip()
     if not text:
         return None
 
+    # Handle keyboard button taps
+    profiles = ctx.doer.projects
+    if text in profiles:
+        return _switch_profile(ctx, profiles, text)
+
+    if text == "💬 client":
+        ctx.session.set_mode(ctx.chat.chat_id, "client")
+        ctx.telegram.send_message(ctx.chat, "Mode: *client* — assistant will answer.")
+        return skip("keyboard mode client")
+
+    if text == "🔧 dev":
+        ctx.session.set_mode(ctx.chat.chat_id, "dev")
+        ctx.telegram.send_message(ctx.chat, "Mode: *dev* — devops tasks against repo.")
+        return skip("keyboard mode dev")
+
+    profile = ctx.session.active_profile(ctx.chat.chat_id)
+    if not profile:
+        return None
     if ctx.session.active_mode(ctx.chat.chat_id) == MODE_DEV:
         return _handle_dev_task(ctx, profile, text)
 
