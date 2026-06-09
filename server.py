@@ -188,7 +188,101 @@ def write_config_yaml(data: dict[str, str]) -> None:
     with config_path.open("w") as f:
         yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False)
 
+    # After writing the root config, sync the three named profiles.
+    _write_profile_configs(data)
 
+
+def _write_profile_configs(data: dict[str, str]) -> None:
+    """Create or update config.yaml for each Hermes profile (hermes/finance/wishlist).
+
+    Each profile gets:
+      - model.default = LLM_MODEL  (hermes-3-llama-3.1-70b — the gateway model)
+      - agent_model / quick_model  written as env-level overrides so the
+        agent_loop plugin reads them from os.environ (it calls os.environ.get,
+        not config.yaml).  We *also* stamp them into config so the Hermes
+        dashboard's profile info page can display them.
+      - Same terminal / agent / data_dir defaults as the root config.
+      - Profiles share the root .env so provider keys are available to all.
+
+    Profiles that already have user-managed keys (mcp_servers, plugins, etc.)
+    are deep-merged exactly like the root config: deployment keys win,
+    everything else is preserved.
+    """
+    import yaml
+
+    llm_model    = data.get("LLM_MODEL", "")
+    agent_model  = data.get("AGENT_MODEL", "anthropic/claude-sonnet-4-5")
+    quick_model  = data.get("QUICK_MODEL", "anthropic/claude-haiku-4-5")
+
+    profiles_root = Path(HERMES_HOME) / "profiles"
+
+    for profile_name in ("hermes", "finance", "wishlist"):
+        profile_dir = profiles_root / profile_name
+        profile_dir.mkdir(parents=True, exist_ok=True)
+
+        config_path = profile_dir / "config.yaml"
+        existing: dict = {}
+        if config_path.exists():
+            try:
+                with config_path.open() as f:
+                    loaded = yaml.safe_load(f)
+                if isinstance(loaded, dict):
+                    existing = loaded
+            except (yaml.YAMLError, OSError):
+                existing = {}
+
+        merged = dict(existing)
+
+        # Model: gateway-facing model is always LLM_MODEL (hermes-3).
+        merged_model = dict(
+            merged.get("model") if isinstance(merged.get("model"), dict) else {}
+        )
+        if llm_model:
+            merged_model["default"] = llm_model
+        if any(data.get(k) for k in PROVIDER_KEYS):
+            merged_model["provider"] = "auto"
+        merged["model"] = merged_model
+
+        # Stamp agent/quick models into a profile-level env block so the
+        # agent_loop plugin (which reads os.environ) finds them. Hermes loads
+        # profile config's `env:` block into the process environment when that
+        # profile is active.
+        profile_env = dict(
+            merged.get("env") if isinstance(merged.get("env"), dict) else {}
+        )
+        if agent_model:
+            profile_env["AGENT_MODEL"] = agent_model
+        if quick_model:
+            profile_env["QUICK_MODEL"] = quick_model
+        merged["env"] = profile_env
+
+        # Terminal / agent / data_dir — same as root.
+        merged_terminal = dict(
+            merged.get("terminal") if isinstance(merged.get("terminal"), dict) else {}
+        )
+        merged_terminal.setdefault("backend", "local")
+        merged_terminal.setdefault("timeout", 60)
+        merged_terminal.setdefault("cwd", "/tmp")
+        merged["terminal"] = merged_terminal
+
+        merged_agent = dict(
+            merged.get("agent") if isinstance(merged.get("agent"), dict) else {}
+        )
+        merged_agent.setdefault("max_iterations", 50)
+        merged["agent"] = merged_agent
+
+        # Profiles share the root HERMES_HOME — they read from the same .env
+        # and auth.json as the default profile.
+        merged["data_dir"] = HERMES_HOME
+
+        with config_path.open("w") as f:
+            yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False)
+
+        print(
+            f"[server] profile '{profile_name}' config written"
+            f" — model={merged_model.get('default', '?')}",
+            flush=True,
+        )
 
 
 # ── xAI Grok SuperGrok OAuth (Device Code — RFC 8628) ───────────────────────
