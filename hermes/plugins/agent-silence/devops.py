@@ -309,6 +309,7 @@ def _run_loop(
             system=_SYSTEM,
             tools=tools,  # type: ignore[arg-type]
             messages=messages,  # type: ignore[arg-type]
+            extra_body={"provider": {"require_parameters": True}},
         )
         tool_calls = [b for b in response.content if b.type == "tool_use"]
         tool_results = []
@@ -343,6 +344,7 @@ def _run_pr_phase(
             system=_SYSTEM,
             tools=_PR_TOOLS,  # type: ignore[arg-type]
             messages=messages,  # type: ignore[arg-type]
+            extra_body={"provider": {"require_parameters": True}},
         )
         tool_calls = [b for b in response.content if b.type == "tool_use"]
         tool_results = []
