@@ -301,7 +301,7 @@ def handle_finance(ctx: CommandContext) -> dict[str, str] | None:
     keyboard = {
         "keyboard": [
             [{"text": "/balance"}],
-            [{"text": "/profile finance"}, {"text": "/mode client"}],
+            [{"text": "finance 💬"}, {"text": "finance 🔧"}],
         ],
         "resize_keyboard": True,
         "one_time_keyboard": True,

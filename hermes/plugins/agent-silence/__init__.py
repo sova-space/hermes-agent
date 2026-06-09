@@ -18,6 +18,7 @@ live — that one cost a debugging session).
 
 from .chat_context import ChatContext
 from .commands import (
+    COMMAND_FINANCE,
     COMMAND_MODE,
     COMMAND_PROFILE,
     COMMAND_PROJECT_ALIAS,
@@ -36,8 +37,8 @@ from .telegram_client import BotCommand, TelegramClient
 # don't surface default-scope commands at all (see
 # TelegramClient.register_group_commands / SCOPE_ALL_GROUP_CHATS for why).
 GROUP_VISIBLE_COMMANDS = [
-    BotCommand(COMMAND_PROFILE, "Show/switch the chat's active profile"),
-    BotCommand(COMMAND_MODE, "Switch how plain messages route: client or dev"),
+    BotCommand(COMMAND_PROFILE, "Show/switch profile + mode"),
+    BotCommand(COMMAND_FINANCE, "Finance: balance + commands"),
 ]
 
 _telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
