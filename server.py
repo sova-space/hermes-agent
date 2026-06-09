@@ -129,12 +129,14 @@ def write_config_yaml(data: dict[str, str]) -> None:
     )
     merged_model["default"] = model
     # Provider: explicit PROVIDER env var, otherwise auto-detect.
-    # Nous Portal: use hermes auth add nous (OAuth), not API keys.
-    # For agent work, prefer agentic models (claude-sonnet, gpt-5.5, etc.)
-    # over Hermes-4 chat models per portal.nousresearch.com docs.
     explicit_provider = (data.get("PROVIDER") or "").strip().lower()
     if explicit_provider:
         merged_model["provider"] = explicit_provider
+        # Force base_url for known providers so Hermes doesn't fall back to Nous Portal.
+        if explicit_provider == "openrouter":
+            merged_model["base_url"] = "https://openrouter.ai/api/v1"
+        elif explicit_provider == "nous":
+            merged_model["base_url"] = "https://portal.nousresearch.com/api/v1"
     elif any(data.get(k) for k in PROVIDER_KEYS):
         merged_model["provider"] = "auto"
     merged["model"] = merged_model
@@ -246,6 +248,10 @@ def _write_profile_configs(data: dict[str, str]) -> None:
         explicit_provider = (data.get("PROVIDER") or "").strip().lower()
         if explicit_provider:
             merged_model["provider"] = explicit_provider
+            if explicit_provider == "openrouter":
+                merged_model["base_url"] = "https://openrouter.ai/api/v1"
+            elif explicit_provider == "nous":
+                merged_model["base_url"] = "https://portal.nousresearch.com/api/v1"
         elif any(data.get(k) for k in PROVIDER_KEYS):
             merged_model["provider"] = "auto"
         merged["model"] = merged_model
