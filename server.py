@@ -1,15 +1,24 @@
 """
 Hermes Agent — Railway launcher.
 
-Starts hermes gateway + dashboard as subprocesses, reverse-proxies
-the native Hermes dashboard to $PORT.  No setup wizard, no OAuth
-flows, no cookie auth — config is managed via Hermes CLI / env vars.
+Starts ``hermes gateway`` and ``hermes dashboard`` as subprocesses,
+reverse-proxies the native dashboard to ``$PORT``.  All configuration
+is managed through Railway env vars and Hermes native CLI / dashboard.
+
+Key env vars:
+  LLM_MODEL          — model.default in config.yaml
+  PROVIDER           — model.provider in config.yaml (default: "auto")
+  HERMES_HOME        — root directory (default: ~/.hermes)
+  PORT               — listening port (default: 8080)
+  HERMES_DASHBOARD_PORT — dashboard port on loopback (default: 9119)
 """
+from __future__ import annotations
+
 import asyncio
+import logging
 import os
 import re
 import signal
-import time
 from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,25 +28,31 @@ import websockets
 import websockets.exceptions
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route, WebSocketRoute
-from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
-ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+log = logging.getLogger("server")
+logging.basicConfig(level=logging.INFO, format="[server] %(message)s")
 
-HERMES_HOME = os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))
-ENV_FILE = Path(HERMES_HOME) / ".env"
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
-# Native Hermes dashboard — bound to loopback, fronted by reverse proxy
-HERMES_DASHBOARD_HOST = "127.0.0.1"
-HERMES_DASHBOARD_PORT = int(os.environ.get("HERMES_DASHBOARD_PORT", "9119"))
-HERMES_DASHBOARD_URL = f"http://{HERMES_DASHBOARD_HOST}:{HERMES_DASHBOARD_PORT}"
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+HERMES_HOME = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
+ENV_FILE = HERMES_HOME / ".env"
+CONFIG_FILE = HERMES_HOME / "config.yaml"
 
-HOP_BY_HOP = {"host", "transfer-encoding"}
+DASHBOARD_HOST = "127.0.0.1"
+DASHBOARD_PORT = int(os.environ.get("HERMES_DASHBOARD_PORT", "9119"))
+DASHBOARD_URL = f"http://{DASHBOARD_HOST}:{DASHBOARD_PORT}"
+
+HOP_BY_HOP = frozenset({"host", "transfer-encoding"})
+STRIP_RESP = frozenset({"content-encoding", "content-length"})
 
 
-# Helpers
-def _read_env(path: Path) -> dict[str, str]:
+def read_dotenv(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
     out: dict[str, str] = {}
@@ -53,245 +68,181 @@ def _read_env(path: Path) -> dict[str, str]:
     return out
 
 
-def _write_model_config(model: str, provider: str) -> None:
-    """Write just model.default + model.provider to config.yaml, preserving
-    the rest of the file (user-managed keys like mcp_servers, telegram, etc.)."""
+def build_env() -> dict[str, str]:
+    """os.environ merged with .env overrides."""
+    env = dict(os.environ)
+    env["HERMES_HOME"] = str(HERMES_HOME)
+    env.update(read_dotenv(ENV_FILE))
+    return env
+
+
+def sync_model_config(model: str, provider: str) -> None:
+    """Write model.default + model.provider, preserving existing config."""
     import yaml
-    config_path = Path(HERMES_HOME) / "config.yaml"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     existing: dict = {}
-    if config_path.exists():
+    if CONFIG_FILE.exists():
         try:
-            with config_path.open() as f:
-                loaded = yaml.safe_load(f)
+            loaded = yaml.safe_load(CONFIG_FILE.read_text())
             if isinstance(loaded, dict):
                 existing = loaded
-        except Exception:
-            pass
+        except yaml.YAMLError:
+            log.warning("config.yaml unparseable, overwriting")
     merged = dict(existing)
-    merged_model = dict(merged.get("model") if isinstance(merged.get("model"), dict) else {})
+    ms = dict(merged.get("model", {}) if isinstance(merged.get("model"), dict) else {})
     if model:
-        merged_model["default"] = model
-    merged_model["provider"] = provider
-    merged["model"] = merged_model
-    with config_path.open("w") as f:
-        yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False)
+        ms["default"] = model
+    ms["provider"] = provider
+    merged["model"] = ms
+    CONFIG_FILE.write_text(yaml.safe_dump(merged, sort_keys=False, default_flow_style=False))
 
 
 # ---------------------------------------------------------------------------
-# Gateway subprocess
+# Subprocess
 # ---------------------------------------------------------------------------
-class Gateway:
-    def __init__(self):
+class Subprocess:
+    def __init__(self, name: str, log_lines: int = 500):
+        self.name = name
         self.proc: asyncio.subprocess.Process | None = None
-        self.state = "stopped"
-        self.logs: deque[str] = deque(maxlen=500)
+        self.logs: deque[str] = deque(maxlen=log_lines)
         self.started_at: float | None = None
         self.restarts = 0
+        self._state = "stopped"
 
-    async def start(self):
+    @property
+    def state(self) -> str:
+        return self._state
+
+    @state.setter
+    def state(self, value: str) -> None:
+        self._state = value
+
+    async def _drain(self) -> None:
+        assert self.proc and self.proc.stdout
+        try:
+            async for raw in self.proc.stdout:
+                line = ANSI_RE.sub("", raw.decode(errors="replace").rstrip())
+                self.logs.append(f"[{self.name}] {line}")
+        except Exception as exc:
+            log.warning("%s drain error: %s", self.name, exc)
+
+    async def stop(self) -> None:
+        if not self.proc or self.proc.returncode is not None:
+            self._state = "stopped"
+            return
+        self._state = "stopping"
+        self.proc.terminate()
+        try:
+            await asyncio.wait_for(self.proc.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            self.proc.kill()
+            await self.proc.wait()
+        self._state = "stopped"
+
+
+class Gateway(Subprocess):
+    def __init__(self):
+        super().__init__("gateway")
+
+    async def start(self) -> None:
         if self.proc and self.proc.returncode is None:
             return
-        self.state = "starting"
+        self._state = "starting"
+        env = build_env()
+        model = env.get("LLM_MODEL", "")
+        provider = env.get("PROVIDER", "auto")
+        log.info("gateway model=%s provider=%s", model or "NOT SET", provider)
+        sync_model_config(model, provider)
         try:
-            env = {**os.environ, "HERMES_HOME": HERMES_HOME}
-            env.update(_read_env(ENV_FILE))
-            model = env.get("LLM_MODEL", "")
-            provider = env.get("PROVIDER", "auto")
-            print(
-                f"[gateway] model={model or 'NOT SET'} | provider={provider}",
-                flush=True,
-            )
-            # Write minimal config so hermes picks up model + provider
-            _write_model_config(model, provider)
             self.proc = await asyncio.create_subprocess_exec(
                 "hermes", "gateway",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 env=env,
             )
-            self.state = "running"
-            self.started_at = time.time()
+            self._state = "running"
+            self.started_at = __import__("time").time()
             asyncio.create_task(self._drain())
-        except Exception as e:
-            self.state = "error"
-            self.logs.append(f"[error] Failed to start gateway: {e}")
-
-    async def stop(self):
-        if not self.proc or self.proc.returncode is not None:
-            self.state = "stopped"
-            return
-        self.state = "stopping"
-        self.proc.terminate()
-        try:
-            await asyncio.wait_for(self.proc.wait(), timeout=10)
-        except TimeoutError:
-            self.proc.kill()
-            await self.proc.wait()
-        self.state = "stopped"
-        self.started_at = None
-
-    async def restart(self):
-        await self.stop()
-        self.restarts += 1
-        await self.start()
-
-    async def _drain(self):
-        assert self.proc and self.proc.stdout
-        async for raw in self.proc.stdout:
-            line = ANSI_ESCAPE.sub("", raw.decode(errors="replace").rstrip())
-            self.logs.append(line)
-        if self.state == "running":
-            self.state = "error"
-            self.logs.append(f"[error] Gateway exited (code {self.proc.returncode})")
+        except Exception as exc:
+            self._state = "error"
+            self.logs.append(f"[gateway] failed: {exc}")
 
 
-gw = Gateway()
-
-
-# ---------------------------------------------------------------------------
-# Dashboard subprocess
-# ---------------------------------------------------------------------------
-class Dashboard:
+class Dashboard(Subprocess):
     def __init__(self):
-        self.proc: asyncio.subprocess.Process | None = None
-        self.logs: deque[str] = deque(maxlen=300)
+        super().__init__("dashboard", log_lines=300)
 
-    async def start(self):
+    async def start(self) -> None:
         if self.proc and self.proc.returncode is None:
             return
         try:
             self.proc = await asyncio.create_subprocess_exec(
                 "hermes", "dashboard",
-                "--host", HERMES_DASHBOARD_HOST,
-                "--port", str(HERMES_DASHBOARD_PORT),
+                "--host", DASHBOARD_HOST,
+                "--port", str(DASHBOARD_PORT),
                 "--no-open", "--skip-build", "--tui",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )
-            print(f"[dashboard] spawned pid={self.proc.pid} -> {HERMES_DASHBOARD_URL}", flush=True)
+            log.info("dashboard spawned pid=%s", self.proc.pid)
             asyncio.create_task(self._drain())
-        except Exception as e:
-            print(f"[dashboard] FAILED to spawn: {e!r}", flush=True)
-
-    async def _drain(self):
-        assert self.proc and self.proc.stdout
-        try:
-            async for raw in self.proc.stdout:
-                line = ANSI_ESCAPE.sub("", raw.decode(errors="replace").rstrip())
-                self.logs.append(line)
-                print(f"[dashboard] {line}", flush=True)
-        except Exception as e:
-            print(f"[dashboard] drain error: {e!r}", flush=True)
-        finally:
-            rc = self.proc.returncode if self.proc else None
-            if rc is not None and rc != 0:
-                print(f"[dashboard] EXITED with code {rc}", flush=True)
-
-    async def stop(self):
-        if not self.proc or self.proc.returncode is not None:
-            return
-        self.proc.terminate()
-        try:
-            await asyncio.wait_for(self.proc.wait(), timeout=5)
-        except TimeoutError:
-            self.proc.kill()
-            await self.proc.wait()
+        except Exception as exc:
+            log.error("dashboard failed: %s", exc)
 
 
-dash = Dashboard()
+gateway = Gateway()
+dashboard = Dashboard()
 
 
 # ---------------------------------------------------------------------------
-# Route handlers
+# HTTP proxy
 # ---------------------------------------------------------------------------
-async def route_health(request: Request):
-    return JSONResponse({"status": "ok", "gateway": gw.state})
+_http: httpx.AsyncClient | None = None
+
+def _client() -> httpx.AsyncClient:
+    global _http
+    if _http is None:
+        _http = httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0), follow_redirects=False)
+    return _http
 
 
-async def route_root(request: Request):
-    return await _proxy_to_dashboard(request)
-
-
-async def route_proxy(request: Request):
-    return await _proxy_to_dashboard(request)
-
-
-DASHBOARD_UNAVAILABLE_HTML = f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>Dashboard starting...</title>
-<style>body{{background:#0d0f14;color:#c9d1d9;font-family:ui-monospace,monospace;
-display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
-.card{{max-width:480px;padding:32px;border:1px solid #252d3d;border-radius:12px;
-background:#14181f;text-align:center}}
-h1{{font-size:16px;color:#d29922;margin:0 0 12px}}
-p{{font-size:13px;color:#6b7688;line-height:1.6}}</style></head>
-<body><div class="card">
-<h1>Hermes dashboard loading...</h1>
-<p>Refreshing in a few seconds.</p>
-</div>
-<script>setTimeout(()=>location.reload(),3000);</script>
-</body></html>"""
-
-_http_client: httpx.AsyncClient | None = None
-
-
-def get_http_client() -> httpx.AsyncClient:
-    global _http_client
-    if _http_client is None:
-        _http_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0, connect=5.0),
-            follow_redirects=False,
-        )
-    return _http_client
-
-
-async def _proxy_to_dashboard(request: Request) -> Response:
-    client = get_http_client()
-    target = f"{HERMES_DASHBOARD_URL}{request.url.path}"
+async def _proxy(request: Request) -> Response:
+    url = f"{DASHBOARD_URL}{request.url.path}"
     if request.url.query:
-        target = f"{target}?{request.url.query}"
-
-    req_headers = {k: v for k, v in request.headers.items()
-                   if k.lower() not in HOP_BY_HOP}
+        url = f"{url}?{request.url.query}"
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
     body = await request.body()
-
     try:
-        upstream = await client.request(request.method, target,
-                                        headers=req_headers, content=body)
+        upstream = await _client().request(request.method, url, headers=headers, content=body)
     except (httpx.ConnectError, httpx.ConnectTimeout):
-        return HTMLResponse(DASHBOARD_UNAVAILABLE_HTML, status_code=503)
+        return HTMLResponse("", status_code=503)
     except httpx.RequestError:
-        return HTMLResponse(DASHBOARD_UNAVAILABLE_HTML, status_code=502)
-
-    resp_headers = {k: v for k, v in upstream.headers.items()
-                    if k.lower() not in HOP_BY_HOP
-                    and k.lower() not in ("content-encoding", "content-length")}
-
-    return Response(content=upstream.content,
-                    status_code=upstream.status_code,
-                    headers=resp_headers)
+        return HTMLResponse("", status_code=502)
+    resp_headers = {
+        k: v for k, v in upstream.headers.items()
+        if k.lower() not in HOP_BY_HOP and k.lower() not in STRIP_RESP
+    }
+    return Response(content=upstream.content, status_code=upstream.status_code, headers=resp_headers)
 
 
-# WebSocket proxy (for dashboard Chat tab / TUI)
-async def ws_proxy(websocket: WebSocket) -> None:
-    path = websocket.url.path
-    qs = websocket.url.query
-    upstream_url = f"ws://{HERMES_DASHBOARD_HOST}:{HERMES_DASHBOARD_PORT}{path}"
-    if qs:
-        upstream_url = f"{upstream_url}?{qs}"
-
+# ---------------------------------------------------------------------------
+# WebSocket proxy
+# ---------------------------------------------------------------------------
+async def _ws_proxy(ws: WebSocket) -> None:
+    url = f"ws://{DASHBOARD_HOST}:{DASHBOARD_PORT}{ws.url.path}"
+    if ws.url.query:
+        url = f"{url}?{ws.url.query}"
     try:
-        upstream = await websockets.connect(upstream_url, open_timeout=5)
+        upstream = await websockets.connect(url, open_timeout=5)
     except Exception:
-        await websocket.close(code=1011)
+        await ws.close(code=1011)
         return
+    await ws.accept()
 
-    await websocket.accept()
-
-    async def pump_in():
+    async def pump_in() -> None:
         try:
             while True:
-                msg = await websocket.receive()
+                msg = await ws.receive()
                 if msg.get("type") == "websocket.disconnect":
                     return
                 data = msg.get("bytes") or msg.get("text")
@@ -300,22 +251,20 @@ async def ws_proxy(websocket: WebSocket) -> None:
         except (WebSocketDisconnect, websockets.exceptions.ConnectionClosed):
             pass
 
-    async def pump_out():
+    async def pump_out() -> None:
         try:
             async for msg in upstream:
                 if isinstance(msg, bytes):
-                    await websocket.send_bytes(msg)
+                    await ws.send_bytes(msg)
                 else:
-                    await websocket.send_text(msg)
+                    await ws.send_text(msg)
         except (websockets.exceptions.ConnectionClosed, WebSocketDisconnect):
             pass
 
-    pump_in_task = asyncio.create_task(pump_in())
-    pump_out_task = asyncio.create_task(pump_out())
-    done, pending = await asyncio.wait(
-        (pump_in_task, pump_out_task), return_when=asyncio.FIRST_COMPLETED)
-    for task in pending:
-        task.cancel()
+    tasks = (asyncio.create_task(pump_in()), asyncio.create_task(pump_out()))
+    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    for t in pending:
+        t.cancel()
     try:
         await upstream.close()
     except Exception:
@@ -323,49 +272,58 @@ async def ws_proxy(websocket: WebSocket) -> None:
 
 
 # ---------------------------------------------------------------------------
-# App
+# Routes
 # ---------------------------------------------------------------------------
+async def _health(request: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok", "gateway": gateway.state})
+
+
+ALL_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]
+
+app = Starlette(lifespan=None, routes=[
+    Route("/health", _health),
+    Route("/", _proxy, methods=ALL_METHODS),
+    Route("/{path:path}", _proxy, methods=ALL_METHODS),
+    WebSocketRoute("/api/pty", _ws_proxy),
+    WebSocketRoute("/api/ws", _ws_proxy),
+    WebSocketRoute("/api/events", _ws_proxy),
+])
+
+
 @asynccontextmanager
-async def lifespan(app):
-    asyncio.create_task(dash.start())
-    asyncio.create_task(gw.start())
+async def lifespan(application):
+    asyncio.create_task(dashboard.start())
+    asyncio.create_task(gateway.start())
     try:
         yield
     finally:
-        await asyncio.gather(gw.stop(), dash.stop(), return_exceptions=True)
-        global _http_client
-        if _http_client is not None:
-            await _http_client.aclose()
-            _http_client = None
+        await asyncio.gather(gateway.stop(), dashboard.stop(), return_exceptions=True)
+        global _http
+        if _http is not None:
+            await _http.aclose()
+            _http = None
 
 
-routes = [
-    Route("/health", route_health),
-    Route("/", route_root, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]),
-    Route("/{path:path}", route_proxy, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]),
-    WebSocketRoute("/api/pty", ws_proxy),
-    WebSocketRoute("/api/ws", ws_proxy),
-    WebSocketRoute("/api/events", ws_proxy),
-]
-
-app = Starlette(routes=routes, lifespan=lifespan)
+app.router.lifespan_context = lifespan
 
 
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", "8080"))
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    config = uvicorn.Config(app, host="0.0.0.0", port=port,
-                            log_level="info", loop="asyncio")
-    server = uvicorn.Server(config)
+    cfg = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info", loop="asyncio")
+    srv = uvicorn.Server(cfg)
 
-    def _shutdown():
-        loop.create_task(gw.stop())
-        loop.create_task(dash.stop())
-        server.should_exit = True
+    def _on_signal() -> None:
+        loop.create_task(gateway.stop())
+        loop.create_task(dashboard.stop())
+        srv.should_exit = True
 
     for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, _shutdown)
+        loop.add_signal_handler(sig, _on_signal)
 
-    loop.run_until_complete(server.serve())
+    loop.run_until_complete(srv.serve())
