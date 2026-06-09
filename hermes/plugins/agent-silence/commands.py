@@ -284,6 +284,32 @@ def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
     return skip("profile assistant replied")
 
 
+_CURRENCY_FLAG = {"UAH": "🇺🇦", "USD": "🇺🇸", "EUR": "🇪🇺", "GBP": "🇬🇧"}
+
+
+def _fmt_balance(accounts: list[dict]) -> str:
+    """Replicate finance bot's format_balance with currency totals + breakdown."""
+    from collections import defaultdict
+    by_currency: dict[str, list[dict]] = defaultdict(list)
+    for a in accounts:
+        by_currency[a["currency"]].append(a)
+
+    lines = ["💰 *Balance*\n"]
+    for currency, group in by_currency.items():
+        flag = _CURRENCY_FLAG.get(currency, "💱")
+        total = round(sum(a["balance"] for a in group))
+        lines.append(f"{flag} {currency}  *{total:,}*")
+
+    lines.append(f"\n*Breakdown*")
+    for a in accounts:
+        name = a["name"]
+        balance = round(a["balance"])
+        curr = a["currency"]
+        lines.append(f"  {name}: {balance:,} {curr}")
+
+    return "\n".join(lines)
+
+
 def handle_balance(ctx: CommandContext) -> dict[str, str] | None:
     """``/balance`` — fetch and display account balances from finance API."""
     import httpx
@@ -292,6 +318,8 @@ def handle_balance(ctx: CommandContext) -> dict[str, str] | None:
     if not finance_url:
         ctx.telegram.send_message(ctx.chat, "Finance API URL not configured.")
         return skip("balance no url")
+    if not finance_url.startswith("http"):
+        finance_url = f"https://{finance_url}"
 
     try:
         resp = httpx.get(f"{finance_url}/accounts", timeout=10)
@@ -303,29 +331,15 @@ def handle_balance(ctx: CommandContext) -> dict[str, str] | None:
 
     accounts = data if isinstance(data, list) else data.get("accounts", [])
     if not accounts:
-        ctx.telegram.send_message(ctx.chat, "No accounts found.")
+        ctx.telegram.send_message(ctx.chat, "No accounts synced yet.")
         return skip("balance empty")
 
-    lines = ["💰 *Balance*"]
-    total = 0.0
-    for a in accounts:
-        name = a.get("name") or a.get("currency", "?")
-        balance_val = a.get("balance", 0)
-        currency = a.get("currency", "")
-        total += balance_val
-        lines.append(f"• {name}: {balance_val:,.2f} {currency}")
-
-    lines.append(f"\n*Total:* {total:,.2f} UAH")
-
+    text = _fmt_balance(accounts)
     keyboard = {
-        "keyboard": [
-            [{"text": "/balance"}, {"text": "/profile"}],
-        ],
-        "resize_keyboard": True,
-        "one_time_keyboard": True,
+        "keyboard": [[{"text": "/finance"}, {"text": "/profile"}]],
+        "resize_keyboard": True, "one_time_keyboard": True,
     }
-
-    ctx.telegram.send_message(ctx.chat, "\n".join(lines), reply_markup=keyboard)
+    ctx.telegram.send_message(ctx.chat, text, reply_markup=keyboard)
     return skip("balance")
 
 
