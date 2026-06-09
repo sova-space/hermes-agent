@@ -72,6 +72,7 @@ from .telegram_client import TelegramClient
 COMMAND_PROFILE = "profile"
 COMMAND_PROJECT_ALIAS = "project"  # back-compat — same handler, same state
 COMMAND_MODE = "mode"
+COMMAND_FINANCE = "finance"
 
 # Hook return action telling the gateway "handled — stop here, don't fall
 # through to normal agent dispatch". See pre_gateway_dispatch in
@@ -255,11 +256,48 @@ def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
     return skip("profile assistant replied")
 
 
+def handle_finance(ctx: CommandContext) -> dict[str, str] | None:
+    """``/finance`` — switch to finance profile, show balance + commands."""
+    profiles = ctx.doer.projects
+    if "finance" not in profiles:
+        ctx.telegram.send_message(ctx.chat, "Finance profile is not available.")
+        return skip("finance unavailable")
+
+    ctx.session.select(ctx.chat.chat_id, "finance")
+    ctx.session.set_mode(ctx.chat.chat_id, "client")
+
+    # Try to get balance from finance bot
+    balance_text = ""
+    reply = ctx.doer.ask_profile("finance", ctx.chat.chat_id, "/balance")
+    if reply:
+        balance_text = reply
+
+    keyboard = {
+        "keyboard": [
+            [{"text": "/balance"}],
+            [{"text": "/profile finance"}, {"text": "/mode client"}],
+        ],
+        "resize_keyboard": True,
+        "one_time_keyboard": True,
+    }
+
+    llm_model = ctx.doer.llm_model
+    text = (
+        f"💰 *Finance* — profile active\n\n"
+        f"{balance_text}\n"
+        f"*LLM:* {llm_model}\n\n"
+        "Commands:"
+    )
+    ctx.telegram.send_message(ctx.chat, text, reply_markup=keyboard)
+    return skip("finance handler")
+
+
 # Exact-name command -> handler. See module docstring for how to extend this.
 COMMANDS: dict[str, CommandHandler] = {
     COMMAND_PROFILE: handle_profile,
     COMMAND_PROJECT_ALIAS: handle_profile,
     COMMAND_MODE: handle_mode,
+    COMMAND_FINANCE: handle_finance,
 }
 
 
