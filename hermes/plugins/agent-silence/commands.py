@@ -73,6 +73,7 @@ from .telegram_client import TelegramClient
 COMMAND_PROFILE = "profile"
 COMMAND_PROJECT_ALIAS = "project"  # back-compat — same handler, same state
 COMMAND_MODE = "mode"
+COMMAND_FINANCE = "finance"
 COMMAND_BALANCE = "balance"
 
 # Hook return action telling the gateway "handled — stop here, don't fall
@@ -333,6 +334,7 @@ COMMANDS: dict[str, CommandHandler] = {
     COMMAND_PROFILE: handle_profile,
     COMMAND_PROJECT_ALIAS: handle_profile,
     COMMAND_MODE: handle_mode,
+    COMMAND_FINANCE: handle_balance,
     COMMAND_BALANCE: handle_balance,
 }
 

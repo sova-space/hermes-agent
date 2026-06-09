@@ -19,6 +19,7 @@ live — that one cost a debugging session).
 from .chat_context import ChatContext
 from .commands import (
     COMMAND_BALANCE,
+    COMMAND_FINANCE,
     COMMAND_MODE,
     COMMAND_PROFILE,
     COMMAND_PROJECT_ALIAS,
@@ -38,7 +39,7 @@ from .telegram_client import BotCommand, TelegramClient
 # TelegramClient.register_group_commands / SCOPE_ALL_GROUP_CHATS for why).
 GROUP_VISIBLE_COMMANDS = [
     BotCommand(COMMAND_PROFILE, "Show/switch profile + mode"),
-    BotCommand(COMMAND_BALANCE, "💰 Account balances"),
+    BotCommand(COMMAND_FINANCE, "💰 Account balances"),
 ]
 
 _telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
@@ -163,6 +164,11 @@ def register(ctx) -> None:
         handler=_default_scope_mode,
         description="Show/switch routing mode: client or dev",
         args_hint="[client|dev]",
+    )
+    ctx.register_command(
+        COMMAND_FINANCE,
+        handler=lambda _: "Use /finance in a group chat to see account balances.",
+        description="Show account balances",
     )
     _telegram.register_group_commands(GROUP_VISIBLE_COMMANDS)
     _doer.load()
