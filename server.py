@@ -128,11 +128,16 @@ def write_config_yaml(data: dict[str, str]) -> None:
         merged.get("model") if isinstance(merged.get("model"), dict) else {}
     )
     merged_model["default"] = model
-    # Only force provider="auto" when a known API key is configured. If no
-    # API key is set, the user likely configured an OAuth provider (xai-oauth,
-    # qwen-oauth, etc.) via the dashboard's model picker — preserve that value
-    # so a container restart doesn't revert it to "auto" and break their session.
-    if any(data.get(k) for k in PROVIDER_KEYS):
+    # Resolve provider: explicit PROVIDER env var wins, then auto-detect from keys.
+    # Priority: PROVIDER > NOUS_API_KEY > OPENROUTER_API_KEY > auto
+    explicit_provider = (data.get("PROVIDER") or "").strip().lower()
+    if explicit_provider in ("nous", "openrouter"):
+        merged_model["provider"] = explicit_provider
+    elif data.get("NOUS_API_KEY"):
+        merged_model["provider"] = "nous"
+    elif data.get("OPENROUTER_API_KEY"):
+        merged_model["provider"] = "openrouter"
+    elif any(data.get(k) for k in PROVIDER_KEYS):
         merged_model["provider"] = "auto"
     merged["model"] = merged_model
 
@@ -239,7 +244,16 @@ def _write_profile_configs(data: dict[str, str]) -> None:
         )
         if llm_model:
             merged_model["default"] = llm_model
-        if any(data.get(k) for k in PROVIDER_KEYS):
+        # Resolve provider: explicit PROVIDER env var wins, then auto-detect from keys.
+        # Priority: PROVIDER > NOUS_API_KEY > OPENROUTER_API_KEY > auto
+        explicit_provider = (data.get("PROVIDER") or "").strip().lower()
+        if explicit_provider in ("nous", "openrouter"):
+            merged_model["provider"] = explicit_provider
+        elif data.get("NOUS_API_KEY"):
+            merged_model["provider"] = "nous"
+        elif data.get("OPENROUTER_API_KEY"):
+            merged_model["provider"] = "openrouter"
+        elif any(data.get(k) for k in PROVIDER_KEYS):
             merged_model["provider"] = "auto"
         merged["model"] = merged_model
 

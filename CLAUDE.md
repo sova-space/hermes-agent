@@ -39,7 +39,7 @@ Hermes has three profiles, one per project: `finance` / `wishlist` / `hermes`.
 
 - `/profile <name>` — switch the active profile for this chat
 - `/mode client` — plain messages go to that profile's domain assistant (Q&A)
-- `/mode dev` — plain messages run as devops tasks against that profile's GitHub repo
+  - `/mode dev` — plain messages run as devops tasks against that profile's GitHub repo
 
 The devops loop (`/mode dev`) runs in-process via `hermes/plugins/agent-silence/devops.py` — no separate service. It uses GitHub + OpenRouter (Haiku model by default) and posts results to `#projects`.
 
