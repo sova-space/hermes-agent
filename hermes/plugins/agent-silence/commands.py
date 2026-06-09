@@ -60,6 +60,7 @@ the chat_id bug from coming back.
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import os
 
 from .chat_context import ChatContext
 from .agent_loop import AgentLoop
@@ -72,7 +73,7 @@ from .telegram_client import TelegramClient
 COMMAND_PROFILE = "profile"
 COMMAND_PROJECT_ALIAS = "project"  # back-compat — same handler, same state
 COMMAND_MODE = "mode"
-COMMAND_FINANCE = "finance"
+COMMAND_BALANCE = "balance"
 
 # Hook return action telling the gateway "handled — stop here, don't fall
 # through to normal agent dispatch". See pre_gateway_dispatch in
@@ -282,40 +283,49 @@ def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
     return skip("profile assistant replied")
 
 
-def handle_finance(ctx: CommandContext) -> dict[str, str] | None:
-    """``/finance`` — switch to finance profile, show balance + commands."""
-    profiles = ctx.doer.projects
-    if "finance" not in profiles:
-        ctx.telegram.send_message(ctx.chat, "Finance profile is not available.")
-        return skip("finance unavailable")
+def handle_balance(ctx: CommandContext) -> dict[str, str] | None:
+    """``/balance`` — fetch and display account balances from finance API."""
+    import httpx
 
-    ctx.session.select(ctx.chat.chat_id, "finance")
-    ctx.session.set_mode(ctx.chat.chat_id, "client")
+    finance_url = os.environ.get("FINANCE_API_URL", "")
+    if not finance_url:
+        ctx.telegram.send_message(ctx.chat, "Finance API URL not configured.")
+        return skip("balance no url")
 
-    # Try to get balance from finance bot
-    balance_text = ""
-    reply = ctx.doer.ask_profile("finance", ctx.chat.chat_id, "/balance")
-    if reply:
-        balance_text = reply
+    try:
+        resp = httpx.get(f"{finance_url}/accounts", timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        ctx.telegram.send_message(ctx.chat, "Could not fetch balance.")
+        return skip("balance fetch failed")
+
+    accounts = data if isinstance(data, list) else data.get("accounts", [])
+    if not accounts:
+        ctx.telegram.send_message(ctx.chat, "No accounts found.")
+        return skip("balance empty")
+
+    lines = ["💰 *Balance*"]
+    total = 0.0
+    for a in accounts:
+        name = a.get("name") or a.get("currency", "?")
+        balance_val = a.get("balance", 0)
+        currency = a.get("currency", "")
+        total += balance_val
+        lines.append(f"• {name}: {balance_val:,.2f} {currency}")
+
+    lines.append(f"\n*Total:* {total:,.2f} UAH")
 
     keyboard = {
         "keyboard": [
-            [{"text": "/balance"}],
-            [{"text": "finance 💬"}, {"text": "finance 🔧"}],
+            [{"text": "/balance"}, {"text": "/profile"}],
         ],
         "resize_keyboard": True,
         "one_time_keyboard": True,
     }
 
-    llm_model = ctx.doer.llm_model
-    text = (
-        f"💰 *Finance* — profile active\n\n"
-        f"{balance_text}\n"
-        f"*LLM:* {llm_model}\n\n"
-        "Commands:"
-    )
-    ctx.telegram.send_message(ctx.chat, text, reply_markup=keyboard)
-    return skip("finance handler")
+    ctx.telegram.send_message(ctx.chat, "\n".join(lines), reply_markup=keyboard)
+    return skip("balance")
 
 
 # Exact-name command -> handler. See module docstring for how to extend this.
@@ -323,7 +333,7 @@ COMMANDS: dict[str, CommandHandler] = {
     COMMAND_PROFILE: handle_profile,
     COMMAND_PROJECT_ALIAS: handle_profile,
     COMMAND_MODE: handle_mode,
-    COMMAND_FINANCE: handle_finance,
+    COMMAND_BALANCE: handle_balance,
 }
 
 
