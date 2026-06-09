@@ -557,6 +557,259 @@ async def api_oauth_xai_status(request: Request) -> Response:
     )
 
 
+# ── Nous Portal OAuth (Device Code — RFC 8628) ────────────────────────────
+# Portal subscriptions are managed at portal.nousresearch.com.  The device
+# code flow avoids redirect URLs on Railway (no browser on the server).
+# Verification URL is opened on the user's own device; the server polls.
+_NOUS_DEVICE_URL = "https://portal.nousresearch.com/api/oauth/device/code"
+_NOUS_TOKEN_URL = "https://portal.nousresearch.com/api/oauth/token"
+_NOUS_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
+
+_nous_oauth_state: dict | None = None  # one auth at a time (single-user deployment)
+
+
+def _has_nous_oauth_tokens() -> bool:
+    """True when auth.json contains valid Nous Portal OAuth tokens."""
+    auth_path = Path(HERMES_HOME) / "auth.json"
+    if not auth_path.exists():
+        return False
+    try:
+        data = json.loads(auth_path.read_text())
+        tokens = data.get("providers", {}).get("nous", {}).get("tokens", {})
+        return bool(isinstance(tokens, dict) and tokens.get("refresh_token"))
+    except Exception:
+        return False
+
+
+def _save_nous_auth_json(tokens: dict) -> None:
+    """Write Nous Portal OAuth tokens to auth.json."""
+    auth_path = Path(HERMES_HOME) / "auth.json"
+    existing: dict = {}
+    if auth_path.exists():
+        try:
+            existing = json.loads(auth_path.read_text())
+        except Exception:
+            pass
+    if not isinstance(existing, dict):
+        existing = {}
+
+    providers = existing.setdefault("providers", {})
+    providers["nous"] = {
+        "tokens": tokens,
+        "auth_mode": "oauth_device",
+        "last_refresh": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "discovery": {
+            "device_authorization_endpoint": _NOUS_DEVICE_URL,
+            "token_endpoint": _NOUS_TOKEN_URL,
+        },
+        "redirect_uri": "",
+    }
+    existing["active_provider"] = "nous"
+    existing["version"] = 2
+    existing["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    auth_path.write_text(json.dumps(existing, indent=2) + "\n")
+    try:
+        auth_path.chmod(0o600)
+    except Exception:
+        pass
+
+
+def _apply_nous_oauth_config(model: str) -> None:
+    """Write config.yaml with provider=nous and the chosen model."""
+    import yaml
+
+    config_path = Path(HERMES_HOME) / "config.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict = {}
+    if config_path.exists():
+        try:
+            with config_path.open() as f:
+                loaded = yaml.safe_load(f)
+            if isinstance(loaded, dict):
+                existing = loaded
+        except Exception:
+            pass
+
+    merged = dict(existing)
+    merged_model = dict(
+        merged.get("model") if isinstance(merged.get("model"), dict) else {}
+    )
+    if model:
+        merged_model["default"] = model
+    merged_model["provider"] = "nous"
+    merged["model"] = merged_model
+
+    merged_terminal = dict(
+        merged.get("terminal") if isinstance(merged.get("terminal"), dict) else {}
+    )
+    merged_terminal.setdefault("backend", "local")
+    merged_terminal.setdefault("timeout", 60)
+    merged_terminal.setdefault("cwd", "/tmp")
+    merged["terminal"] = merged_terminal
+
+    merged_agent = dict(
+        merged.get("agent") if isinstance(merged.get("agent"), dict) else {}
+    )
+    merged_agent.setdefault("max_iterations", 50)
+    merged["agent"] = merged_agent
+    merged["data_dir"] = HERMES_HOME
+
+    with config_path.open("w") as f:
+        yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False)
+
+    if model:
+        existing_env = read_env(ENV_FILE)
+        existing_env["LLM_MODEL"] = model
+        existing_env["_MODEL_NOUS_OAUTH"] = model
+        write_env(ENV_FILE, existing_env)
+
+
+async def _poll_nous_device_auth(state: dict) -> None:
+    """Background task: poll Nous token endpoint until authorized or expired."""
+    client = get_http_client()
+    while time.time() < state["expires_at"]:
+        await asyncio.sleep(state["interval"])
+        try:
+            resp = await client.post(
+                _NOUS_TOKEN_URL,
+                data={
+                    "grant_type": _NOUS_GRANT_TYPE,
+                    "device_code": state["device_code"],
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=httpx.Timeout(15.0),
+            )
+        except Exception as e:
+            print(f"[nous-oauth] poll error: {e!r}", flush=True)
+            continue
+
+        if resp.status_code == 200:
+            try:
+                tokens = resp.json()
+            except Exception:
+                state["status"] = "error"
+                state["error"] = "Invalid token response from Nous"
+                return
+            _save_nous_auth_json(tokens)
+            _apply_nous_oauth_config(state.get("model", ""))
+            state["status"] = "authorized"
+            print("[nous-oauth] authorized — restarting gateway", flush=True)
+            asyncio.create_task(gw.restart())
+            return
+
+        try:
+            err_data = resp.json()
+        except Exception:
+            err_data = {}
+        error = err_data.get("error", "")
+
+        if error == "authorization_pending":
+            continue
+        elif error == "slow_down":
+            state["interval"] = min(state["interval"] + 5, 30)
+        else:
+            state["status"] = "error"
+            state["error"] = (
+                err_data.get("error_description", error) or error or "Unknown error"
+            )
+            print(f"[nous-oauth] failed: {error}", flush=True)
+            return
+
+    state["status"] = "expired"
+    print("[nous-oauth] device code expired", flush=True)
+
+
+async def api_oauth_nous_delete(request: Request) -> Response:
+    global _nous_oauth_state
+    if err := guard(request):
+        return err
+    auth_path = Path(HERMES_HOME) / "auth.json"
+    if auth_path.exists():
+        try:
+            data = json.loads(auth_path.read_text(encoding="utf-8"))
+            data.get("providers", {}).pop("nous", None)
+            if data.get("active_provider") == "nous":
+                data.pop("active_provider", None)
+            auth_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        except Exception:
+            pass
+    env = read_env(ENV_FILE)
+    env.pop("_MODEL_NOUS_OAUTH", None)
+    write_env(ENV_FILE, env)
+    _nous_oauth_state = None
+    return JSONResponse({"ok": True})
+
+
+async def api_oauth_nous_start(request: Request) -> Response:
+    global _nous_oauth_state
+    if err := guard(request):
+        return err
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    model = str(body.get("model", "")).strip()
+
+    client = get_http_client()
+    try:
+        resp = await client.post(
+            _NOUS_DEVICE_URL,
+            data={"provider": "nous"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=httpx.Timeout(15.0),
+        )
+    except Exception as e:
+        return JSONResponse({"error": f"Could not reach Nous: {e}"}, status_code=502)
+
+    if resp.status_code != 200:
+        return JSONResponse(
+            {"error": f"Nous returned {resp.status_code}: {resp.text[:200]}"},
+            status_code=502,
+        )
+
+    try:
+        data = resp.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid response from Nous"}, status_code=502)
+
+    _nous_oauth_state = {
+        "device_code": data["device_code"],
+        "user_code": data["user_code"],
+        "verification_uri": data.get("verification_uri_complete")
+        or data["verification_uri"],
+        "expires_at": time.time() + data.get("expires_in", 900),
+        "interval": max(data.get("interval", 5), 5),
+        "status": "pending",
+        "model": model,
+    }
+    asyncio.create_task(_poll_nous_device_auth(_nous_oauth_state))
+
+    return JSONResponse(
+        {
+            "user_code": data["user_code"],
+            "verification_uri": _nous_oauth_state["verification_uri"],
+            "expires_in": data.get("expires_in", 900),
+        }
+    )
+
+
+async def api_oauth_nous_status(request: Request) -> Response:
+    if err := guard(request):
+        return err
+    if _nous_oauth_state is None:
+        if _has_nous_oauth_tokens():
+            return JSONResponse({"status": "authorized"})
+        return JSONResponse({"status": "none"})
+    return JSONResponse(
+        {
+            "status": _nous_oauth_state["status"],
+            "error": _nous_oauth_state.get("error", ""),
+        }
+    )
+
+
 def is_config_complete(data: dict[str, str] | None = None) -> bool:
     """Single source of truth for 'ready to run the gateway'.
 
@@ -565,7 +818,7 @@ def is_config_complete(data: dict[str, str] | None = None) -> bool:
     if data is None:
         data = read_env(ENV_FILE)
     has_model = bool(data.get("LLM_MODEL"))
-    has_provider = any(data.get(k) for k in PROVIDER_KEYS) or _has_xai_oauth_tokens()
+    has_provider = any(data.get(k) for k in PROVIDER_KEYS) or _has_xai_oauth_tokens() or _has_nous_oauth_tokens()
     return has_model and has_provider
 
 
@@ -1542,6 +1795,9 @@ routes = [
     Route("/setup/api/oauth/xai/start", api_oauth_xai_start, methods=["POST"]),
     Route("/setup/api/oauth/xai/status", api_oauth_xai_status),
     Route("/setup/api/oauth/xai", api_oauth_xai_delete, methods=["DELETE"]),
+    Route("/setup/api/oauth/nous/start", api_oauth_nous_start, methods=["POST"]),
+    Route("/setup/api/oauth/nous/status", api_oauth_nous_status),
+    Route("/setup/api/oauth/nous", api_oauth_nous_delete, methods=["DELETE"]),
     # /setup/* typos return a real 404 — not a silent proxy fallthrough.
     Route("/setup/{path:path}", route_setup_404, methods=ANY_METHOD),
     # Reverse-proxy hermes's dashboard WebSockets (Chat tab + sidecar).
