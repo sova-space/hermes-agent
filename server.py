@@ -129,6 +129,9 @@ def write_config_yaml(data: dict[str, str]) -> None:
     )
     merged_model["default"] = model
     # Provider: explicit PROVIDER env var, otherwise auto-detect.
+    # Nous Portal: use hermes auth add nous (OAuth), not API keys.
+    # For agent work, prefer agentic models (claude-sonnet, gpt-5.5, etc.)
+    # over Hermes-4 chat models per portal.nousresearch.com docs.
     explicit_provider = (data.get("PROVIDER") or "").strip().lower()
     if explicit_provider:
         merged_model["provider"] = explicit_provider
