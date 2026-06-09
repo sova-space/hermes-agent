@@ -13,6 +13,7 @@ ENV_VARS: list[tuple[str, str, str, bool]] = [
     ("AGENT_MODEL", "Agent model (code writing)", "model", False),
     ("QUICK_MODEL", "Quick model (lint / ops)",   "model", False),
     ("NOUS_API_KEY", "Nous Research", "provider", True),
+    ("OPENROUTER_API_KEY", "OpenRouter", "provider", True),
     ("DEEPSEEK_API_KEY", "DeepSeek", "provider", True),
     ("DASHSCOPE_API_KEY", "Qwen Cloud (DashScope)", "provider", True),
     ("GLM_API_KEY", "GLM / Z.AI", "provider", True),
