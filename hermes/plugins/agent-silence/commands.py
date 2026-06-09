@@ -130,7 +130,7 @@ def _report_status(ctx: CommandContext, profiles: list[str]) -> dict[str, str]:
 
     keyboard = {
         "keyboard": [
-            [{"text": p} for p in profiles],
+            [{"text": f"{p} 💬"}, {"text": f"{p} 🔧"}] for p in profiles
         ],
         "resize_keyboard": True,
         "one_time_keyboard": True,
@@ -255,20 +255,19 @@ def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
     if not text:
         return None
 
-    # Handle keyboard button taps
+    # Handle keyboard button taps: "<profile> 💬" or "<profile> 🔧"
     profiles = ctx.doer.projects
-    if text in profiles:
-        return _switch_profile(ctx, profiles, text)
-
-    if text == "💬 client":
-        ctx.session.set_mode(ctx.chat.chat_id, "client")
-        ctx.telegram.send_message(ctx.chat, "Mode: *client* — assistant will answer.")
-        return skip("keyboard mode client")
-
-    if text == "🔧 dev":
-        ctx.session.set_mode(ctx.chat.chat_id, "dev")
-        ctx.telegram.send_message(ctx.chat, "Mode: *dev* — devops tasks against repo.")
-        return skip("keyboard mode dev")
+    for p in profiles:
+        if text == f"{p} 💬":
+            ctx.session.select(ctx.chat.chat_id, p)
+            ctx.session.set_mode(ctx.chat.chat_id, "client")
+            ctx.telegram.send_message(ctx.chat, f"*{p}* · client — ask away.")
+            return skip("keyboard profile+mode")
+        if text == f"{p} 🔧":
+            ctx.session.select(ctx.chat.chat_id, p)
+            ctx.session.set_mode(ctx.chat.chat_id, "dev")
+            ctx.telegram.send_message(ctx.chat, f"*{p}* · dev — results in #projects.")
+            return skip("keyboard profile+mode")
 
     profile = ctx.session.active_profile(ctx.chat.chat_id)
     if not profile:
