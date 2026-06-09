@@ -65,8 +65,11 @@ RUN cd /app && UV_SYSTEM_PYTHON=1 uv sync --frozen --no-install-project
 RUN mkdir -p /data/.hermes
 
 COPY server.py /app/server.py
+COPY hermes/__init__.py /app/hermes/__init__.py
+COPY hermes/env_registry.py /app/hermes/env_registry.py
 COPY infra/templates/ /app/templates/
 COPY infra/start.sh /app/start.sh
+COPY infra/bootstrap_env.py /app/infra/bootstrap_env.py
 COPY hermes/config/ /app/config/
 RUN chmod +x /app/start.sh
 
