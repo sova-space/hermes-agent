@@ -123,6 +123,7 @@ class Subprocess:
             async for raw in self.proc.stdout:
                 line = ANSI_RE.sub("", raw.decode(errors="replace").rstrip())
                 self.logs.append(f"[{self.name}] {line}")
+                print(f"[{self.name}] {line}", flush=True)
         except Exception as exc:
             log.warning("%s drain error: %s", self.name, exc)
 
