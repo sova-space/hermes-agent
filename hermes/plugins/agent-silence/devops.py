@@ -140,6 +140,12 @@ _TOOL_DEFS: list[dict] = [
     },
 ]
 
+# Tool subsets per phase — restricting available tools forces each model to stay
+# in its lane without requiring heuristics about which model "should" call what.
+_EXPLORE_TOOLS = [t for t in _TOOL_DEFS if t["name"] in {"read_file", "list_directory"}]
+_CODE_TOOLS = [t for t in _TOOL_DEFS if t["name"] not in {"create_pr", "merge_pr"}]
+_PR_TOOLS = [t for t in _TOOL_DEFS if t["name"] in {"create_pr", "merge_pr"}]
+
 _SYSTEM = (
     "You are Doer, an autonomous developer agent. You make surgical code changes "
     "to GitHub repositories based on a natural-language task description.\n\n"
@@ -286,19 +292,95 @@ def _dispatch_tool(
     return f"Unknown tool: {tool_name}"
 
 
+def _run_loop(
+    client: anthropic.Anthropic,
+    model: str,
+    tools: list[dict],
+    messages: list[dict],
+    gh: "_GitHub",
+    project: Project,
+    max_iter: int,
+) -> list[dict]:
+    """Run one phase of the agent loop, returning the updated message history."""
+    for _ in range(max_iter):
+        response = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            system=_SYSTEM,
+            tools=tools,  # type: ignore[arg-type]
+            messages=messages,  # type: ignore[arg-type]
+        )
+        tool_calls = [b for b in response.content if b.type == "tool_use"]
+        tool_results = []
+        for block in tool_calls:
+            result = _dispatch_tool(gh, block.name, block.input, project)  # type: ignore[arg-type]
+            log.info("devops_tool_called tool=%s result=%s", block.name, result[:120])
+            tool_results.append(
+                {"type": "tool_result", "tool_use_id": block.id, "content": result}
+            )
+        messages.append({"role": "assistant", "content": response.content})  # type: ignore[arg-type]
+        if response.stop_reason == "end_turn":
+            break
+        if tool_results:
+            messages.append({"role": "user", "content": tool_results})
+    return messages
+
+
+def _run_pr_phase(
+    client: anthropic.Anthropic,
+    model: str,
+    messages: list[dict],
+    gh: "_GitHub",
+    project: Project,
+) -> tuple[list[dict], str | None, bool]:
+    """Run PR creation/merge phase. Returns (messages, pr_url, merged)."""
+    pr_url: str | None = None
+    merged = False
+    for _ in range(5):
+        response = client.messages.create(
+            model=model,
+            max_tokens=2048,
+            system=_SYSTEM,
+            tools=_PR_TOOLS,  # type: ignore[arg-type]
+            messages=messages,  # type: ignore[arg-type]
+        )
+        tool_calls = [b for b in response.content if b.type == "tool_use"]
+        tool_results = []
+        for block in tool_calls:
+            result = _dispatch_tool(gh, block.name, block.input, project)  # type: ignore[arg-type]
+            log.info("devops_tool_called tool=%s result=%s", block.name, result[:120])
+            if block.name == "create_pr" and "http" in result:
+                pr_url = result.split(": ", 1)[-1].strip()
+            if block.name == "merge_pr" and "Merged" in result:
+                merged = True
+            tool_results.append(
+                {"type": "tool_result", "tool_use_id": block.id, "content": result}
+            )
+        messages.append({"role": "assistant", "content": response.content})  # type: ignore[arg-type]
+        if response.stop_reason == "end_turn":
+            break
+        if tool_results:
+            messages.append({"role": "user", "content": tool_results})
+    return messages, pr_url, merged
+
+
 @dataclass(frozen=True)
 class DevopsLoop:
     """Runs the absorbed agentic loop against a profile's repo.
 
+    Three-phase execution:
+      1. Explore  — QUICK_MODEL reads files, understands the codebase (cheap)
+      2. Code     — AGENT_MODEL writes the actual changes (Sonnet-class reasoning)
+      3. PR ops   — QUICK_MODEL creates and merges the PR (cheap)
+
     ``dispatch`` is the only entry point callers need — it fires the loop on
-    a background thread and returns immediately (the caller sends its own
-    "got it, working on it" confirmation; this class only posts the final
-    result, to ``#projects``, exactly where Doer used to).
+    a background thread and returns immediately.
     """
 
     github_token: str
     llm_api_key: str
-    model: str
+    agent_model: str
+    quick_model: str
     telegram: TelegramClient
 
     def dispatch(self, profile: str, task: str) -> None:
@@ -319,58 +401,27 @@ class DevopsLoop:
     def _run(self, profile: str, project: Project, task: str) -> None:
         log.info("devops_task_started profile=%s task=%s", profile, task[:120])
         gh = _GitHub(self.github_token)
-        client = anthropic.Anthropic(
-            base_url=_OPENROUTER_BASE_URL, api_key=self.llm_api_key
-        )
+        client = anthropic.Anthropic(base_url=_OPENROUTER_BASE_URL, api_key=self.llm_api_key)
         messages: list[dict] = [
             {"role": "user", "content": f"Project: {profile}\n\nTask: {task}"}
         ]
-        pr_url: str | None = None
-        merged = False
 
         try:
-            for _ in range(30):  # safety cap
-                response = client.messages.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    system=_SYSTEM,
-                    tools=_TOOL_DEFS,  # type: ignore[arg-type]
-                    messages=messages,  # type: ignore[arg-type]
-                )
+            # Phase 1: explore with quick model (read-only tools)
+            log.info("devops_phase=explore model=%s", self.quick_model)
+            messages = _run_loop(client, self.quick_model, _EXPLORE_TOOLS, messages, gh, project, max_iter=10)
 
-                tool_calls = [b for b in response.content if b.type == "tool_use"]
-                tool_results = []
-                for block in tool_calls:
-                    result = _dispatch_tool(gh, block.name, block.input, project)  # type: ignore[arg-type]
-                    log.info(
-                        "devops_tool_called tool=%s result=%s",
-                        block.name,
-                        result[:120],
-                    )
-                    if block.name == "create_pr" and "http" in result:
-                        pr_url = result.split(": ", 1)[-1].strip()
-                    if block.name == "merge_pr" and "Merged" in result:
-                        merged = True
-                    tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": result,
-                        }
-                    )
+            # Phase 2: code with agent model (branch + write tools)
+            messages.append({"role": "user", "content": "Implement the changes: create a branch and write the files."})
+            log.info("devops_phase=code model=%s", self.agent_model)
+            messages = _run_loop(client, self.agent_model, _CODE_TOOLS, messages, gh, project, max_iter=20)
 
-                messages.append({"role": "assistant", "content": response.content})  # type: ignore[arg-type]
-                if response.stop_reason == "end_turn":
-                    break
-                if tool_results:
-                    messages.append({"role": "user", "content": tool_results})
+            # Phase 3: PR ops with quick model
+            messages.append({"role": "user", "content": "Create a pull request for the changes, then merge it."})
+            log.info("devops_phase=pr model=%s", self.quick_model)
+            messages, pr_url, merged = _run_pr_phase(client, self.quick_model, messages, gh, project)
 
-            log.info(
-                "devops_task_done profile=%s pr_url=%s merged=%s",
-                profile,
-                pr_url,
-                merged,
-            )
+            log.info("devops_task_done profile=%s pr_url=%s merged=%s", profile, pr_url, merged)
             status = "merged" if merged else "PR open (merge blocked)"
             link = f"[{pr_url}]({pr_url})" if pr_url else "no PR created"
             self.telegram.send_message(

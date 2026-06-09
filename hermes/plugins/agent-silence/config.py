@@ -13,19 +13,22 @@ class Config:
     broken, so surface that at import time rather than failing silently
     on every Telegram call.
 
-    GITHUB_TOKEN / OPENROUTER_API_KEY / DEVOPS_MODEL back the absorbed devops
-    loop (formerly Doer's own service — see ``devops.py``). OPENROUTER_API_KEY
-    is shared with Hermes's own LLM provider config (``server.py``'s env
-    registry already lists it) — no separate credential needed. DEVOPS_MODEL
-    defaults to a Haiku-class model: devops tasks are mostly file reads/writes
-    and tool-call plumbing, not deep reasoning, so the cheaper model is the
-    right default for routine code-change loops.
+    GITHUB_TOKEN / OPENROUTER_API_KEY / AGENT_MODEL / QUICK_MODEL back the absorbed
+    devops loop (formerly Doer's own service — see ``devops.py``). OPENROUTER_API_KEY
+    is shared with Hermes's own LLM provider config (``server.py``'s env registry
+    already lists it) — no separate credential needed. The dev loop uses two models:
+    AGENT_MODEL (Sonnet) for code writing, QUICK_MODEL (Haiku) for mechanical ops
+    like file reads, git diff analysis, and PR creation.
     """
 
     TELEGRAM_BOT_TOKEN: str = os.environ["TELEGRAM_BOT_TOKEN"]
     GITHUB_TOKEN: str = os.environ.get("GITHUB_TOKEN", "")
     OPENROUTER_API_KEY: str = os.environ.get("OPENROUTER_API_KEY", "")
-    DEVOPS_MODEL: str = os.environ.get("DEVOPS_MODEL", "anthropic/claude-haiku-4.5")
+    # AGENT_MODEL handles code writing and architectural decisions in the dev loop.
+    # QUICK_MODEL handles mechanical work: file reads, git diff, PR creation — saving
+    # tokens on turns that don't need deep reasoning.
+    AGENT_MODEL: str = os.environ.get("AGENT_MODEL", "anthropic/claude-sonnet-4-5")
+    QUICK_MODEL: str = os.environ.get("QUICK_MODEL", "anthropic/claude-haiku-4-5")
 
 
 CONFIG = Config()

@@ -9,7 +9,9 @@ from pathlib import Path
 
 # (key, label, category, is_secret)
 ENV_VARS: list[tuple[str, str, str, bool]] = [
-    ("LLM_MODEL", "Model", "model", False),
+    ("LLM_MODEL",   "Model (gateway / Q&A)",      "model", False),
+    ("AGENT_MODEL", "Agent model (code writing)", "model", False),
+    ("QUICK_MODEL", "Quick model (lint / ops)",   "model", False),
     ("OPENROUTER_API_KEY", "OpenRouter", "provider", True),
     ("DEEPSEEK_API_KEY", "DeepSeek", "provider", True),
     ("DASHSCOPE_API_KEY", "Qwen Cloud (DashScope)", "provider", True),

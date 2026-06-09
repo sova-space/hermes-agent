@@ -45,7 +45,8 @@ _doer = DoerGateway()
 _devops = DevopsLoop(
     github_token=CONFIG.GITHUB_TOKEN,
     llm_api_key=CONFIG.OPENROUTER_API_KEY,
-    model=CONFIG.DEVOPS_MODEL,
+    agent_model=CONFIG.AGENT_MODEL,
+    quick_model=CONFIG.QUICK_MODEL,
     telegram=_telegram,
 )
 _session = DoerSession()
