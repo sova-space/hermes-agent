@@ -31,8 +31,8 @@ class Settings(BaseSettings):
 
     mini_app_url: str
 
-    nous_api_key: str
-    agent_model: str = "anthropic/claude-sonnet-4-5"
+    openrouter_api_key: str
+    agent_model: str = "deepseek/deepseek-v4-pro"
 
 
 @lru_cache

@@ -16,9 +16,9 @@ for the routing design, and ``README.md`` for the full architecture writeup
 live — that one cost a debugging session).
 """
 
+from .agent_loop import AgentLoop
 from .chat_context import ChatContext
 from .commands import (
-    COMMAND_BALANCE,
     COMMAND_FINANCE,
     COMMAND_MODE,
     COMMAND_PROFILE,
@@ -30,7 +30,6 @@ from .commands import (
     skip,
 )
 from .config import CONFIG
-from .agent_loop import AgentLoop
 from .doer import DoerGateway, DoerSession
 from .telegram_client import BotCommand, TelegramClient
 
@@ -47,7 +46,7 @@ _telegram = TelegramClient(CONFIG.TELEGRAM_BOT_TOKEN)
 _doer = DoerGateway()
 _devops = AgentLoop(
     github_token=CONFIG.GITHUB_TOKEN,
-    llm_api_key=CONFIG.NOUS_API_KEY,
+    llm_api_key=CONFIG.OPENROUTER_API_KEY,
     agent_model=CONFIG.AGENT_MODEL,
     quick_model=CONFIG.QUICK_MODEL,
     telegram=_telegram,
@@ -104,7 +103,8 @@ def _callback_meta(event) -> tuple[str | None, str | None, str | int | None]:
     message = getattr(query, "message", None) if query is not None else None
     return (
         _first_attr(event, ("callback_data", "data")) or getattr(query, "data", None),
-        _first_attr(event, ("callback_query_id", "query_id")) or getattr(query, "id", None),
+        _first_attr(event, ("callback_query_id", "query_id"))
+        or getattr(query, "id", None),
         _first_attr(event, ("callback_message_id", "message_id"))
         or _first_attr(source, ("message_id", "callback_message_id"))
         or getattr(message, "message_id", None),

@@ -1,13 +1,13 @@
 """Conversational agent for free-form money questions.
 
-Mirrors the tool-calling loop pattern in `doer_api/agent/loop.py`, scoped to
-read-only Finance API queries instead of GitHub operations.
+Scoped to read-only Finance API queries and OpenRouter's OpenAI-compatible
+chat-completions API.
 """
 
 import asyncio
 import json
 
-import anthropic
+import httpx
 import structlog
 
 from finance_api.core.config import settings
@@ -24,13 +24,9 @@ from finance_api.domains.insights.queries import (
 
 log = structlog.get_logger(__name__)
 
+_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _MAX_TOOL_TURNS = 8  # safety cap on tool-calling round-trips per message
 _MAX_HISTORY = 20  # trimmed message count kept per chat
-
-_client = anthropic.AsyncAnthropic(
-    base_url="https://inference.nousresearch.com/v1",
-    api_key=settings.nous_api_key,
-)
 
 _sessions: dict[int, list[dict]] = {}
 
@@ -101,6 +97,18 @@ _TOOL_DEFS: list[dict] = [
     },
 ]
 
+_OPENAI_TOOLS: list[dict] = [
+    {
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "description": tool["description"],
+            "parameters": tool["input_schema"],
+        },
+    }
+    for tool in _TOOL_DEFS
+]
+
 _SYSTEM = (
     "You are Nazar's personal finance assistant, built into @sova_finance_bot. "
     "Answer conversational questions about his Monobank accounts, spending, "
@@ -157,6 +165,27 @@ async def _dispatch_tool(name: str, tool_input: dict) -> str:
     return json.dumps(result, default=str)
 
 
+async def _chat(messages: list[dict]) -> dict:
+    """Call OpenRouter's OpenAI-compatible chat completions API."""
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            _OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {settings.openrouter_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.agent_model,
+                "messages": [{"role": "system", "content": _SYSTEM}, *messages],
+                "tools": _OPENAI_TOOLS,
+                "tool_choice": "auto",
+                "max_tokens": 1024,
+            },
+        )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]
+
+
 async def answer(chat_id: int, text: str) -> str:
     """Run one conversational turn for `chat_id` and return the reply text.
 
@@ -168,36 +197,34 @@ async def answer(chat_id: int, text: str) -> str:
 
     reply = "Sorry, I couldn't come up with an answer."
     for _ in range(_MAX_TOOL_TURNS):
-        response = await _client.messages.create(
-            model=settings.agent_model,
-            max_tokens=1024,
-            system=_SYSTEM,
-            tools=_TOOL_DEFS,  # type: ignore[arg-type]
-            messages=messages,  # type: ignore[arg-type]
-        )
+        message = await _chat(messages)
+        content = message.get("content") or ""
+        if content:
+            reply = content
 
-        text_blocks = [b.text for b in response.content if b.type == "text"]
-        if text_blocks:
-            reply = "\n".join(text_blocks)
-
-        messages.append(
-            {"role": "assistant", "content": response.content}  # type: ignore[arg-type]
-        )
-
-        tool_calls = [b for b in response.content if b.type == "tool_use"]
-        if response.stop_reason != "tool_use" or not tool_calls:
+        tool_calls = message.get("tool_calls") or []
+        messages.append({
+            "role": "assistant",
+            "content": content,
+            "tool_calls": tool_calls,
+        })
+        if not tool_calls:
             break
 
-        tool_results = []
-        for block in tool_calls:
-            result = await _dispatch_tool(block.name, block.input)  # type: ignore[arg-type]
-            log.info("assistant_tool_called", tool=block.name)
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
+        for call in tool_calls:
+            function = call.get("function") or {}
+            name = function.get("name", "")
+            try:
+                tool_input = json.loads(function.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                tool_input = {}
+            result = await _dispatch_tool(name, tool_input)
+            log.info("assistant_tool_called", tool=name)
+            messages.append({
+                "role": "tool",
+                "tool_call_id": call["id"],
                 "content": result,
             })
-        messages.append({"role": "user", "content": tool_results})
 
     del messages[:-_MAX_HISTORY]
     return reply

@@ -20,12 +20,12 @@ calls for that reason.
 """
 
 import base64
+import json
 import logging
 import threading
 from dataclasses import dataclass
 from typing import NotRequired, TypedDict
 
-import anthropic
 import httpx
 
 from .chat_context import ChatContext
@@ -39,7 +39,7 @@ from .telegram_client import TelegramClient
 log = logging.getLogger(__name__)
 
 _GITHUB_API_URL = "https://api.github.com"
-_NOUS_BASE_URL = "https://inference.nousresearch.com/v1"
+_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Where devops results land — same #projects topic Doer posted to
 # (`bots/doer/.env.example`'s TELEGRAM_CHAT_ID / TELEGRAM_PROJECTS_TOPIC_ID).
@@ -323,8 +323,53 @@ def _dispatch_tool(
     return f"Unknown tool: {tool_name}"
 
 
+def _openai_tools(tools: list[dict]) -> list[dict]:
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["input_schema"],
+            },
+        }
+        for tool in tools
+    ]
+
+
+def _chat(
+    client: httpx.Client,
+    api_key: str,
+    model: str,
+    tools: list[dict],
+    messages: list[dict],
+    project: Project,
+    max_tokens: int,
+) -> dict:
+    resp = client.post(
+        _OPENROUTER_URL,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "messages": [
+                {"role": "system", "content": _system_for_project(project)},
+                *messages,
+            ],
+            "tools": _openai_tools(tools),
+            "tool_choice": "auto",
+            "max_tokens": max_tokens,
+        },
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]
+
+
 def _run_loop(
-    client: anthropic.Anthropic,
+    client: httpx.Client,
+    api_key: str,
     model: str,
     tools: list[dict],
     messages: list[dict],
@@ -334,31 +379,32 @@ def _run_loop(
 ) -> list[dict]:
     """Run one phase of the agent loop, returning the updated message history."""
     for _ in range(max_iter):
-        response = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=_system_for_project(project),
-            tools=tools,  # type: ignore[arg-type]
-            messages=messages,  # type: ignore[arg-type]
+        message = _chat(client, api_key, model, tools, messages, project, 4096)
+        content = message.get("content") or ""
+        tool_calls = message.get("tool_calls") or []
+        messages.append(
+            {"role": "assistant", "content": content, "tool_calls": tool_calls}
         )
-        tool_calls = [b for b in response.content if b.type == "tool_use"]
-        tool_results = []
-        for block in tool_calls:
-            result = _dispatch_tool(gh, block.name, block.input, project)  # type: ignore[arg-type]
-            log.info("devops_tool_called tool=%s result=%s", block.name, result[:120])
-            tool_results.append(
-                {"type": "tool_result", "tool_use_id": block.id, "content": result}
-            )
-        messages.append({"role": "assistant", "content": response.content})  # type: ignore[arg-type]
-        if response.stop_reason == "end_turn":
+        if not tool_calls:
             break
-        if tool_results:
-            messages.append({"role": "user", "content": tool_results})
+        for call in tool_calls:
+            function = call.get("function") or {}
+            tool_name = function.get("name", "")
+            try:
+                tool_input = json.loads(function.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                tool_input = {}
+            result = _dispatch_tool(gh, tool_name, tool_input, project)
+            log.info("devops_tool_called tool=%s result=%s", tool_name, result[:120])
+            messages.append(
+                {"role": "tool", "tool_call_id": call["id"], "content": result}
+            )
     return messages
 
 
 def _run_pr_phase(
-    client: anthropic.Anthropic,
+    client: httpx.Client,
+    api_key: str,
     model: str,
     messages: list[dict],
     gh: "_GitHub",
@@ -368,30 +414,30 @@ def _run_pr_phase(
     pr_url: str | None = None
     merged = False
     for _ in range(5):
-        response = client.messages.create(
-            model=model,
-            max_tokens=2048,
-            system=_system_for_project(project),
-            tools=_PR_TOOLS,  # type: ignore[arg-type]
-            messages=messages,  # type: ignore[arg-type]
+        message = _chat(client, api_key, model, _PR_TOOLS, messages, project, 2048)
+        content = message.get("content") or ""
+        tool_calls = message.get("tool_calls") or []
+        messages.append(
+            {"role": "assistant", "content": content, "tool_calls": tool_calls}
         )
-        tool_calls = [b for b in response.content if b.type == "tool_use"]
-        tool_results = []
-        for block in tool_calls:
-            result = _dispatch_tool(gh, block.name, block.input, project)  # type: ignore[arg-type]
-            log.info("devops_tool_called tool=%s result=%s", block.name, result[:120])
-            if block.name == "create_pr" and "http" in result:
-                pr_url = result.split(": ", 1)[-1].strip()
-            if block.name == "merge_pr" and "Merged" in result:
-                merged = True
-            tool_results.append(
-                {"type": "tool_result", "tool_use_id": block.id, "content": result}
-            )
-        messages.append({"role": "assistant", "content": response.content})  # type: ignore[arg-type]
-        if response.stop_reason == "end_turn":
+        if not tool_calls:
             break
-        if tool_results:
-            messages.append({"role": "user", "content": tool_results})
+        for call in tool_calls:
+            function = call.get("function") or {}
+            tool_name = function.get("name", "")
+            try:
+                tool_input = json.loads(function.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                tool_input = {}
+            result = _dispatch_tool(gh, tool_name, tool_input, project)
+            log.info("devops_tool_called tool=%s result=%s", tool_name, result[:120])
+            if tool_name == "create_pr" and "http" in result:
+                pr_url = result.split(": ", 1)[-1].strip()
+            if tool_name == "merge_pr" and "Merged" in result:
+                merged = True
+            messages.append(
+                {"role": "tool", "tool_call_id": call["id"], "content": result}
+            )
     return messages, pr_url, merged
 
 
@@ -432,7 +478,7 @@ class AgentLoop:
     def _run(self, profile: str, project: Project, task: str) -> None:
         log.info("devops_task_started profile=%s task=%s", profile, task[:120])
         gh = _GitHub(self.github_token)
-        client = anthropic.Anthropic(base_url=_NOUS_BASE_URL, api_key=self.llm_api_key)
+        client = httpx.Client(timeout=60)
         messages: list[dict] = [
             {"role": "user", "content": f"Project: {profile}\n\nTask: {task}"}
         ]
@@ -442,6 +488,7 @@ class AgentLoop:
             log.info("devops_phase=explore model=%s", self.quick_model)
             messages = _run_loop(
                 client,
+                self.llm_api_key,
                 self.quick_model,
                 _EXPLORE_TOOLS,
                 messages,
@@ -460,6 +507,7 @@ class AgentLoop:
             log.info("devops_phase=code model=%s", self.agent_model)
             messages = _run_loop(
                 client,
+                self.llm_api_key,
                 self.agent_model,
                 _CODE_TOOLS,
                 messages,
@@ -477,7 +525,7 @@ class AgentLoop:
             )
             log.info("devops_phase=pr model=%s", self.quick_model)
             messages, pr_url, merged = _run_pr_phase(
-                client, self.quick_model, messages, gh, project
+                client, self.llm_api_key, self.quick_model, messages, gh, project
             )
 
             log.info(
