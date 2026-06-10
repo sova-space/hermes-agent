@@ -287,7 +287,14 @@ def handle_profile_message(ctx: CommandContext) -> dict[str, str] | None:
 
     reply = ctx.doer.ask_profile(profile, ctx.chat.chat_id, text)
     if reply is None:
-        return None
+        if profile == "hermes":
+            return None
+        ctx.telegram.send_message(
+            ctx.chat,
+            f"{profile} assistant is unavailable. Try again in a moment.",
+            parse_mode="Markdown",
+        )
+        return skip("profile assistant unavailable")
     ctx.telegram.send_message(ctx.chat, reply)
     return skip("profile assistant replied")
 

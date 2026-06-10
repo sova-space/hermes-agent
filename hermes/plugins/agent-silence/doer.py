@@ -72,14 +72,14 @@ class DoerGateway:
         self.agent_model = os.environ.get("AGENT_MODEL", "unknown")
         self.quick_model = os.environ.get("QUICK_MODEL", "unknown")
 
-    def load(self) -> None:
-        """Discover agent commands and profile owners once, lazily.
+    def load(self, force: bool = False) -> None:
+        """Discover agent commands and profile owners lazily.
 
-        Cheap to call on every dispatch — it's a no-op after the first
-        successful pass, mirroring how the rest of the gateway treats
-        per-process config (load-once, cache for the process lifetime).
+        Startup can race Railway service readiness. ``force=True`` lets a
+        client-mode message retry discovery instead of permanently falling
+        through to generic Hermes after one failed boot-time probe.
         """
-        if self._loaded:
+        if self._loaded and not force:
             return
         for base_url in self._discover_agent_urls():
             url = self._normalize(base_url)
@@ -96,6 +96,9 @@ class DoerGateway:
         not an error to surface.
         """
         owner = self.profiles.get(profile)
+        if owner is None:
+            self.load(force=True)
+            owner = self.profiles.get(profile)
         if owner is None:
             return None
         try:
