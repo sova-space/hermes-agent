@@ -37,13 +37,3 @@ def test_ukrainian_transaction_notification_uses_ukrainian_phrase(session, monke
 
     assert "SHOCKO CAFE" in text
     assert "ото добре поїв" in text
-
-
-def test_language_keyboard_marks_current_language():
-    from finance_api.domains.bot.handlers import _language_keyboard
-
-    keyboard = _language_keyboard("uk")
-    rows = keyboard.to_dict()["inline_keyboard"]
-
-    assert rows[0][0]["text"] == "English"
-    assert rows[0][1]["text"] == "✓ Українська"

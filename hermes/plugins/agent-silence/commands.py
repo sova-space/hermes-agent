@@ -65,7 +65,7 @@ from urllib.parse import quote
 
 from .agent_loop import AgentLoop
 from .chat_context import ChatContext
-from .doer import MODE_CLIENT, MODE_DEV, MODES, DoerGateway, DoerSession
+from .doer import LANGUAGES, MODE_CLIENT, MODE_DEV, MODES, DoerGateway, DoerSession
 from .telegram_client import TelegramClient
 
 # Slash-command names this module owns. Matched against
@@ -76,6 +76,7 @@ COMMAND_PROJECT_ALIAS = "project"  # back-compat — same handler, same state
 COMMAND_MODE = "mode"
 COMMAND_FINANCE = "finance"
 COMMAND_BALANCE = "balance"
+COMMAND_LANGUAGE = "language"
 
 # Hook return action telling the gateway "handled — stop here, don't fall
 # through to normal agent dispatch". See pre_gateway_dispatch in
@@ -232,6 +233,88 @@ def handle_mode(ctx: CommandContext) -> dict[str, str] | None:
     )
     ctx.telegram.send_message(ctx.chat, f"Mode set to *{name}* — {hint}")
     return skip("mode switched")
+
+
+def _language_payload(chat_id: str | None, session: DoerSession) -> dict:
+    current = session.active_language(chat_id)
+    rows = [
+        [
+            {
+                "text": f"{'✅ ' if current == code else ''}{name}",
+                "callback_data": f"lang:{code}",
+            }
+            for code, name in LANGUAGES.items()
+        ]
+    ]
+    return {
+        "text": "<b>Language</b>",
+        "parse_mode": "HTML",
+        "reply_markup": {"inline_keyboard": rows},
+    }
+
+
+def _push_language_to_services(ctx: CommandContext, language: str) -> None:
+    import httpx
+
+    for base_url in ctx.doer._discover_agent_urls():
+        url = ctx.doer._normalize(base_url)
+        try:
+            httpx.put(f"{url}/bot/language", json={"language": language}, timeout=5)
+        except Exception:
+            pass
+
+
+def handle_language(ctx: CommandContext) -> dict[str, str] | None:
+    """``/language`` — general language selector for every service."""
+    if ctx.args:
+        if ctx.chat.chat_id is None:
+            return skip("language no chat")
+        selected = ctx.args.split()[0].lower()
+        if selected not in LANGUAGES:
+            ctx.telegram.send_message(ctx.chat, "Unknown language. Choose en or uk.")
+            return skip("language unknown")
+        ctx.session.set_language(ctx.chat.chat_id, selected)
+        _push_language_to_services(ctx, selected)
+
+    payload = _language_payload(ctx.chat.chat_id, ctx.session)
+    ctx.telegram.send_message(
+        ctx.chat,
+        payload["text"],
+        reply_markup=payload["reply_markup"],
+        parse_mode=payload["parse_mode"],
+    )
+    return skip("language")
+
+
+def handle_language_callback(ctx: CommandContext) -> dict[str, str] | None:
+    data = ctx.callback_data
+    if not data or not data.startswith("lang:"):
+        return None
+    selected = data[len("lang:") :]
+    if selected not in LANGUAGES:
+        return skip("language unknown callback")
+    if ctx.chat.chat_id is None:
+        return skip("language no chat callback")
+    ctx.session.set_language(ctx.chat.chat_id, selected)
+    _push_language_to_services(ctx, selected)
+    ctx.telegram.answer_callback_query(ctx.callback_query_id)
+    payload = _language_payload(ctx.chat.chat_id, ctx.session)
+    if ctx.callback_message_id is None:
+        ctx.telegram.send_message(
+            ctx.chat,
+            payload["text"],
+            reply_markup=payload["reply_markup"],
+            parse_mode=payload["parse_mode"],
+        )
+    else:
+        ctx.telegram.edit_message_text(
+            ctx.chat,
+            ctx.callback_message_id,
+            payload["text"],
+            reply_markup=payload["reply_markup"],
+            parse_mode=payload["parse_mode"],
+        )
+    return skip("language callback")
 
 
 def _handle_dev_task(ctx: CommandContext, profile: str, task: str) -> dict[str, str]:
@@ -400,6 +483,7 @@ COMMANDS: dict[str, CommandHandler] = {
     COMMAND_PROFILE: handle_profile,
     COMMAND_PROJECT_ALIAS: handle_profile,
     COMMAND_MODE: handle_mode,
+    COMMAND_LANGUAGE: handle_language,
     COMMAND_FINANCE: handle_finance,
     COMMAND_BALANCE: handle_balance,
 }

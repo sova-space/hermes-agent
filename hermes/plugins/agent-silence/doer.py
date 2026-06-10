@@ -157,6 +157,12 @@ MODE_CLIENT = "client"
 MODE_DEV = "dev"
 MODES = (MODE_CLIENT, MODE_DEV)
 
+DEFAULT_LANGUAGE = "en"
+LANGUAGES = {
+    "en": "English",
+    "uk": "Українська",
+}
+
 
 # Shared with infra/patch_telegram_finance_callbacks.py so gateway-level inline
 # callbacks and this plugin see the same active profile/mode state.
@@ -183,6 +189,7 @@ class DoerSession:
 
     _active_profile: dict[str, str] = field(default_factory=dict)
     _active_mode: dict[str, str] = field(default_factory=dict)
+    _active_language: dict[str, str] = field(default_factory=dict)
 
     def _load(self) -> None:
         try:
@@ -191,12 +198,17 @@ class DoerSession:
             return
         profiles = data.get("active_profile")
         modes = data.get("active_mode")
+        languages = data.get("active_language")
         if isinstance(profiles, dict):
             self._active_profile = {
                 str(k): str(v) for k, v in profiles.items() if isinstance(v, str)
             }
         if isinstance(modes, dict):
             self._active_mode = {str(k): str(v) for k, v in modes.items() if v in MODES}
+        if isinstance(languages, dict):
+            self._active_language = {
+                str(k): str(v) for k, v in languages.items() if v in LANGUAGES
+            }
 
     def _save(self) -> None:
         try:
@@ -207,6 +219,7 @@ class DoerSession:
                     {
                         "active_profile": self._active_profile,
                         "active_mode": self._active_mode,
+                        "active_language": self._active_language,
                     },
                     sort_keys=True,
                 )
@@ -234,4 +247,17 @@ class DoerSession:
     def set_mode(self, chat_id: str, mode: str) -> None:
         self._load()
         self._active_mode[chat_id] = mode
+        self._save()
+
+    def active_language(self, chat_id: str | None) -> str:
+        self._load()
+        if chat_id is None:
+            return DEFAULT_LANGUAGE
+        return self._active_language.get(chat_id, DEFAULT_LANGUAGE)
+
+    def set_language(self, chat_id: str, language: str) -> None:
+        if language not in LANGUAGES:
+            raise ValueError(f"Unknown language: {language}")
+        self._load()
+        self._active_language[chat_id] = language
         self._save()

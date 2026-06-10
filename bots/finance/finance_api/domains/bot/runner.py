@@ -12,8 +12,6 @@ from finance_api.domains.bot.commands import BOT_COMMANDS
 from finance_api.domains.bot.handlers import (
     BALANCE_CALLBACK,
     INCOME_CALLBACK,
-    LANGUAGE_CALLBACK,
-    LANGUAGE_PREFIX,
     SKIPPED_CALLBACK,
     SPENDING_CALLBACK,
     SPENDING_CAT_PREFIX,
@@ -22,8 +20,6 @@ from finance_api.domains.bot.handlers import (
     balance,
     callback_balance,
     callback_income,
-    callback_language_menu,
-    callback_language_set,
     callback_skipped,
     callback_spending,
     callback_spending_category,
@@ -31,7 +27,6 @@ from finance_api.domains.bot.handlers import (
     callback_sync,
     chat,
     cmd_finance_app,
-    language,
     sync,
 )
 
@@ -42,7 +37,6 @@ def create_bot(token: str) -> Application:
     handler_map = {
         "finance_app": cmd_finance_app,
         "finance": balance,
-        "language": language,
         "balance": balance,
         "sync": sync,
     }
@@ -69,12 +63,7 @@ def create_bot(token: str) -> Application:
         )
     )
     app.add_handler(CallbackQueryHandler(callback_subs, pattern=f"^{SUBS_CALLBACK}$"))
-    app.add_handler(
-        CallbackQueryHandler(callback_language_menu, pattern=f"^{LANGUAGE_CALLBACK}$")
-    )
-    app.add_handler(
-        CallbackQueryHandler(callback_language_set, pattern=f"^{LANGUAGE_PREFIX}")
-    )
+
     # Catch-all for free-form text — registered last so commands/callbacks above
     # always match first and the existing button UX stays untouched.
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))

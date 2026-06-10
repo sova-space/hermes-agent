@@ -20,11 +20,13 @@ from .agent_loop import AgentLoop
 from .chat_context import ChatContext
 from .commands import (
     COMMAND_FINANCE,
+    COMMAND_LANGUAGE,
     COMMAND_MODE,
     COMMAND_PROFILE,
     COMMAND_PROJECT_ALIAS,
     CommandContext,
     handle_finance_callback,
+    handle_language_callback,
     handle_profile_message,
     route,
     skip,
@@ -39,6 +41,7 @@ from .telegram_client import BotCommand, TelegramClient
 # TelegramClient.register_group_commands / SCOPE_ALL_GROUP_CHATS for why).
 GROUP_VISIBLE_COMMANDS = [
     BotCommand(COMMAND_PROFILE, "Show/switch profile + mode"),
+    BotCommand(COMMAND_LANGUAGE, "Choose language"),
     BotCommand(COMMAND_FINANCE, "Open finance"),
 ]
 
@@ -154,6 +157,10 @@ def pre_dispatch(event, **kwargs):
     if callback_routed is not None:
         return callback_routed
 
+    language_routed = handle_language_callback(ctx)
+    if language_routed is not None:
+        return language_routed
+
     if cmd is None:
         return handle_profile_message(ctx)
 
@@ -199,6 +206,11 @@ def register(ctx) -> None:
         handler=_default_scope_mode,
         description="Show/switch routing mode: client or dev",
         args_hint="[client|dev]",
+    )
+    ctx.register_command(
+        COMMAND_LANGUAGE,
+        handler=lambda _: "Use /language in a group chat to choose language.",
+        description="Choose language",
     )
     ctx.register_command(
         COMMAND_FINANCE,

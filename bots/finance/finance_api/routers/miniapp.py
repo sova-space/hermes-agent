@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from finance_api.domains.assistant.loop import answer as assistant_answer
 from finance_api.domains.bot.commands import BOT_COMMANDS
+from finance_api.domains.bot.language import LANGUAGES, get_language, set_language
 from finance_api.domains.bot.notifications import send_finance_app_button
 from finance_api.domains.bot.ui import balance_keyboard, view_payload
 from finance_api.domains.sync.monobank import run_sync
@@ -35,6 +36,12 @@ class AssistantResponse(BaseModel):
     reply: str
 
 
+class LanguageRequest(BaseModel):
+    """Language selected by the general Hermes router."""
+
+    language: str
+
+
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
 
 
@@ -56,6 +63,20 @@ async def bot_open() -> dict:
 async def bot_commands() -> list[dict]:
     """Return registered bot commands. Hermes fetches this to stay in sync."""
     return [{"command": c.command, "description": c.description} for c in BOT_COMMANDS]
+
+
+@router.get("/bot/language", include_in_schema=False)
+async def bot_language() -> dict:
+    """Return the service language synced from Hermes."""
+    language = get_language()
+    return {"language": language, "name": LANGUAGES[language]}
+
+
+@router.put("/bot/language", include_in_schema=False)
+async def bot_set_language(request: LanguageRequest) -> dict:
+    """Persist the language selected in Hermes' general /language UI."""
+    language = set_language(request.language)
+    return {"language": language, "name": LANGUAGES[language]}
 
 
 @router.get("/bot/profile", include_in_schema=False)
