@@ -22,6 +22,7 @@ from finance_api.domains.insights.queries import (
     get_subscriptions,
     get_sync_health,
 )
+from finance_api.domains.transactions.labeling import label_latest_uncategorized
 from finance_api.domains.transactions.manual import record_manual_income
 
 log = structlog.get_logger(__name__)
@@ -119,6 +120,22 @@ _TOOL_DEFS: list[dict] = [
             "required": ["amount", "currency", "description"],
         },
     },
+    {
+        "name": "label_uncategorized",
+        "description": (
+            "Set a category for the newest uncategorized transaction matching "
+            "a description fragment. Use when Nazar answers what an unknown "
+            "transaction was."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "description": {"type": "string"},
+                "category": {"type": "string"},
+            },
+            "required": ["description", "category"],
+        },
+    },
 ]
 
 _OPENAI_TOOLS: list[dict] = [
@@ -150,6 +167,9 @@ _SYSTEM = (
     "- Mind currencies — never sum or compare amounts across different currencies.\n"
     "- If Nazar says to record/add income, call record_income, then confirm "
     "the amount, currency, and description.\n"
+    "- If Nazar answers what an uncategorized transaction is, call "
+    "label_uncategorized with the transaction description fragment and one "
+    "canonical category name.\n"
     "- This is a Telegram chat: plain text only, no markdown headers or tables."
 )
 
@@ -194,6 +214,12 @@ async def _dispatch_tool(name: str, tool_input: dict) -> str:
                 description=str(tool_input["description"]),
                 received_on=received_on,
                 notes=tool_input.get("notes"),
+            )
+        elif name == "label_uncategorized":
+            result = await asyncio.to_thread(
+                label_latest_uncategorized,
+                description=str(tool_input["description"]),
+                category=str(tool_input["category"]),
             )
         else:
             return f"Unknown tool: {name}"

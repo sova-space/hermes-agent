@@ -14,6 +14,7 @@ from finance_api.domains.accounts.models import Account
 from finance_api.domains.pockets.queries import drain_pocket
 from finance_api.domains.rules.queries import get_patterns, matches_any
 from finance_api.domains.sync.client import MonobankClient
+from finance_api.domains.sync.hooks import notify_new_transactions
 from finance_api.domains.sync.mcc import MCC_LOOKUP
 from finance_api.domains.sync.models import SyncRun
 from finance_api.domains.transactions import categories as cat
@@ -247,6 +248,7 @@ def _sync_account(client: MonobankClient, acc: dict[str, Any], now_ts: int) -> i
             }
 
             new_expense_txs: list[Transaction] = []
+            new_tx_notifications: list[dict[str, Any]] = []
             for tx in txs:
                 parsed = _parse_tx(tx, account_id, currency, is_fop=is_fop)
                 if not parsed:
@@ -255,6 +257,12 @@ def _sync_account(client: MonobankClient, acc: dict[str, Any], now_ts: int) -> i
                 if existing is None:
                     session.add(parsed)
                     imported += 1
+                    new_tx_notifications.append({
+                        "description": parsed.description,
+                        "amount": parsed.amount,
+                        "currency": parsed.currency,
+                        "category": parsed.category,
+                    })
                     if parsed.amount < 0 and parsed.category is not None:
                         new_expense_txs.append(parsed)
                 elif existing.notes != parsed.notes:
@@ -267,6 +275,8 @@ def _sync_account(client: MonobankClient, acc: dict[str, Any], now_ts: int) -> i
                     imported += 1
 
             session.commit()
+
+            notify_new_transactions(new_tx_notifications)
 
             for expense_tx in new_expense_txs:
                 try:

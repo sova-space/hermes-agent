@@ -44,3 +44,4 @@ async def test_record_income_tool_calls_manual_recorder(monkeypatch):
 def test_record_income_tool_is_exposed_to_openrouter():
     names = [tool["function"]["name"] for tool in loop._OPENAI_TOOLS]
     assert "record_income" in names
+    assert "label_uncategorized" in names
