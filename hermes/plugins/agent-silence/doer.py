@@ -34,8 +34,10 @@ from the per-message ``/do``-vs-plain-text split to a sticky toggle):
   to ordinary Hermes conversation (no domain owner to ask)
 """
 
+import json
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import httpx
 
@@ -153,6 +155,13 @@ MODE_DEV = "dev"
 MODES = (MODE_CLIENT, MODE_DEV)
 
 
+# Shared with infra/patch_telegram_finance_callbacks.py so gateway-level inline
+# callbacks and this plugin see the same active profile/mode state.
+_SESSION_STATE_PATH = (
+    Path(os.environ.get("HERMES_HOME", "/data/.hermes")) / "agent-silence-session.json"
+)
+
+
 @dataclass
 class DoerSession:
     """Per-chat state: which profile is active, and in which mode.
@@ -172,17 +181,54 @@ class DoerSession:
     _active_profile: dict[str, str] = field(default_factory=dict)
     _active_mode: dict[str, str] = field(default_factory=dict)
 
+    def _load(self) -> None:
+        try:
+            data = json.loads(_SESSION_STATE_PATH.read_text())
+        except Exception:
+            return
+        profiles = data.get("active_profile")
+        modes = data.get("active_mode")
+        if isinstance(profiles, dict):
+            self._active_profile = {
+                str(k): str(v) for k, v in profiles.items() if isinstance(v, str)
+            }
+        if isinstance(modes, dict):
+            self._active_mode = {str(k): str(v) for k, v in modes.items() if v in MODES}
+
+    def _save(self) -> None:
+        try:
+            _SESSION_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            tmp = _SESSION_STATE_PATH.with_suffix(".tmp")
+            tmp.write_text(
+                json.dumps(
+                    {
+                        "active_profile": self._active_profile,
+                        "active_mode": self._active_mode,
+                    },
+                    sort_keys=True,
+                )
+            )
+            tmp.replace(_SESSION_STATE_PATH)
+        except Exception:
+            pass
+
     def active_profile(self, chat_id: str | None) -> str | None:
+        self._load()
         return self._active_profile.get(chat_id) if chat_id else None
 
     def select(self, chat_id: str, profile: str) -> None:
+        self._load()
         self._active_profile[chat_id] = profile
         self._active_mode.setdefault(chat_id, MODE_CLIENT)
+        self._save()
 
     def active_mode(self, chat_id: str | None) -> str:
+        self._load()
         if chat_id is None:
             return MODE_CLIENT
         return self._active_mode.get(chat_id, MODE_CLIENT)
 
     def set_mode(self, chat_id: str, mode: str) -> None:
+        self._load()
         self._active_mode[chat_id] = mode
+        self._save()

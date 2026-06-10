@@ -1,13 +1,12 @@
-"""Patch Hermes Telegram gateway to let finance inline buttons edit in place.
+"""Patch Hermes Telegram gateway for custom Sova inline callbacks.
 
 Hermes v2026.5.16 handles only built-in callback_data prefixes in
 TelegramPlatform._handle_callback_query. Unknown callback data is returned
 without query.answer(), so custom inline buttons spin forever.
 
-Our /finance command sends the finance_api inline keyboard from the Hermes bot,
-therefore those callbacks must be handled by the Hermes gateway process itself.
-This patch adds a small finance-specific bridge that calls finance_api's
-/bot/ui endpoints and edits the original Telegram message.
+Sova's /finance and /profile commands are sent by the Hermes bot and must edit
+one main Telegram message in place. This build-time patch handles those custom
+callback prefixes directly inside the Telegram gateway process.
 """
 
 from __future__ import annotations
@@ -15,11 +14,11 @@ from __future__ import annotations
 from pathlib import Path
 
 TARGET = Path("/opt/hermes-agent/gateway/platforms/telegram.py")
-MARKER = "# --- Finance UI callbacks (sova-space patch) ---"
+MARKER = "# --- Sova custom inline callbacks (sova-space patch) ---"
 ANCHOR = "        # --- Update prompt callbacks ---\n"
 
-PATCH = r'''        # --- Finance UI callbacks (sova-space patch) ---
-        if data in {"balance_cb", "income", "spending", "subs", "skipped", "sync"} or data.startswith("spd:"):
+PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
+        if data in {"balance_cb", "income", "spending", "subs", "skipped", "sync"} or data.startswith(("spd:", "prof:set:")):
             caller_id = str(getattr(query.from_user, "id", ""))
             if not self._is_callback_user_authorized(
                 caller_id,
@@ -28,11 +27,73 @@ PATCH = r'''        # --- Finance UI callbacks (sova-space patch) ---
                 thread_id=str(query_thread_id) if query_thread_id is not None else None,
                 user_name=query_user_name,
             ):
-                await query.answer(text="⛔ You are not authorized to use finance buttons.")
+                await query.answer(text="⛔ You are not authorized to use this button.")
                 return
 
             await query.answer()
             try:
+                if data.startswith("prof:set:"):
+                    import json
+                    from pathlib import Path as _Path
+
+                    projects = ["finance", "hermes", "wishlist"]
+                    _, _, profile, mode = data.split(":", 3)
+                    if profile not in projects or mode not in {"client", "dev"}:
+                        await query.answer(text="Unknown profile or mode.")
+                        return
+
+                    chat_id = str(query_chat_id) if query_chat_id is not None else ""
+                    if not chat_id:
+                        await query.answer(text="Chat missing.")
+                        return
+
+                    state_path = _Path(os.environ.get("HERMES_HOME", "/data/.hermes")) / "agent-silence-session.json"
+                    try:
+                        state = json.loads(state_path.read_text())
+                    except Exception:
+                        state = {}
+                    active_profile = state.get("active_profile") if isinstance(state.get("active_profile"), dict) else {}
+                    active_mode = state.get("active_mode") if isinstance(state.get("active_mode"), dict) else {}
+                    active_profile[chat_id] = profile
+                    active_mode[chat_id] = mode
+                    state = {"active_profile": active_profile, "active_mode": active_mode}
+                    state_path.parent.mkdir(parents=True, exist_ok=True)
+                    tmp = state_path.with_suffix(".tmp")
+                    tmp.write_text(json.dumps(state, sort_keys=True))
+                    tmp.replace(state_path)
+
+                    rows = []
+                    for project in projects:
+                        rows.append([
+                            InlineKeyboardButton(
+                                f"{'✅ ' if profile == project and mode == 'client' else ''}💬 {project}",
+                                callback_data=f"prof:set:{project}:client",
+                            ),
+                            InlineKeyboardButton(
+                                f"{'✅ ' if profile == project and mode == 'dev' else ''}🔧 {project}",
+                                callback_data=f"prof:set:{project}:dev",
+                            ),
+                        ])
+                    hint = (
+                        "Plain messages now ask the project assistant."
+                        if mode == "client"
+                        else "Plain messages now run repo devops tasks."
+                    )
+                    text = (
+                        "<b>Project router</b>\n"
+                        f"<b>Active:</b> <code>{profile}</code> · <b>{mode}</b>\n\n"
+                        "💬 Client: plain messages ask the project assistant.\n"
+                        "🔧 Dev: plain messages run repo devops tasks.\n\n"
+                        "Select project + mode:\n\n"
+                        f"<i>{hint}</i>"
+                    )
+                    await query.edit_message_text(
+                        text=text,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=InlineKeyboardMarkup(rows),
+                    )
+                    return
+
                 import httpx
                 from urllib.parse import quote
 
@@ -74,25 +135,30 @@ PATCH = r'''        # --- Finance UI callbacks (sova-space patch) ---
                     reply_markup=payload.get("reply_markup"),
                 )
             except Exception as exc:
-                logger.error("[%s] finance callback failed: %s", self.name, exc, exc_info=True)
+                logger.error("[%s] custom inline callback failed: %s", self.name, exc, exc_info=True)
                 try:
-                    await query.answer(text="Finance UI failed.")
+                    await query.answer(text="Button action failed.")
                 except Exception:
                     pass
             return
 
-'''
+"""
 
 
 def main() -> None:
     text = TARGET.read_text()
     if MARKER in text:
-        print("finance callback patch already applied")
+        print("custom inline callback patch already applied")
         return
+    old_marker = "# --- Finance UI callbacks (sova-space patch) ---"
+    if old_marker in text:
+        raise SystemExit(
+            "old finance-only patch is already applied; rebuild from clean Hermes source"
+        )
     if ANCHOR not in text:
         raise SystemExit(f"anchor not found in {TARGET}")
     TARGET.write_text(text.replace(ANCHOR, PATCH + ANCHOR, 1))
-    print("applied finance callback patch")
+    print("applied custom inline callback patch")
 
 
 if __name__ == "__main__":

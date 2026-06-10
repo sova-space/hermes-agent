@@ -58,13 +58,13 @@ never reach into the raw ``MessageEvent`` — that's the chokepoint that keeps
 the chat_id bug from coming back.
 """
 
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
-import os
 from urllib.parse import quote
 
-from .chat_context import ChatContext
 from .agent_loop import AgentLoop
+from .chat_context import ChatContext
 from .doer import MODE_CLIENT, MODE_DEV, MODES, DoerGateway, DoerSession
 from .telegram_client import TelegramClient
 
@@ -127,30 +127,47 @@ def handle_profile(ctx: CommandContext) -> dict[str, str] | None:
     return _switch_profile(ctx, profiles, name=ctx.args.split()[0].lower())
 
 
-def _report_status(ctx: CommandContext, profiles: list[str]) -> dict[str, str]:
+def _profile_payload(ctx: CommandContext, profiles: list[str]) -> dict:
     active = ctx.session.active_profile(ctx.chat.chat_id)
-    mode = ctx.session.active_mode(ctx.chat.chat_id) if active else "client"
-    llm_model = ctx.doer.llm_model
-    agent_model = ctx.doer.agent_model
-    quick_model = ctx.doer.quick_model
-
-    keyboard = {
-        "keyboard": [
-            [{"text": f"{p} 💬"}, {"text": f"{p} 🔧"}] for p in profiles
-        ],
-        "resize_keyboard": True,
-        "one_time_keyboard": True,
+    mode = ctx.session.active_mode(ctx.chat.chat_id) if active else MODE_CLIENT
+    active_line = (
+        f"<b>Active:</b> <code>{active}</code> · <b>{mode}</b>"
+        if active
+        else "<b>Active:</b> none"
+    )
+    hint = (
+        "💬 Client: plain messages ask the project assistant.\n"
+        "🔧 Dev: plain messages run repo devops tasks."
+    )
+    rows = [
+        [
+            {
+                "text": f"{'✅ ' if active == p and mode == MODE_CLIENT else ''}💬 {p}",
+                "callback_data": f"prof:set:{p}:{MODE_CLIENT}",
+            },
+            {
+                "text": f"{'✅ ' if active == p and mode == MODE_DEV else ''}🔧 {p}",
+                "callback_data": f"prof:set:{p}:{MODE_DEV}",
+            },
+        ]
+        for p in profiles
+    ]
+    text = f"<b>Project router</b>\n{active_line}\n\n{hint}\n\nSelect project + mode:"
+    return {
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": {"inline_keyboard": rows},
     }
 
-    active_info = f"Active: *{active}* — mode: *{mode}*" if active else "No profile selected"
-    text = (
-        f"{active_info}\n\n"
-        f"*LLM:* {llm_model}\n"
-        f"*Agent:* {agent_model}\n"
-        f"*Quick:* {quick_model}\n\n"
-        "Select a profile:"
+
+def _report_status(ctx: CommandContext, profiles: list[str]) -> dict[str, str]:
+    payload = _profile_payload(ctx, profiles)
+    ctx.telegram.send_message(
+        ctx.chat,
+        payload["text"],
+        reply_markup=payload["reply_markup"],
+        parse_mode=payload["parse_mode"],
     )
-    ctx.telegram.send_message(ctx.chat, text, reply_markup=keyboard)
     return skip("doer profile status")
 
 
@@ -164,27 +181,20 @@ def _switch_profile(
         return skip("doer unknown profile")
     ctx.session.select(ctx.chat.chat_id, name)
 
-    keyboard = {
-        "keyboard": [
-            [{"text": "💬 client"}, {"text": "🔧 dev"}],
-        ],
-        "resize_keyboard": True,
-        "one_time_keyboard": True,
-    }
-
     mode = ctx.session.active_mode(ctx.chat.chat_id)
-    owner = ctx.doer.profiles.get(name)
     hint = (
         "ask a question and assistant will answer."
-        if mode == MODE_CLIENT and owner is not None
+        if mode == MODE_CLIENT and ctx.doer.profiles.get(name) is not None
         else "ordinary conversation (no assistant for this profile)."
         if mode == MODE_CLIENT
         else "plain messages run as devops tasks against repo."
     )
+    payload = _profile_payload(ctx, profiles)
     ctx.telegram.send_message(
         ctx.chat,
-        f"Profile: *{name}* — mode: *{mode}*\n{hint}\n\nSelect mode:",
-        reply_markup=keyboard,
+        f"{payload['text']}\n\n<i>{hint}</i>",
+        reply_markup=payload["reply_markup"],
+        parse_mode=payload["parse_mode"],
     )
     return skip("doer profile selected")
 
@@ -366,7 +376,9 @@ def handle_finance_callback(ctx: CommandContext) -> dict[str, str] | None:
     if not data:
         return None
     if data == _FINANCE_SYNC_CALLBACK:
-        return _edit_finance_payload(ctx, _finance_payload("/bot/ui/finance/sync", method="POST"))
+        return _edit_finance_payload(
+            ctx, _finance_payload("/bot/ui/finance/sync", method="POST")
+        )
     if data.startswith(_FINANCE_SPENDING_PREFIX):
         category = data[len(_FINANCE_SPENDING_PREFIX) :]
         path = f"/bot/ui/finance/spending/{quote(category, safe='')}"
