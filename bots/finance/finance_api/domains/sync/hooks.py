@@ -5,6 +5,7 @@ from typing import Any
 import structlog
 
 from finance_api.core.config import settings
+from finance_api.domains.bot.language import get_language
 from finance_api.domains.bot.notifications import send_notification
 from finance_api.domains.transactions import categories as cat
 
@@ -27,6 +28,23 @@ _CATEGORY_HINTS = {
     cat.PARTNER: "partner/couple spending 👥",
 }
 
+_UK_CATEGORY_HINTS = {
+    cat.FOOD_AND_DRINK: "ото добре поїв 🍽️",
+    cat.GROCERIES: "закупився 🛒",
+    cat.TRANSPORTATION: "покатався 🚇",
+    cat.HEALTHCARE: "здоровʼя 💊",
+    cat.SHOPPING: "шопінг 🛍️",
+    cat.ENTERTAINMENT: "розваги 🎮",
+    cat.TRAVEL: "подорож ✈️",
+    cat.SUBSCRIPTIONS: "підписка 🔁",
+    cat.UTILITIES: "комуналка 🏠",
+    cat.ATM_CASH: "готівка 💵",
+    cat.FINANCE: "фінанси 💳",
+    cat.EDUCATION: "навчання 📚",
+    cat.PETS: "хвостики 🐾",
+    cat.PARTNER: "спільні витрати 👥",
+}
+
 _CATEGORY_EXAMPLES = ", ".join([
     cat.FOOD_AND_DRINK,
     cat.GROCERIES,
@@ -47,10 +65,18 @@ def _amount(tx: dict[str, Any]) -> str:
 
 def format_new_transaction_message(tx: dict[str, Any]) -> str:
     """Human notification for one newly imported transaction."""
+    language = get_language()
     description = tx["description"]
     category = tx.get("category")
     amount = _amount(tx)
     if category is None:
+        if language == "uk":
+            return (
+                f"🆕 {description}: {amount}\n"
+                "Що це за категорія? Напиши в чат, наприклад:\n"
+                f"label {description} as Food & Drink\n"
+                f"Варіанти: {_CATEGORY_EXAMPLES}"
+            )
         return (
             f"🆕 {description}: {amount}\n"
             "What category is this? Reply in chat, e.g.\n"
@@ -58,7 +84,8 @@ def format_new_transaction_message(tx: dict[str, Any]) -> str:
             f"Options: {_CATEGORY_EXAMPLES}"
         )
 
-    hint = _CATEGORY_HINTS.get(category, category)
+    hints = _UK_CATEGORY_HINTS if language == "uk" else _CATEGORY_HINTS
+    hint = hints.get(category, category)
     return f"🆕 {description}: {amount} — {hint}"
 
 

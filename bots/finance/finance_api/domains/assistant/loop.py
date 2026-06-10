@@ -12,6 +12,7 @@ import httpx
 import structlog
 
 from finance_api.core.config import settings
+from finance_api.domains.bot.language import get_language
 from finance_api.domains.budgets.queries import list_budgets_vs_spending
 from finance_api.domains.insights.queries import (
     get_account_balances,
@@ -229,6 +230,13 @@ async def _dispatch_tool(name: str, tool_input: dict) -> str:
     return json.dumps(result, default=str)
 
 
+def _system_prompt() -> str:
+    language = get_language()
+    if language == "uk":
+        return _SYSTEM + "\n- Reply in Ukrainian."
+    return _SYSTEM + "\n- Reply in English."
+
+
 async def _chat(messages: list[dict]) -> dict:
     """Call OpenRouter's OpenAI-compatible chat completions API."""
     async with httpx.AsyncClient(timeout=60) as client:
@@ -240,7 +248,10 @@ async def _chat(messages: list[dict]) -> dict:
             },
             json={
                 "model": settings.agent_model,
-                "messages": [{"role": "system", "content": _SYSTEM}, *messages],
+                "messages": [
+                    {"role": "system", "content": _system_prompt()},
+                    *messages,
+                ],
                 "tools": _OPENAI_TOOLS,
                 "tool_choice": "auto",
                 "max_tokens": 1024,

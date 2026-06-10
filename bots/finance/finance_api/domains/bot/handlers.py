@@ -19,6 +19,7 @@ from finance_api.domains.bot.formatter import (
     format_subscriptions,
     format_sync_status,
 )
+from finance_api.domains.bot.language import LANGUAGES, get_language, set_language
 from finance_api.domains.insights.queries import (
     get_account_balances,
     get_hidden_account_balances,
@@ -39,6 +40,8 @@ SPENDING_CAT_PREFIX = "spd:"
 SUBS_CALLBACK = "subs"
 SKIPPED_CALLBACK = "skipped"
 BALANCE_CALLBACK = "balance_cb"
+LANGUAGE_CALLBACK = "language"
+LANGUAGE_PREFIX = "lang:"
 
 _MSG_NOT_MODIFIED = "message is not modified"
 
@@ -56,6 +59,7 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🔄 Sync", callback_data=SYNC_CALLBACK),
             InlineKeyboardButton("📊 Finance", url=settings.mini_app_url),
         ],
+        [InlineKeyboardButton("🌐 Language", callback_data=LANGUAGE_CALLBACK)],
     ])
 
 
@@ -127,6 +131,57 @@ async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             text=text,
             reply_markup=keyboard,
         )
+
+
+def _language_keyboard(current: str) -> InlineKeyboardMarkup:
+    buttons = []
+    for code_, name in LANGUAGES.items():
+        label = f"✓ {name}" if code_ == current else name
+        buttons.append(
+            InlineKeyboardButton(label, callback_data=f"{LANGUAGE_PREFIX}{code_}")
+        )
+    return InlineKeyboardMarkup([
+        buttons,
+        [InlineKeyboardButton("← Back", callback_data=BALANCE_CALLBACK)],
+    ])
+
+
+def _language_text(current: str) -> str:
+    return f"Language: {LANGUAGES.get(current, LANGUAGES['en'])}"
+
+
+async def language(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /language command."""
+    current = await asyncio.to_thread(get_language)
+    await ctx.bot.send_message(
+        chat_id=update.effective_chat.id,
+        message_thread_id=_thread_id(update.message),
+        text=_language_text(current),
+        reply_markup=_language_keyboard(current),
+    )
+
+
+async def callback_language_menu(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Show language selector from an existing finance message."""
+    query = update.callback_query
+    await query.answer()
+    current = await asyncio.to_thread(get_language)
+    await _edit(
+        query, _language_text(current), reply_markup=_language_keyboard(current)
+    )
+
+
+async def callback_language_set(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Persist language selection and update the same message."""
+    query = update.callback_query
+    selected = query.data[len(LANGUAGE_PREFIX) :]
+    await asyncio.to_thread(set_language, selected)
+    await query.answer(f"Language: {LANGUAGES[selected]}")
+    await _edit(
+        query, _language_text(selected), reply_markup=_language_keyboard(selected)
+    )
 
 
 async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

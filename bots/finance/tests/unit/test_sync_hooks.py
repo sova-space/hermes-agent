@@ -3,10 +3,14 @@
 from finance_api.domains.transactions import categories as cat
 
 
-def test_format_new_transaction_message_for_known_food_is_short_and_playful():
-    from finance_api.domains.sync.hooks import format_new_transaction_message
+def test_format_new_transaction_message_for_known_food_is_short_and_playful(
+    monkeypatch,
+):
+    from finance_api.domains.sync import hooks
 
-    text = format_new_transaction_message({
+    monkeypatch.setattr(hooks, "get_language", lambda: "en")
+
+    text = hooks.format_new_transaction_message({
         "description": "SHOCKO CAFE",
         "amount": -420,
         "currency": "UAH",
@@ -19,10 +23,12 @@ def test_format_new_transaction_message_for_known_food_is_short_and_playful():
     assert "What category" not in text
 
 
-def test_format_new_transaction_message_for_uncategorized_asks_question():
-    from finance_api.domains.sync.hooks import format_new_transaction_message
+def test_format_new_transaction_message_for_uncategorized_asks_question(monkeypatch):
+    from finance_api.domains.sync import hooks
 
-    text = format_new_transaction_message({
+    monkeypatch.setattr(hooks, "get_language", lambda: "en")
+
+    text = hooks.format_new_transaction_message({
         "description": "UNKNOWN SHOP",
         "amount": -100,
         "currency": "UAH",
