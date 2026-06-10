@@ -6,6 +6,7 @@ chat-completions API.
 
 import asyncio
 import json
+from datetime import date
 
 import httpx
 import structlog
@@ -21,6 +22,7 @@ from finance_api.domains.insights.queries import (
     get_subscriptions,
     get_sync_health,
 )
+from finance_api.domains.transactions.manual import record_manual_income
 
 log = structlog.get_logger(__name__)
 
@@ -95,6 +97,28 @@ _TOOL_DEFS: list[dict] = [
         "description": "When the bank data was last synced, and its outcome.",
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "record_income",
+        "description": (
+            "Record income that did not arrive through Monobank, for example cash, "
+            "Wise, PayPal, or another bank. Use only when Nazar explicitly asks "
+            "to record/add income."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "amount": {"type": "number"},
+                "currency": {"type": "string", "description": "UAH, USD, EUR, etc."},
+                "description": {"type": "string"},
+                "date": {
+                    "type": "string",
+                    "description": "ISO date YYYY-MM-DD. Omit for today.",
+                },
+                "notes": {"type": "string"},
+            },
+            "required": ["amount", "currency", "description"],
+        },
+    },
 ]
 
 _OPENAI_TOOLS: list[dict] = [
@@ -124,6 +148,8 @@ _SYSTEM = (
     "🛍️ Shopping, 🎮 Entertainment, ✈️ Travel, 💳 Financial, 💸 Transfers, "
     "💰 Income, 📦 Other.\n"
     "- Mind currencies — never sum or compare amounts across different currencies.\n"
+    "- If Nazar says to record/add income, call record_income, then confirm "
+    "the amount, currency, and description.\n"
     "- This is a Telegram chat: plain text only, no markdown headers or tables."
 )
 
@@ -157,6 +183,18 @@ async def _dispatch_tool(name: str, tool_input: dict) -> str:
             result = await asyncio.to_thread(get_income_summary)
         elif name == "get_sync_status":
             result = await asyncio.to_thread(get_sync_health)
+        elif name == "record_income":
+            received_on = None
+            if tool_input.get("date"):
+                received_on = date.fromisoformat(str(tool_input["date"]))
+            result = await asyncio.to_thread(
+                record_manual_income,
+                amount=float(tool_input["amount"]),
+                currency=str(tool_input["currency"]),
+                description=str(tool_input["description"]),
+                received_on=received_on,
+                notes=tool_input.get("notes"),
+            )
         else:
             return f"Unknown tool: {name}"
     except Exception as exc:
