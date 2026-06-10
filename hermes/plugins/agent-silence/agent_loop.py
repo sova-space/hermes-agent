@@ -23,7 +23,7 @@ import base64
 import logging
 import threading
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 import anthropic
 import httpx
@@ -51,15 +51,41 @@ class Project(TypedDict):
 
     repo: str
     base_branch: str
+    prompt: NotRequired[str]
 
 
 # Moved verbatim from bots/doer/doer_api/agent/projects.py — must keep these
 # slugs in sync with project-context's KNOWN_PROJECTS (CLAUDE.md "Project
 # slugs" rule): hermes / finance / wishlist, 1:1 with the router's profiles.
 PROJECTS: dict[str, Project] = {
-    "finance": {"repo": "sova-claw/hermes-finance", "base_branch": "main"},
-    "wishlist": {"repo": "sova-claw/hermes-wishlist", "base_branch": "main"},
-    "hermes": {"repo": "nkhimin/hermes-agent", "base_branch": "main"},
+    "finance": {
+        "repo": "sova-claw/hermes-finance",
+        "base_branch": "main",
+        "prompt": (
+            "Finance project: Monobank-backed personal finance bot. Keep changes "
+            "minimal and domain-focused. Respect finance_api boundaries: Telegram "
+            "handlers are UI only; analytics live in domains/insights/queries.py; "
+            "sync code talks to Monobank/DB directly. Do not mix commands or tests "
+            "with other bots."
+        ),
+    },
+    "wishlist": {
+        "repo": "sova-claw/hermes-wishlist",
+        "base_branch": "main",
+        "prompt": (
+            "Wishlist project: Telegram wishlist bot. Keep UI simple and keyboard-first. "
+            "Use wishlist_api boundaries and do not mix finance/Hermes commands, env, or tests."
+        ),
+    },
+    "hermes": {
+        "repo": "nkhimin/hermes-agent",
+        "base_branch": "main",
+        "prompt": (
+            "Hermes project: Nazar's Railway-deployed Hermes Agent. Prefer minimal, "
+            "repo-level fixes. Keep Telegram project-router slugs exactly finance, "
+            "wishlist, hermes. Preserve Railway startup/config behavior and run graphify update after code changes."
+        ),
+    },
 }
 
 
@@ -162,6 +188,11 @@ _SYSTEM = (
     "- Never hardcode secrets or tokens.\n"
     "- If the task is ambiguous or impossible, stop and explain why."
 )
+
+
+def _system_for_project(project: Project) -> str:
+    prompt = project.get("prompt")
+    return f"{_SYSTEM}\n\nProject-specific context:\n{prompt}" if prompt else _SYSTEM
 
 
 class _GitHub:
@@ -306,7 +337,7 @@ def _run_loop(
         response = client.messages.create(
             model=model,
             max_tokens=4096,
-            system=_SYSTEM,
+            system=_system_for_project(project),
             tools=tools,  # type: ignore[arg-type]
             messages=messages,  # type: ignore[arg-type]
         )
@@ -340,7 +371,7 @@ def _run_pr_phase(
         response = client.messages.create(
             model=model,
             max_tokens=2048,
-            system=_SYSTEM,
+            system=_system_for_project(project),
             tools=_PR_TOOLS,  # type: ignore[arg-type]
             messages=messages,  # type: ignore[arg-type]
         )
@@ -409,19 +440,52 @@ class AgentLoop:
         try:
             # Phase 1: explore with quick model (read-only tools)
             log.info("devops_phase=explore model=%s", self.quick_model)
-            messages = _run_loop(client, self.quick_model, _EXPLORE_TOOLS, messages, gh, project, max_iter=10)
+            messages = _run_loop(
+                client,
+                self.quick_model,
+                _EXPLORE_TOOLS,
+                messages,
+                gh,
+                project,
+                max_iter=10,
+            )
 
             # Phase 2: code with agent model (branch + write tools)
-            messages.append({"role": "user", "content": "Implement the changes: create a branch and write the files."})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Implement the changes: create a branch and write the files.",
+                }
+            )
             log.info("devops_phase=code model=%s", self.agent_model)
-            messages = _run_loop(client, self.agent_model, _CODE_TOOLS, messages, gh, project, max_iter=20)
+            messages = _run_loop(
+                client,
+                self.agent_model,
+                _CODE_TOOLS,
+                messages,
+                gh,
+                project,
+                max_iter=20,
+            )
 
             # Phase 3: PR ops with quick model
-            messages.append({"role": "user", "content": "Create a pull request for the changes, then merge it."})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Create a pull request for the changes, then merge it.",
+                }
+            )
             log.info("devops_phase=pr model=%s", self.quick_model)
-            messages, pr_url, merged = _run_pr_phase(client, self.quick_model, messages, gh, project)
+            messages, pr_url, merged = _run_pr_phase(
+                client, self.quick_model, messages, gh, project
+            )
 
-            log.info("devops_task_done profile=%s pr_url=%s merged=%s", profile, pr_url, merged)
+            log.info(
+                "devops_task_done profile=%s pr_url=%s merged=%s",
+                profile,
+                pr_url,
+                merged,
+            )
             status = "merged" if merged else "PR open (merge blocked)"
             link = f"[{pr_url}]({pr_url})" if pr_url else "no PR created"
             self.telegram.send_message(
