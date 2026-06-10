@@ -292,12 +292,13 @@ def handle_language_callback(ctx: CommandContext) -> dict[str, str] | None:
         return None
     selected = data[len("lang:") :]
     if selected not in LANGUAGES:
+        ctx.telegram.answer_callback_query(ctx.callback_query_id)
         return skip("language unknown callback")
+    ctx.telegram.answer_callback_query(ctx.callback_query_id)
     if ctx.chat.chat_id is None:
         return skip("language no chat callback")
     ctx.session.set_language(ctx.chat.chat_id, selected)
     _push_language_to_services(ctx, selected)
-    ctx.telegram.answer_callback_query(ctx.callback_query_id)
     payload = _language_payload(ctx.chat.chat_id, ctx.session)
     if ctx.callback_message_id is None:
         ctx.telegram.send_message(

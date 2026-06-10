@@ -95,6 +95,23 @@ def _first_attr(obj, names: tuple[str, ...]):
     return None
 
 
+def _chat_context(event) -> ChatContext:
+    """Resolve chat/thread ids, including Telegram callback-query fallbacks."""
+    chat = ChatContext.from_event(event)
+    if chat.chat_id is not None:
+        return chat
+
+    query = getattr(event, "callback_query", None)
+    message = getattr(query, "message", None) if query is not None else None
+    raw_chat = getattr(message, "chat", None)
+    chat_id = _first_attr(raw_chat, ("id", "chat_id"))
+    thread_id = _first_attr(message, ("message_thread_id", "thread_id"))
+    return ChatContext(
+        chat_id=str(chat_id) if chat_id is not None else None,
+        thread_id=str(thread_id) if thread_id is not None else None,
+    )
+
+
 def _callback_meta(event) -> tuple[str | None, str | None, str | int | None]:
     """Best-effort extraction for Telegram callback-query events.
 
@@ -137,7 +154,7 @@ def pre_dispatch(event, **kwargs):
 
     text = getattr(event, "text", "") or ""
     cmd = event.get_command() if hasattr(event, "get_command") else None
-    chat = ChatContext.from_event(event)
+    chat = _chat_context(event)
     callback_data, callback_query_id, callback_message_id = _callback_meta(event)
     _clear_stale_chat_override(chat.chat_id)
     ctx = CommandContext(
