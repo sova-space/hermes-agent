@@ -18,7 +18,7 @@ MARKER = "# --- Sova custom inline callbacks (sova-space patch) ---"
 ANCHOR = "        # --- Update prompt callbacks ---\n"
 
 PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
-        if data in {"balance_cb", "income", "spending", "subs", "skipped", "sync"} or data.startswith(("spd:", "prof:project:", "prof:mode:")):
+        if data in {"balance_cb", "income", "spending", "subs", "skipped", "sync"} or data.startswith(("spd:", "prof:project:", "prof:mode:", "lang:")):
             caller_id = str(getattr(query.from_user, "id", ""))
             if not self._is_callback_user_authorized(
                 caller_id,
@@ -32,12 +32,64 @@ PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
 
             await query.answer()
             try:
-                if data.startswith(("prof:project:", "prof:mode:")):
-                    import json
-                    from pathlib import Path as _Path
+                import json
+                from pathlib import Path as _Path
 
+                chat_id = str(query_chat_id) if query_chat_id is not None else ""
+                state_path = _Path(os.environ.get("HERMES_HOME", "/data/.hermes")) / "agent-silence-session.json"
+                try:
+                    state = json.loads(state_path.read_text())
+                except Exception:
+                    state = {}
+
+                if data.startswith("lang:"):
+                    languages = {"en": "English", "uk": "Українська"}
+                    language = data.split(":", 1)[1]
+                    if language not in languages:
+                        await query.answer(text="Unknown language.")
+                        return
+                    if not chat_id:
+                        await query.answer(text="Chat missing.")
+                        return
+
+                    active_language = state.get("active_language") if isinstance(state.get("active_language"), dict) else {}
+                    active_language[chat_id] = language
+                    state["active_language"] = active_language
+                    state_path.parent.mkdir(parents=True, exist_ok=True)
+                    tmp = state_path.with_suffix(".tmp")
+                    tmp.write_text(json.dumps(state, sort_keys=True))
+                    tmp.replace(state_path)
+
+                    try:
+                        import httpx
+
+                        with httpx.Client(timeout=5) as client:
+                            for key, value in os.environ.items():
+                                if key.startswith("AGENT_") and key.endswith("_URL"):
+                                    base = value.rstrip("/")
+                                    if base and not base.startswith("http"):
+                                        base = f"https://{base}"
+                                    if base:
+                                        client.put(f"{base}/bot/language", json={"language": language})
+                    except Exception:
+                        pass
+
+                    rows = [[
+                        InlineKeyboardButton(
+                            f"{'✅ ' if language == code else ''}{name}",
+                            callback_data=f"lang:{code}",
+                        )
+                        for code, name in languages.items()
+                    ]]
+                    await query.edit_message_text(
+                        text="<b>Language</b>",
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=InlineKeyboardMarkup(rows),
+                    )
+                    return
+
+                if data.startswith(("prof:project:", "prof:mode:")):
                     projects = ["finance", "hermes", "wishlist"]
-                    chat_id = str(query_chat_id) if query_chat_id is not None else ""
                     if not chat_id:
                         await query.answer(text="Chat missing.")
                         return
@@ -62,7 +114,8 @@ PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
 
                     active_profile[chat_id] = profile
                     active_mode[chat_id] = mode
-                    state = {"active_profile": active_profile, "active_mode": active_mode}
+                    state["active_profile"] = active_profile
+                    state["active_mode"] = active_mode
                     state_path.parent.mkdir(parents=True, exist_ok=True)
                     tmp = state_path.with_suffix(".tmp")
                     tmp.write_text(json.dumps(state, sort_keys=True))
