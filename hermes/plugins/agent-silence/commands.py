@@ -135,7 +135,6 @@ def _profile_payload(ctx: CommandContext, profiles: list[str]) -> dict:
         if active
         else "<b>Active:</b> none"
     )
-    hint = "💬 Ask assistant\n🔧 Run repo tasks"
     rows = [
         [
             {
@@ -155,7 +154,7 @@ def _profile_payload(ctx: CommandContext, profiles: list[str]) -> dict:
             },
         ],
     ]
-    text = f"<b>Project router</b>\n{active_line}\n\n{hint}\n\nChoose project and mode:"
+    text = f"<b>Project router</b>\n{active_line}"
     return {
         "text": text,
         "parse_mode": "HTML",
@@ -184,18 +183,10 @@ def _switch_profile(
         return skip("doer unknown profile")
     ctx.session.select(ctx.chat.chat_id, name)
 
-    mode = ctx.session.active_mode(ctx.chat.chat_id)
-    hint = (
-        "Ask assistant"
-        if mode == MODE_CLIENT and ctx.doer.profiles.get(name) is not None
-        else "Chat normally"
-        if mode == MODE_CLIENT
-        else "Run repo tasks"
-    )
     payload = _profile_payload(ctx, profiles)
     ctx.telegram.send_message(
         ctx.chat,
-        f"{payload['text']}\n\n<i>{hint}</i>",
+        payload["text"],
         reply_markup=payload["reply_markup"],
         parse_mode=payload["parse_mode"],
     )

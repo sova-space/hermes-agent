@@ -87,14 +87,9 @@ PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
                             ),
                         ],
                     ]
-                    hint = "Ask assistant" if mode == "client" else "Run repo tasks"
                     text = (
                         "<b>Project router</b>\n"
-                        f"<b>Active:</b> <code>{profile}</code> · <b>{mode}</b>\n\n"
-                        "💬 Ask assistant\n"
-                        "🔧 Run repo tasks\n\n"
-                        "Choose project and mode:\n\n"
-                        f"<i>{hint}</i>"
+                        f"<b>Active:</b> <code>{profile}</code> · <b>{mode}</b>"
                     )
                     await query.edit_message_text(
                         text=text,
