@@ -135,10 +135,7 @@ def _profile_payload(ctx: CommandContext, profiles: list[str]) -> dict:
         if active
         else "<b>Active:</b> none"
     )
-    hint = (
-        "💬 Client: plain messages ask the project assistant.\n"
-        "🔧 Dev: plain messages run repo devops tasks."
-    )
+    hint = "💬 Ask assistant\n🔧 Run repo tasks"
     rows = [
         [
             {
@@ -158,9 +155,7 @@ def _profile_payload(ctx: CommandContext, profiles: list[str]) -> dict:
             },
         ],
     ]
-    text = (
-        f"<b>Project router</b>\n{active_line}\n\n{hint}\n\nSelect project, then mode:"
-    )
+    text = f"<b>Project router</b>\n{active_line}\n\n{hint}\n\nChoose project and mode:"
     return {
         "text": text,
         "parse_mode": "HTML",
@@ -191,11 +186,11 @@ def _switch_profile(
 
     mode = ctx.session.active_mode(ctx.chat.chat_id)
     hint = (
-        "ask a question and assistant will answer."
+        "Ask assistant"
         if mode == MODE_CLIENT and ctx.doer.profiles.get(name) is not None
-        else "ordinary conversation (no assistant for this profile)."
+        else "Chat normally"
         if mode == MODE_CLIENT
-        else "plain messages run as devops tasks against repo."
+        else "Run repo tasks"
     )
     payload = _profile_payload(ctx, profiles)
     ctx.telegram.send_message(
