@@ -142,17 +142,25 @@ def _profile_payload(ctx: CommandContext, profiles: list[str]) -> dict:
     rows = [
         [
             {
-                "text": f"{'✅ ' if active == p and mode == MODE_CLIENT else ''}💬 {p}",
-                "callback_data": f"prof:set:{p}:{MODE_CLIENT}",
+                "text": f"{'✅ ' if active == p else ''}{p}",
+                "callback_data": f"prof:project:{p}",
+            }
+            for p in profiles
+        ],
+        [
+            {
+                "text": f"{'✅ ' if mode == MODE_CLIENT else ''}💬 client",
+                "callback_data": f"prof:mode:{MODE_CLIENT}",
             },
             {
-                "text": f"{'✅ ' if active == p and mode == MODE_DEV else ''}🔧 {p}",
-                "callback_data": f"prof:set:{p}:{MODE_DEV}",
+                "text": f"{'✅ ' if mode == MODE_DEV else ''}🔧 dev",
+                "callback_data": f"prof:mode:{MODE_DEV}",
             },
-        ]
-        for p in profiles
+        ],
     ]
-    text = f"<b>Project router</b>\n{active_line}\n\n{hint}\n\nSelect project + mode:"
+    text = (
+        f"<b>Project router</b>\n{active_line}\n\n{hint}\n\nSelect project, then mode:"
+    )
     return {
         "text": text,
         "parse_mode": "HTML",

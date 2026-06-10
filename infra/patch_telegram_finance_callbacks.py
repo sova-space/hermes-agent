@@ -18,7 +18,7 @@ MARKER = "# --- Sova custom inline callbacks (sova-space patch) ---"
 ANCHOR = "        # --- Update prompt callbacks ---\n"
 
 PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
-        if data in {"balance_cb", "income", "spending", "subs", "skipped", "sync"} or data.startswith(("spd:", "prof:set:")):
+        if data in {"balance_cb", "income", "spending", "subs", "skipped", "sync"} or data.startswith(("spd:", "prof:project:", "prof:mode:")):
             caller_id = str(getattr(query.from_user, "id", ""))
             if not self._is_callback_user_authorized(
                 caller_id,
@@ -32,16 +32,11 @@ PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
 
             await query.answer()
             try:
-                if data.startswith("prof:set:"):
+                if data.startswith(("prof:project:", "prof:mode:")):
                     import json
                     from pathlib import Path as _Path
 
                     projects = ["finance", "hermes", "wishlist"]
-                    _, _, profile, mode = data.split(":", 3)
-                    if profile not in projects or mode not in {"client", "dev"}:
-                        await query.answer(text="Unknown profile or mode.")
-                        return
-
                     chat_id = str(query_chat_id) if query_chat_id is not None else ""
                     if not chat_id:
                         await query.answer(text="Chat missing.")
@@ -54,6 +49,17 @@ PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
                         state = {}
                     active_profile = state.get("active_profile") if isinstance(state.get("active_profile"), dict) else {}
                     active_mode = state.get("active_mode") if isinstance(state.get("active_mode"), dict) else {}
+
+                    profile = str(active_profile.get(chat_id) or projects[0])
+                    mode = str(active_mode.get(chat_id) or "client")
+                    if data.startswith("prof:project:"):
+                        profile = data.split(":", 2)[2]
+                    else:
+                        mode = data.split(":", 2)[2]
+                    if profile not in projects or mode not in {"client", "dev"}:
+                        await query.answer(text="Unknown profile or mode.")
+                        return
+
                     active_profile[chat_id] = profile
                     active_mode[chat_id] = mode
                     state = {"active_profile": active_profile, "active_mode": active_mode}
@@ -62,18 +68,25 @@ PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
                     tmp.write_text(json.dumps(state, sort_keys=True))
                     tmp.replace(state_path)
 
-                    rows = []
-                    for project in projects:
-                        rows.append([
+                    rows = [
+                        [
                             InlineKeyboardButton(
-                                f"{'✅ ' if profile == project and mode == 'client' else ''}💬 {project}",
-                                callback_data=f"prof:set:{project}:client",
+                                f"{'✅ ' if profile == project else ''}{project}",
+                                callback_data=f"prof:project:{project}",
+                            )
+                            for project in projects
+                        ],
+                        [
+                            InlineKeyboardButton(
+                                f"{'✅ ' if mode == 'client' else ''}💬 client",
+                                callback_data="prof:mode:client",
                             ),
                             InlineKeyboardButton(
-                                f"{'✅ ' if profile == project and mode == 'dev' else ''}🔧 {project}",
-                                callback_data=f"prof:set:{project}:dev",
+                                f"{'✅ ' if mode == 'dev' else ''}🔧 dev",
+                                callback_data="prof:mode:dev",
                             ),
-                        ])
+                        ],
+                    ]
                     hint = (
                         "Plain messages now ask the project assistant."
                         if mode == "client"
@@ -84,7 +97,7 @@ PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
                         f"<b>Active:</b> <code>{profile}</code> · <b>{mode}</b>\n\n"
                         "💬 Client: plain messages ask the project assistant.\n"
                         "🔧 Dev: plain messages run repo devops tasks.\n\n"
-                        "Select project + mode:\n\n"
+                        "Select project, then mode:\n\n"
                         f"<i>{hint}</i>"
                     )
                     await query.edit_message_text(
