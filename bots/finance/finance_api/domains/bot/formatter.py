@@ -91,7 +91,40 @@ _CURRENCY_FLAG: dict[str, str] = {
 }
 
 
-def format_balance(accounts: list[dict[str, Any]]) -> str:
+def _cycle_dates(month: dict[str, Any] | None) -> tuple[date, date] | None:
+    if not month:
+        return None
+    spending = month.get("spending", month)
+    start_raw = spending.get("period_start")
+    end_raw = spending.get("period_end")
+    if not start_raw or not end_raw:
+        return None
+    return date.fromisoformat(start_raw), date.fromisoformat(end_raw)
+
+
+def _cycle_label(start: date) -> str:
+    return start.strftime("%B")
+
+
+def _cycle_range(start: date, end: date) -> str:
+    if start.month == end.month:
+        return f"{start.strftime('%-d')}-{end.strftime('%-d %b')}"
+    return f"{start.strftime('%-d %b')}-{end.strftime('%-d %b')}"
+
+
+def _format_cycle_line(month: dict[str, Any] | None) -> str:
+    dates = _cycle_dates(month)
+    if not dates:
+        return ""
+    start, end = dates
+    label = bold(f"Month · {_cycle_label(start)}")
+    range_label = italic(_cycle_range(start, end))
+    return f"📅 {label} · {range_label}"
+
+
+def format_balance(
+    accounts: list[dict[str, Any]], month: dict[str, Any] | None = None
+) -> str:
     """Format balances: currency totals visible, per-account details expandable."""
     if not accounts:
         return "No accounts synced yet. Run /sync first."
@@ -136,8 +169,11 @@ def format_balance(accounts: list[dict[str, Any]]) -> str:
         (a["synced_at"] for a in accounts if a.get("synced_at")),
         default=None,
     )
+    cycle_line = _format_cycle_line(month)
+    cycle_block = f"\n{cycle_line}\n" if cycle_line else "\n"
     return (
-        f"💳 {bold('Mono')}\n\n"
+        f"💳 {bold('Mono')}\n"
+        + cycle_block
         + "\n".join(total_lines)
         + "\n\n"
         + expandable_blockquote("\n".join(breakdown_lines))
@@ -288,23 +324,20 @@ def format_income_summary(summary: dict[str, Any]) -> str:
 
 def format_month_report(income: dict[str, Any], spending: dict[str, Any]) -> str:
     """Format one salary-to-salary month management summary."""
-    start_raw = spending.get("period_start") or income.get("period_start")
-    end_raw = spending.get("period_end")
-    if start_raw and end_raw:
-        start = date.fromisoformat(start_raw)
-        end = date.fromisoformat(end_raw)
-        if start.month == end.month:
-            period = f"{start.strftime('%-d')}-{end.strftime('%-d %b')}"
-        else:
-            period = f"{start.strftime('%-d %b')}-{end.strftime('%-d %b')}"
+    dates = _cycle_dates(spending) or _cycle_dates(income)
+    if dates:
+        start, end = dates
+        label = _cycle_label(start)
+        range_label = _cycle_range(start, end)
     else:
-        period = _fmt_income_period(income) or "current cycle"
+        label = _fmt_income_period(income) or "current"
+        range_label = "salary to salary"
 
     income_text = format_income_summary(income) or "No income data yet."
     spending_text = format_spending_summary(spending) or "No spending recorded yet."
     return (
-        f"📅 {bold(f'Month · {period}')}\n"
-        f"{italic('salary to salary')}\n\n"
+        f"📅 {bold(f'Month · {label}')}\n"
+        f"{italic(range_label)}\n\n"
         f"{bold('Income')}\n{income_text}\n\n"
         f"{bold('Spending')}\n{spending_text}"
     )

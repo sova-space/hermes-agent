@@ -142,8 +142,9 @@ def view_payload(view: str = "balance", category: str | None = None) -> dict[str
     """Return a Telegram-ready UI payload for one finance view."""
     if view == "balance":
         accounts = get_account_balances()
+        month = get_month_cycle_summary()
         return {
-            "text": format_balance(accounts),
+            "text": format_balance(accounts, month),
             "parse_mode": PARSE_MODE,
             "reply_markup": balance_keyboard(),
         }

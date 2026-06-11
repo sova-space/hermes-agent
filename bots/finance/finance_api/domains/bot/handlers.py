@@ -166,10 +166,11 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /balance command."""
     try:
         accounts = await asyncio.to_thread(get_account_balances)
+        month = await asyncio.to_thread(get_month_cycle_summary)
         await ctx.bot.send_message(
             chat_id=update.effective_chat.id,
             message_thread_id=_thread_id(update.message),
-            text=format_balance(accounts),
+            text=format_balance(accounts, month),
             parse_mode=PARSE_MODE,
             reply_markup=_balance_keyboard(),
         )
@@ -189,9 +190,10 @@ async def callback_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     await query.answer()
     try:
         accounts = await asyncio.to_thread(get_account_balances)
+        month = await asyncio.to_thread(get_month_cycle_summary)
         await _edit(
             query,
-            format_balance(accounts),
+            format_balance(accounts, month),
             parse_mode=PARSE_MODE,
             reply_markup=_balance_keyboard(),
         )

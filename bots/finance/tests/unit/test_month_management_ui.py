@@ -19,10 +19,10 @@ def test_balance_keyboard_is_easy_to_tap():
     assert all(len(row) <= 2 for row in keyboard)
 
 
-def test_month_report_formats_income_and_spending_html():
+def test_month_report_formats_month_name_and_salary_range():
     text = formatter.format_month_report(
         income={
-            "period_start": "2026-06-01",
+            "period_start": "2026-05-29",
             "by_currency": {
                 "UAH": {
                     "fop": 0,
@@ -30,7 +30,7 @@ def test_month_report_formats_income_and_spending_html():
                     "fop_txns": [],
                     "personal_txns": [
                         {
-                            "date": "2026-06-01",
+                            "date": "2026-05-29",
                             "amount": 40000,
                             "description": "Salary",
                         }
@@ -40,8 +40,8 @@ def test_month_report_formats_income_and_spending_html():
             "balances": {"UAH": 10000},
         },
         spending={
-            "period_start": "2026-06-01",
-            "period_end": "2026-06-11",
+            "period_start": "2026-05-29",
+            "period_end": "2026-06-27",
             "rows": [
                 {"category": "Food & Drink", "currency": "UAH", "amount": 2500},
             ],
@@ -49,10 +49,34 @@ def test_month_report_formats_income_and_spending_html():
         },
     )
 
-    assert "<b>Month" in text
+    assert "<b>Month · May</b>" in text
+    assert "29 May-27 Jun" in text
     assert "Income" in text
     assert "Spending" in text
     assert "Food & Drink" in text
+
+
+def test_balance_formats_configured_month():
+    text = formatter.format_balance(
+        accounts=[
+            {
+                "name": "Monobank Black UAH",
+                "currency": "UAH",
+                "balance": 10000,
+                "is_fop": False,
+                "synced_at": None,
+            }
+        ],
+        month={
+            "spending": {
+                "period_start": "2026-06-05",
+                "period_end": "2026-07-04",
+            }
+        },
+    )
+
+    assert "<b>Month · June</b>" in text
+    assert "5 Jun-4 Jul" in text
 
 
 def test_month_keyboard_has_previous_next_year_and_back_navigation():
