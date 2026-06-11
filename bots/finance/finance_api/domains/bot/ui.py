@@ -12,6 +12,7 @@ from finance_api.domains.bot.formatter import (
     CATEGORY_EMOJI,
     format_balance,
     format_income_summary,
+    format_month_report,
     format_spending_category,
     format_spending_summary,
     format_subscriptions,
@@ -20,6 +21,7 @@ from finance_api.domains.bot.formatter import (
 from finance_api.domains.bot.handlers import (
     BALANCE_CALLBACK,
     INCOME_CALLBACK,
+    MONTH_CALLBACK,
     SKIPPED_CALLBACK,
     SPENDING_CALLBACK,
     SPENDING_CAT_PREFIX,
@@ -58,9 +60,10 @@ def balance_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 _button("💳 Balance", callback_data=BALANCE_CALLBACK),
                 _button("💰 Income", callback_data=INCOME_CALLBACK),
                 _button("📊 Spending", callback_data=SPENDING_CALLBACK),
-                _button("🔁 Subs", callback_data=SUBS_CALLBACK),
+                _button("📅 Month", callback_data=MONTH_CALLBACK),
             ],
             [
+                _button("🔁 Subs", callback_data=SUBS_CALLBACK),
                 _button("👁 Skipped", callback_data=SKIPPED_CALLBACK),
                 _button("🔄 Sync", callback_data=SYNC_CALLBACK),
                 _button("📊 Finance", url=settings.mini_app_url),
@@ -140,6 +143,13 @@ def view_payload(view: str = "balance", category: str | None = None) -> dict[str
         )
         return {
             "text": text,
+            "parse_mode": PARSE_MODE,
+            "reply_markup": balance_keyboard(),
+        }
+
+    if view == "month":
+        return {
+            "text": format_month_report(get_income_summary(), get_spending_summary()),
             "parse_mode": PARSE_MODE,
             "reply_markup": balance_keyboard(),
         }

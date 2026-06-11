@@ -286,6 +286,30 @@ def format_income_summary(summary: dict[str, Any]) -> str:
     return f"💰 {bold(f'Income · {period}')}\n\n" + body
 
 
+def format_month_report(income: dict[str, Any], spending: dict[str, Any]) -> str:
+    """Format one salary-to-salary month management summary."""
+    start_raw = spending.get("period_start") or income.get("period_start")
+    end_raw = spending.get("period_end")
+    if start_raw and end_raw:
+        start = date.fromisoformat(start_raw)
+        end = date.fromisoformat(end_raw)
+        if start.month == end.month:
+            period = f"{start.strftime('%-d')}-{end.strftime('%-d %b')}"
+        else:
+            period = f"{start.strftime('%-d %b')}-{end.strftime('%-d %b')}"
+    else:
+        period = _fmt_income_period(income) or "current cycle"
+
+    income_text = format_income_summary(income) or "No income data yet."
+    spending_text = format_spending_summary(spending) or "No spending recorded yet."
+    return (
+        f"📅 {bold(f'Month · {period}')}\n"
+        f"{italic('salary to salary')}\n\n"
+        f"{bold('Income')}\n{income_text}\n\n"
+        f"{bold('Spending')}\n{spending_text}"
+    )
+
+
 def format_spending_summary(data: dict[str, Any]) -> str:
     """Format salary-cycle UAH spending by category."""
     EXCLUDED = {cat.COUPLE_TRANSFER, cat.CASHBACK}

@@ -85,6 +85,10 @@ def format_new_transaction_message(tx: dict[str, Any]) -> str:
         )
 
     hints = _UK_CATEGORY_HINTS if language == "uk" else _CATEGORY_HINTS
+    if category == cat.INCOME and float(tx["amount"]) >= 20000:
+        if language == "uk":
+            return f"🆕 {description}: {amount} — вау, зарплата, це круто 🎉"
+        return f"🆕 {description}: {amount} — wow, salary day, it's cool 🎉"
     hint = hints.get(category, category)
     return f"🆕 {description}: {amount} — {hint}"
 

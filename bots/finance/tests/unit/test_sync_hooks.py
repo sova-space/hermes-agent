@@ -38,3 +38,20 @@ def test_format_new_transaction_message_for_uncategorized_asks_question(monkeypa
     assert "UNKNOWN SHOP" in text
     assert "What category is this" in text
     assert "Food & Drink" in text
+
+
+def test_format_new_transaction_message_for_big_income_celebrates_salary(monkeypatch):
+    from finance_api.domains.sync import hooks
+
+    monkeypatch.setattr(hooks, "get_language", lambda: "en")
+
+    text = hooks.format_new_transaction_message({
+        "description": "Salary",
+        "amount": 40000,
+        "currency": "UAH",
+        "category": cat.INCOME,
+    })
+
+    assert "Salary" in text
+    assert "wow" in text.lower()
+    assert "cool" in text.lower()

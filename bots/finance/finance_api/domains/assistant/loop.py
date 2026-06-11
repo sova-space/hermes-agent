@@ -23,7 +23,11 @@ from finance_api.domains.insights.queries import (
     get_subscriptions,
     get_sync_health,
 )
-from finance_api.domains.transactions.labeling import label_latest_uncategorized
+from finance_api.domains.transactions.labeling import (
+    edit_latest_transaction,
+    label_latest_uncategorized,
+    relabel_latest_transaction,
+)
 from finance_api.domains.transactions.manual import record_manual_income
 
 log = structlog.get_logger(__name__)
@@ -137,6 +141,43 @@ _TOOL_DEFS: list[dict] = [
             "required": ["description", "category"],
         },
     },
+    {
+        "name": "relabel_transaction",
+        "description": (
+            "Change category for an existing already-labeled transaction. Use when "
+            "Nazar says a transaction should be another category, including batch "
+            "relabel requests. Match by description fragment."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "description": {"type": "string"},
+                "category": {"type": "string"},
+            },
+            "required": ["description", "category"],
+        },
+    },
+    {
+        "name": "edit_transaction",
+        "description": (
+            "Apply a small correction to the newest transaction matching a description "
+            "fragment: amount, description, date, notes, category, or mode. Use only "
+            "when Nazar clearly asks to change stored data."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "match": {"type": "string"},
+                "amount": {"type": "number"},
+                "description": {"type": "string"},
+                "date": {"type": "string", "description": "ISO date YYYY-MM-DD"},
+                "notes": {"type": "string"},
+                "category": {"type": "string"},
+                "mode": {"type": "string", "description": "solo, couple, or null"},
+            },
+            "required": ["match"],
+        },
+    },
 ]
 
 _OPENAI_TOOLS: list[dict] = [
@@ -166,12 +207,17 @@ _SYSTEM = (
     "🛍️ Shopping, 🎮 Entertainment, ✈️ Travel, 💳 Financial, 💸 Transfers, "
     "💰 Income, 📦 Other.\n"
     "- Mind currencies — never sum or compare amounts across different currencies.\n"
-    "- If Nazar says to record/add income, call record_income, then confirm "
-    "the amount, currency, and description.\n"
+    "- If Nazar says to record/add cash or non-bank income, call record_income, "
+    "then confirm the amount, currency, and description.\n"
     "- If Nazar answers what an uncategorized transaction is, call "
     "label_uncategorized with the transaction description fragment and one "
     "canonical category name.\n"
-    "- This is a Telegram chat: plain text only, no markdown headers or tables."
+    "- If Nazar wants to change a category on an already-labeled transaction, "
+    "call relabel_transaction. For several changes, call it once per item.\n"
+    "- If Nazar wants to slightly correct stored transaction data, call "
+    "edit_transaction. Do not change data unless the request is clear.\n"
+    "- This is a Telegram chat: reply in valid Telegram HTML. Use only simple "
+    "tags like <b>, <i>, and <code>; no Markdown."
 )
 
 
@@ -221,6 +267,23 @@ async def _dispatch_tool(name: str, tool_input: dict) -> str:
                 label_latest_uncategorized,
                 description=str(tool_input["description"]),
                 category=str(tool_input["category"]),
+            )
+        elif name == "relabel_transaction":
+            result = await asyncio.to_thread(
+                relabel_latest_transaction,
+                description=str(tool_input["description"]),
+                category=str(tool_input["category"]),
+            )
+        elif name == "edit_transaction":
+            kwargs = {
+                key: value
+                for key, value in tool_input.items()
+                if key in {"amount", "description", "date", "notes", "category", "mode"}
+            }
+            result = await asyncio.to_thread(
+                edit_latest_transaction,
+                str(tool_input["match"]),
+                **kwargs,
             )
         else:
             return f"Unknown tool: {name}"

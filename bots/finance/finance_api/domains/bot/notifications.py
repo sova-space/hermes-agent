@@ -21,6 +21,7 @@ from typing import Any
 
 import structlog
 
+from finance_api.bot.telegram_fmt import PARSE_MODE
 from finance_api.core.config import settings
 
 log = structlog.get_logger(__name__)
@@ -81,6 +82,7 @@ def send_notification(text: str, thread_id: int | None = None) -> None:
             chat_id=settings.telegram_chat_id,
             text=text,
             message_thread_id=thread_id,
+            parse_mode=PARSE_MODE,
         ),
         _loop,
     )

@@ -14,6 +14,7 @@ from finance_api.domains.assistant.loop import answer as assistant_answer
 from finance_api.domains.bot.formatter import (
     format_balance,
     format_income_summary,
+    format_month_report,
     format_spending_category,
     format_spending_summary,
     format_subscriptions,
@@ -35,6 +36,7 @@ log = structlog.get_logger(__name__)
 SYNC_CALLBACK = "sync"
 INCOME_CALLBACK = "income"
 SPENDING_CALLBACK = "spending"
+MONTH_CALLBACK = "month"
 SPENDING_CAT_PREFIX = "spd:"
 SUBS_CALLBACK = "subs"
 SKIPPED_CALLBACK = "skipped"
@@ -49,9 +51,10 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("💳 Balance", callback_data=BALANCE_CALLBACK),
             InlineKeyboardButton("💰 Income", callback_data=INCOME_CALLBACK),
             InlineKeyboardButton("📊 Spending", callback_data=SPENDING_CALLBACK),
-            InlineKeyboardButton("🔁 Subs", callback_data=SUBS_CALLBACK),
+            InlineKeyboardButton("📅 Month", callback_data=MONTH_CALLBACK),
         ],
         [
+            InlineKeyboardButton("🔁 Subs", callback_data=SUBS_CALLBACK),
             InlineKeyboardButton("👁 Skipped", callback_data=SKIPPED_CALLBACK),
             InlineKeyboardButton("🔄 Sync", callback_data=SYNC_CALLBACK),
             InlineKeyboardButton("📊 Finance", url=settings.mini_app_url),
@@ -256,6 +259,26 @@ async def callback_spending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
 
 
+async def callback_month(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle 📅 Month button — show salary-cycle month management summary."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        income, spending = await asyncio.gather(
+            asyncio.to_thread(get_income_summary),
+            asyncio.to_thread(get_spending_summary),
+        )
+        await _edit(
+            query,
+            format_month_report(income, spending),
+            parse_mode=PARSE_MODE,
+            reply_markup=_balance_keyboard(),
+        )
+    except Exception as e:
+        log.error("month_callback_failed", error=str(e))
+        await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
+
+
 async def callback_spending_category(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE
 ) -> None:
@@ -359,4 +382,5 @@ async def chat(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         chat_id=update.effective_chat.id,
         message_thread_id=_thread_id(message),
         text=reply,
+        parse_mode=PARSE_MODE,
     )
