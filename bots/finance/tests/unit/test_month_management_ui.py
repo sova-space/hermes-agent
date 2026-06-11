@@ -11,6 +11,14 @@ def test_balance_keyboard_has_month_management_button():
     )
 
 
+def test_balance_keyboard_is_easy_to_tap():
+    keyboard = ui.balance_keyboard()["inline_keyboard"]
+
+    buttons = [button for row in keyboard for button in row]
+    assert len(buttons) <= 6
+    assert all(len(row) <= 2 for row in keyboard)
+
+
 def test_month_report_formats_income_and_spending_html():
     text = formatter.format_month_report(
         income={

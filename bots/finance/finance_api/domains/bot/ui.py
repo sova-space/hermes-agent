@@ -7,7 +7,6 @@ not duplicate finance formatting logic.
 
 from typing import Any
 
-from finance_api.core.config import settings
 from finance_api.domains.bot.formatter import (
     CATEGORY_EMOJI,
     format_balance,
@@ -22,7 +21,6 @@ from finance_api.domains.bot.handlers import (
     BALANCE_CALLBACK,
     INCOME_CALLBACK,
     MONTH_CALLBACK,
-    SKIPPED_CALLBACK,
     SPENDING_CALLBACK,
     SPENDING_CAT_PREFIX,
     SUBS_CALLBACK,
@@ -58,15 +56,15 @@ def balance_keyboard() -> dict[str, list[list[dict[str, str]]]]:
         "inline_keyboard": [
             [
                 _button("💳 Balance", callback_data=BALANCE_CALLBACK),
-                _button("💰 Income", callback_data=INCOME_CALLBACK),
-                _button("📊 Spending", callback_data=SPENDING_CALLBACK),
                 _button("📅 Month", callback_data=MONTH_CALLBACK),
             ],
             [
+                _button("📊 Spending", callback_data=SPENDING_CALLBACK),
+                _button("💰 Income", callback_data=INCOME_CALLBACK),
+            ],
+            [
                 _button("🔁 Subs", callback_data=SUBS_CALLBACK),
-                _button("👁 Skipped", callback_data=SKIPPED_CALLBACK),
                 _button("🔄 Sync", callback_data=SYNC_CALLBACK),
-                _button("📊 Finance", url=settings.mini_app_url),
             ],
         ]
     }

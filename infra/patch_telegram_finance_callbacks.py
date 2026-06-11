@@ -18,7 +18,7 @@ MARKER = "# --- Sova custom inline callbacks (sova-space patch) ---"
 ANCHOR = "        # --- Update prompt callbacks ---\n"
 
 PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
-        if data in {"balance_cb", "income", "spending", "subs", "skipped", "sync"} or data.startswith(("spd:", "prof:project:", "prof:mode:", "lang:")):
+        if data in {"balance_cb", "income", "spending", "month", "subs", "skipped", "sync"} or data.startswith(("spd:", "prof:project:", "prof:mode:", "lang:")):
             caller_id = str(getattr(query.from_user, "id", ""))
             if not self._is_callback_user_authorized(
                 caller_id,
@@ -168,6 +168,7 @@ PATCH = r"""        # --- Sova custom inline callbacks (sova-space patch) ---
                     "balance_cb": "balance",
                     "income": "income",
                     "spending": "spending",
+                    "month": "month",
                     "subs": "subs",
                     "skipped": "skipped",
                 }

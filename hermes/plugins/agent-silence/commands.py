@@ -387,6 +387,7 @@ _FINANCE_CALLBACK_VIEW = {
     "balance_cb": "balance",
     "income": "income",
     "spending": "spending",
+    "month": "month",
     "subs": "subs",
     "skipped": "skipped",
 }
