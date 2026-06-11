@@ -656,6 +656,9 @@ def _is_salary_like(tx: Transaction, account: Account) -> bool:
     )
 
 
+_SALARY_CLUSTER_DAYS = 7
+
+
 def _salary_cycle_dates(session: Session) -> list[date]:
     rows = session.exec(
         select(Transaction, Account)
@@ -663,10 +666,48 @@ def _salary_cycle_dates(session: Session) -> list[date]:
         .where(Transaction.amount > 0)
         .where(Transaction.is_pending == False)  # noqa: E712
         .where(Transaction.date <= date.today())
-        .order_by(Transaction.date.desc())
+        .order_by(Transaction.date)
     ).all()
-    dates = {tx.date for tx, account in rows if _is_salary_like(tx, account)}
-    return sorted(dates, reverse=True)
+    raw_dates = sorted({
+        tx.date for tx, account in rows if _is_salary_like(tx, account)
+    })
+    if not raw_dates:
+        return []
+
+    # Salary often arrives as a cluster (FOP income, conversion, personal top-up).
+    # Treat close income dates as one cycle so navigation doesn't split one month
+    # into several fake "months".
+    clusters: list[list[date]] = [[raw_dates[0]]]
+    for dt in raw_dates[1:]:
+        if (dt - clusters[-1][-1]).days <= _SALARY_CLUSTER_DAYS:
+            clusters[-1].append(dt)
+        else:
+            clusters.append([dt])
+    return sorted((cluster[0] for cluster in clusters), reverse=True)
+
+
+def _personal_balances_as_of(session: Session, end: date) -> dict[str, int]:
+    accounts = session.exec(
+        select(Account).where(
+            Account.is_fop == False,  # noqa: E712
+            Account.hidden == False,  # noqa: E712
+        )
+    ).all()
+    if not accounts:
+        return {}
+
+    balances: dict[str, float] = {}
+    for account in accounts:
+        after = session.exec(
+            select(func.sum(Transaction.amount))
+            .where(Transaction.account_id == account.id)
+            .where(Transaction.date > end)
+            .where(Transaction.is_pending == False)  # noqa: E712
+        ).one()
+        balances[account.currency] = balances.get(account.currency, 0.0) + (
+            account.balance - (after or 0.0)
+        )
+    return {currency: round(value) for currency, value in balances.items() if value}
 
 
 def _income_summary_between(start: date, end: date) -> dict[str, Any]:
@@ -685,15 +726,7 @@ def _income_summary_between(start: date, end: date) -> dict[str, Any]:
             )
             .order_by(Transaction.date)
         ).all()
-        personal_ids = session.exec(
-            select(Account.id).where(Account.is_fop == False)  # noqa: E712
-        ).all()
-        balance_rows = session.exec(
-            select(Account.currency, func.sum(Account.balance))
-            .where(Account.id.in_(personal_ids))
-            .where(Account.hidden == False)  # noqa: E712
-            .group_by(Account.currency)
-        ).all()
+        balance_rows = _personal_balances_as_of(session, end)
 
     fop_txns: list[dict[str, Any]] = []
     personal_txns: list[dict[str, Any]] = []
@@ -722,9 +755,7 @@ def _income_summary_between(start: date, end: date) -> dict[str, Any]:
         "period": start.strftime("%b %Y"),
         "period_start": start.isoformat(),
         "period_end": end.isoformat(),
-        "balances": {
-            currency: round(value) for currency, value in balance_rows if value
-        },
+        "balances": balance_rows,
         "usd_uah_rate": None,
         "by_currency": {
             currency: {
