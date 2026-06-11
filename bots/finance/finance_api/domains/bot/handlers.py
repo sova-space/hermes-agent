@@ -373,14 +373,15 @@ async def chat(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await ctx.bot.send_chat_action(
         chat_id=update.effective_chat.id, action=ChatAction.TYPING
     )
+    placeholder = await ctx.bot.send_message(
+        chat_id=update.effective_chat.id,
+        message_thread_id=_thread_id(message),
+        text="⏳ Thinking…",
+        parse_mode=PARSE_MODE,
+    )
     try:
         reply = await assistant_answer(update.effective_chat.id, message.text)
     except Exception as e:
         log.error("assistant_failed", error=str(e))
         reply = f"❌ Error: {code(e)}"
-    await ctx.bot.send_message(
-        chat_id=update.effective_chat.id,
-        message_thread_id=_thread_id(message),
-        text=reply,
-        parse_mode=PARSE_MODE,
-    )
+    await placeholder.edit_text(reply, parse_mode=PARSE_MODE)

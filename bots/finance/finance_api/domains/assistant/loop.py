@@ -217,7 +217,11 @@ _SYSTEM = (
     "- If Nazar wants to slightly correct stored transaction data, call "
     "edit_transaction. Do not change data unless the request is clear.\n"
     "- This is a Telegram chat: reply in valid Telegram HTML. Use only simple "
-    "tags like <b>, <i>, and <code>; no Markdown."
+    "tags like <b>, <i>, and <code>; no Markdown.\n"
+    "- Message format: start with a short bold result line, then 1-3 compact "
+    "lines only if useful. Put amounts, dates, and transaction fragments in "
+    "<code>. Avoid tables. End with one clear next step only when Nazar needs "
+    "to do something."
 )
 
 
