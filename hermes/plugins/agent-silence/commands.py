@@ -394,6 +394,8 @@ _FINANCE_CALLBACK_VIEW = {
 _FINANCE_SYNC_CALLBACK = "sync"
 _FINANCE_SPENDING_PREFIX = "spd:"
 _FINANCE_MONTH_PREFIX = "month:"
+_FINANCE_BALANCE_PREFIX = "balance_cb:"
+_FINANCE_SUBS_PREFIX = "subs:"
 
 
 def _finance_base_url() -> str:
@@ -471,6 +473,12 @@ def handle_finance_callback(ctx: CommandContext) -> dict[str, str] | None:
         path = f"/bot/ui/finance/spending/{quote(category, safe='')}"
         return _edit_finance_payload(ctx, _finance_payload(path))
     if data.startswith(_FINANCE_MONTH_PREFIX):
+        return _edit_finance_payload(ctx, _finance_payload(f"/bot/ui/finance/{data}"))
+    if data.startswith(_FINANCE_BALANCE_PREFIX):
+        return _edit_finance_payload(ctx, _finance_payload(f"/bot/ui/finance/{data}"))
+    if data.startswith(_FINANCE_SUBS_PREFIX):
+        return _edit_finance_payload(ctx, _finance_payload(f"/bot/ui/finance/{data}"))
+    if data.startswith("spending:"):
         return _edit_finance_payload(ctx, _finance_payload(f"/bot/ui/finance/{data}"))
     view = _FINANCE_CALLBACK_VIEW.get(data)
     if view is None:

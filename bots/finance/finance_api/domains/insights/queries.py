@@ -1,5 +1,6 @@
 """Analytics queries over transactions and accounts."""
 
+from calendar import monthrange
 from datetime import date, timedelta
 from typing import Any
 from uuid import UUID
@@ -17,7 +18,8 @@ from finance_api.domains.insights.periods import (
     SALARY_ANCHORED,
     THIS_MONTH,
 )
-from finance_api.domains.rules.queries import get_rules, match_label, matches_any
+from finance_api.domains.rules.models import TransactionRule
+from finance_api.domains.rules.queries import match_label, matches_any
 from finance_api.domains.sync.models import SyncRun
 from finance_api.domains.transactions import categories as cat
 from finance_api.domains.transactions.models import Transaction
@@ -59,6 +61,20 @@ def _months_ago(n: int) -> tuple[int, int]:
         month += 12
         year -= 1
     return year, month
+
+
+def _calendar_month_for_offset(offset: int) -> tuple[date, date]:
+    """Return the full calendar month for offset months before current month."""
+    year, month = _months_ago(max(0, offset))
+    first = date(year, month, 1)
+    last = date(year, month, monthrange(year, month)[1])
+    return first, last
+
+
+def selected_month_label(offset: int = 0) -> str:
+    """Return the short Telegram button label for a selected month."""
+    start, _ = _calendar_month_for_offset(offset)
+    return start.strftime("%B %Y")
 
 
 def _salary_anchored_start(calendar_start: date, session: Session) -> date:
@@ -219,12 +235,12 @@ def get_monthly_trend(
             return {currency: total for currency, total in session.exec(base).all()}
 
         with Session(engine) as session:
-            anchored_first = _salary_anchored_start(first, session) if i == 0 else first
+            start_first = _salary_anchored_start(first, session) if i == 0 else first
             income_by_cur = _sums_by_currency(
-                session, anchored_first, last, Transaction.amount > 0
+                session, start_first, last, Transaction.amount > 0
             )
             expenses_by_cur = _sums_by_currency(
-                session, anchored_first, last, Transaction.amount < 0
+                session, start_first, last, Transaction.amount < 0
             )
 
         all_currencies = set(income_by_cur) | set(expenses_by_cur)
@@ -297,11 +313,11 @@ def get_sync_health() -> dict[str, Any]:
         }
 
 
-def get_subscriptions() -> dict[str, Any]:
-    """Return subscription summary with smart frequency detection."""
-    today = date.today()
-    lookback_90 = today - timedelta(days=90)
-    lookback_400 = today - timedelta(days=400)
+def get_subscriptions(offset: int = 0) -> dict[str, Any]:
+    """Return subscription summary for the selected calendar month."""
+    start, end = _calendar_month_for_offset(offset)
+    lookback_90 = end - timedelta(days=90)
+    lookback_400 = end - timedelta(days=400)
 
     with Session(engine) as session:
         # All subscription transactions in last 90 days
@@ -314,7 +330,8 @@ def get_subscriptions() -> dict[str, Any]:
             )
             .where(Transaction.category == cat.SUBSCRIPTIONS)
             .where(Transaction.amount < 0)
-            .where(Transaction.date >= lookback_90)
+            .where(Transaction.date >= start)
+            .where(Transaction.date <= end)
             .where(Transaction.is_pending == False)  # noqa: E712
             .group_by(Transaction.description)
             .order_by(func.avg(func.abs(Transaction.amount)).desc())
@@ -391,45 +408,20 @@ def get_subscriptions() -> dict[str, Any]:
     }
 
 
-def get_spending_summary() -> dict[str, Any]:
-    """Return UAH spending by category with per-category transaction details."""
-    today = date.today()
-    start, end = _period_dates(THIS_MONTH)
+def _selected_rules(session: Session, rule_type: str) -> list[tuple[str, str]]:
+    rows = session.exec(
+        select(TransactionRule.pattern, TransactionRule.label).where(
+            TransactionRule.rule_type == rule_type
+        )
+    ).all()
+    return list(rows)
+
+
+def get_spending_summary(offset: int = 0) -> dict[str, Any]:
+    """Return UAH spending by category for the selected calendar month."""
+    start, end = _calendar_month_for_offset(offset)
     with Session(engine) as session:
-        anchored = _salary_anchored_start(start, session)
-        if anchored == start:
-            prev_start, _ = _period_dates(LAST_MONTH)
-            anchored = _salary_anchored_start(prev_start, session)
-            end = today
-
-        # Extend start backward to cover personal income (may arrive before FOP)
-        personal_ids = session.exec(
-            select(Account.id).where(Account.is_fop == False)  # noqa: E712
-        ).all()
-        income_rules = get_rules("personal_income")
-        if personal_ids and income_rules:
-            income_patterns = [p for p, _ in income_rules]
-            personal_income_dates = session.exec(
-                select(func.min(Transaction.date))
-                .where(Transaction.account_id.in_(personal_ids))
-                .where(Transaction.amount > 0)
-                .where(Transaction.date >= anchored - timedelta(days=7))
-                .where(Transaction.date <= end)
-            ).first()
-            if personal_income_dates:
-                personal_txns_check = session.exec(
-                    select(Transaction.date, Transaction.description)
-                    .where(Transaction.account_id.in_(personal_ids))
-                    .where(Transaction.amount > 0)
-                    .where(Transaction.date >= anchored - timedelta(days=7))
-                    .where(Transaction.date < anchored)
-                ).all()
-                for tx_date, tx_desc in personal_txns_check:
-                    if any(p.lower() in tx_desc.lower() for p in income_patterns):
-                        anchored = min(anchored, tx_date)
-                        break
-
-        rows = get_spending_by_category(start=anchored, end=end)
+        rows = get_spending_by_category(start=start, end=end)
 
         # Per-category transaction details for drill-down (all currencies)
         detail_rows = session.exec(
@@ -446,7 +438,7 @@ def get_spending_summary() -> dict[str, Any]:
                 )
             )
             .where(Transaction.amount < 0)
-            .where(Transaction.date >= anchored)
+            .where(Transaction.date >= start)
             .where(Transaction.date <= end)
             .where(Transaction.is_pending == False)  # noqa: E712
             .where(Transaction.category.isnot(None))  # type: ignore[union-attr]
@@ -459,11 +451,11 @@ def get_spending_summary() -> dict[str, Any]:
         ).all()
 
         # Rules for label lookup (auto_category)
-        auto_rules = get_rules("auto_category")
+        auto_rules = _selected_rules(session, "auto_category")
 
         # Trips overlapping the period for Travel label lookup
         trips = session.exec(
-            select(Trip).where(Trip.start_date <= end).where(Trip.end_date >= anchored)
+            select(Trip).where(Trip.start_date <= end).where(Trip.end_date >= start)
         ).all()
 
         def _label(cat_name: str, desc: str, tx_date: date) -> str:
@@ -489,22 +481,17 @@ def get_spending_summary() -> dict[str, Any]:
 
     return {
         "rows": rows,
-        "period_start": anchored.isoformat(),
+        "period_start": start.isoformat(),
         "period_end": end.isoformat(),
         "details": by_cat,
+        "offset": offset,
     }
 
 
-def get_income_summary() -> dict[str, Any]:
-    """Return most recent salary cycle: income by source and spending."""
-    start, end = _period_dates(THIS_MONTH)
+def get_income_summary(offset: int = 0) -> dict[str, Any]:
+    """Return income for the selected calendar month."""
+    start, end = _calendar_month_for_offset(offset)
     with Session(engine) as session:
-        anchored = _salary_anchored_start(start, session)
-        # If no salary found yet this calendar month, use last month instead.
-        if anchored == start:
-            start, end = _period_dates(LAST_MONTH)
-        # start/end now cover the right calendar month; salary start computed below.
-
         # FOP USD: external salary only. FOP UAH: internal transfers.
         fop_usd_ids = session.exec(
             select(Account.id).where(
@@ -547,7 +534,7 @@ def get_income_summary() -> dict[str, Any]:
         def _personal_income_txns(acc_ids: list) -> list[dict[str, Any]]:
             if not acc_ids:
                 return []
-            income_rules = get_rules("personal_income")
+            income_rules = _selected_rules(session, "personal_income")
             if not income_rules:
                 return []
             income_patterns = [p for p, _ in income_rules]
@@ -781,31 +768,16 @@ def _spending_summary_between(start: date, end: date) -> dict[str, Any]:
 
 
 def get_month_cycle_summary(offset: int = 0) -> dict[str, Any]:
-    """Return one salary-to-salary month report.
+    """Return one selected calendar month summary.
 
-    offset=0 is the current/latest salary cycle. offset=1 is the previous cycle.
+    offset=0 is the current calendar month. offset=1 is the previous month.
     """
     offset = max(0, offset)
-    today = date.today()
-    with Session(engine) as session:
-        salary_dates = _salary_cycle_dates(session)
-
-    if not salary_dates:
-        return {
-            "offset": 0,
-            "has_previous": False,
-            "has_next": False,
-            "income": get_income_summary(),
-            "spending": get_spending_summary(),
-        }
-
-    index = min(offset, len(salary_dates) - 1)
-    start = salary_dates[index]
-    end = salary_dates[index - 1] - timedelta(days=1) if index > 0 else today
+    start, end = _calendar_month_for_offset(offset)
     return {
-        "offset": index,
-        "has_previous": index < len(salary_dates) - 1,
-        "has_next": index > 0,
+        "offset": offset,
+        "has_previous": True,
+        "has_next": offset > 0,
         "income": _income_summary_between(start, end),
-        "spending": _spending_summary_between(start, end),
+        "spending": get_spending_summary(offset),
     }

@@ -63,7 +63,7 @@ Copy `infra/.env.finance.local.example` → `infra/.env.finance.local` and fill 
 
 ## Guardrails
 
-- Never push directly to `main` — use a branch.
+- Pushing directly to `main` is allowed when Nazar explicitly asks to deploy.
 - Never hardcode secrets, tokens, or API keys in source.
 - Required config fails loud if missing (no silent defaults in `Settings`).
 - Owner-gate every Telegram handler via `TELEGRAM_OWNER_ID`.

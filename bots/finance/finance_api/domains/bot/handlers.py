@@ -13,7 +13,6 @@ from finance_api.core.config import settings
 from finance_api.domains.assistant.loop import answer as assistant_answer
 from finance_api.domains.bot.formatter import (
     format_balance,
-    format_income_summary,
     format_month_report,
     format_spending_category,
     format_spending_summary,
@@ -47,17 +46,29 @@ _MSG_NOT_MODIFIED = "message is not modified"
 
 
 def _balance_keyboard() -> InlineKeyboardMarkup:
+    return _main_keyboard(0)
+
+
+def _month_label(offset: int) -> str:
+    from finance_api.domains.insights.queries import selected_month_label
+
+    return selected_month_label(offset)
+
+
+def _main_keyboard(offset: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("💳 Balance", callback_data=BALANCE_CALLBACK),
-            InlineKeyboardButton("📅 Month", callback_data=MONTH_CALLBACK),
+            InlineKeyboardButton(
+                "💳 Balance", callback_data=f"{BALANCE_CALLBACK}:{offset}"
+            ),
+            InlineKeyboardButton(
+                f"📅 {_month_label(offset)}", callback_data=f"{MONTH_CALLBACK}:{offset}"
+            ),
         ],
         [
-            InlineKeyboardButton("📊 Spending", callback_data=SPENDING_CALLBACK),
-            InlineKeyboardButton("💰 Income", callback_data=INCOME_CALLBACK),
-        ],
-        [
-            InlineKeyboardButton("🔁 Subs", callback_data=SUBS_CALLBACK),
+            InlineKeyboardButton(
+                "📊 Spending", callback_data=f"{SPENDING_CALLBACK}:{offset}"
+            ),
             InlineKeyboardButton("🔄 Sync", callback_data=SYNC_CALLBACK),
         ],
     ])
@@ -65,31 +76,28 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
 
 def _month_keyboard(summary: dict) -> InlineKeyboardMarkup:
     offset = int(summary.get("offset", 0))
-    keyboard = []
-    month_row = []
-    if summary.get("has_previous"):
-        month_row.append(
-            InlineKeyboardButton("← Prev", callback_data=f"month:{offset + 1}")
+    row = [InlineKeyboardButton("← Prev", callback_data=f"month:{offset + 1}")]
+    row.append(
+        InlineKeyboardButton(
+            f"📅 {_month_label(offset)}", callback_data=f"month:{offset}"
         )
+    )
     if summary.get("has_next"):
-        month_row.append(
-            InlineKeyboardButton("Next →", callback_data=f"month:{offset - 1}")
-        )
-    if month_row:
-        keyboard.append(month_row)
-    year_row = []
-    if summary.get("has_previous"):
-        year_row.append(
-            InlineKeyboardButton("← Year", callback_data=f"month:{offset + 12}")
-        )
-    if offset >= 12:
-        year_row.append(
-            InlineKeyboardButton("Year →", callback_data=f"month:{offset - 12}")
-        )
-    if year_row:
-        keyboard.append(year_row)
-    keyboard.append([InlineKeyboardButton("← Back", callback_data=BALANCE_CALLBACK)])
-    return InlineKeyboardMarkup(keyboard)
+        row.append(InlineKeyboardButton("Next →", callback_data=f"month:{offset - 1}"))
+    return InlineKeyboardMarkup([
+        row,
+        [InlineKeyboardButton("← Back", callback_data=f"{BALANCE_CALLBACK}:{offset}")],
+    ])
+
+
+def _callback_offset(data: str | None, default: int = 0) -> int:
+    raw = str(data or "")
+    if ":" not in raw:
+        return default
+    try:
+        return max(0, int(raw.split(":", 1)[1]))
+    except ValueError:
+        return default
 
 
 def _thread_id(message) -> int | None:
@@ -136,7 +144,7 @@ async def _do_sync(message: Message) -> None:
     sent = await message.reply_text(
         f"🔄 Syncing…  ~{est_min} min", parse_mode=PARSE_MODE
     )
-    asyncio.create_task(_sync_then_edit(sent))  # noqa: RUF006
+    asyncio.create_task(_sync_then_edit(sent))
 
 
 async def cmd_finance_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -166,13 +174,13 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /balance command."""
     try:
         accounts = await asyncio.to_thread(get_account_balances)
-        month = await asyncio.to_thread(get_month_cycle_summary)
+        month = await asyncio.to_thread(get_month_cycle_summary, 0)
         await ctx.bot.send_message(
             chat_id=update.effective_chat.id,
             message_thread_id=_thread_id(update.message),
             text=format_balance(accounts, month),
             parse_mode=PARSE_MODE,
-            reply_markup=_balance_keyboard(),
+            reply_markup=_main_keyboard(0),
         )
     except Exception as e:
         log.error("balance_failed", error=str(e))
@@ -189,13 +197,14 @@ async def callback_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     query = update.callback_query
     await query.answer()
     try:
+        offset = _callback_offset(query.data)
         accounts = await asyncio.to_thread(get_account_balances)
-        month = await asyncio.to_thread(get_month_cycle_summary)
+        month = await asyncio.to_thread(get_month_cycle_summary, offset)
         await _edit(
             query,
             format_balance(accounts, month),
             parse_mode=PARSE_MODE,
-            reply_markup=_balance_keyboard(),
+            reply_markup=_main_keyboard(offset),
         )
     except Exception as e:
         log.error("balance_callback_failed", error=str(e))
@@ -207,11 +216,9 @@ async def callback_income(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     query = update.callback_query
     await query.answer()
     try:
-        income = await asyncio.to_thread(get_income_summary)
-        text = format_income_summary(income) or "No income data for this month yet."
-        await _edit(
-            query, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
-        )
+        income = await asyncio.to_thread(get_income_summary, 0)
+        text = format_month_report(income, {})
+        await _edit(query, text, parse_mode=PARSE_MODE, reply_markup=_main_keyboard(0))
     except Exception as e:
         log.error("income_callback_failed", error=str(e))
         await _edit(query, f"❌ Error: {code(e)}", parse_mode=PARSE_MODE)
@@ -261,17 +268,22 @@ def _spending_keyboard(data: dict) -> InlineKeyboardMarkup:
         if r["currency"] == "UAH" and r["category"] not in {COUPLE_TRANSFER, CASHBACK}
     ]
     rows_data.sort(key=lambda r: r["amount"], reverse=True)
+    offset = int(data.get("offset", 0))
     cat_buttons = [
         InlineKeyboardButton(
             f"{CATEGORY_EMOJI.get(r['category'], '📦')} "
             f"{_CAT_SHORT.get(r['category'], r['category'])}",
-            callback_data=f"{SPENDING_CAT_PREFIX}{r['category']}",
+            callback_data=f"{SPENDING_CAT_PREFIX}{offset}:{r['category']}",
         )
         for r in rows_data
     ]
     # Split into rows of 3
     keyboard = [cat_buttons[i : i + 3] for i in range(0, len(cat_buttons), 3)]
-    keyboard.append([InlineKeyboardButton("← Back", callback_data=BALANCE_CALLBACK)])
+    offset = int(data.get("offset", 0))
+    keyboard.append([
+        InlineKeyboardButton("🔁 Subs", callback_data=f"{SUBS_CALLBACK}:{offset}"),
+        InlineKeyboardButton("← Back", callback_data=f"{BALANCE_CALLBACK}:{offset}"),
+    ])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -280,9 +292,10 @@ async def callback_spending(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     query = update.callback_query
     await query.answer()
     try:
-        data = await asyncio.to_thread(get_spending_summary)
+        offset = _callback_offset(query.data)
+        data = await asyncio.to_thread(get_spending_summary, offset)
         ctx.user_data["spending_data"] = data
-        text = format_spending_summary(data) or "No spending recorded yet this cycle."
+        text = format_spending_summary(data) or "No spending recorded yet this month."
         await _edit(
             query, text, parse_mode=PARSE_MODE, reply_markup=_spending_keyboard(data)
         )
@@ -296,12 +309,11 @@ async def callback_month(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     query = update.callback_query
     await query.answer()
     try:
-        raw = str(query.data or MONTH_CALLBACK)
-        offset = int(raw.split(":", 1)[1]) if ":" in raw else 0
+        offset = _callback_offset(query.data)
         summary = await asyncio.to_thread(get_month_cycle_summary, offset)
         await _edit(
             query,
-            format_month_report(summary["income"], summary["spending"]),
+            f"📅 <b>Month</b>\n{_month_label(offset)}",
             parse_mode=PARSE_MODE,
             reply_markup=_month_keyboard(summary),
         )
@@ -316,15 +328,26 @@ async def callback_spending_category(
     """Handle category drill-down button — show detail for selected category."""
     query = update.callback_query
     await query.answer()
-    category = query.data[len(SPENDING_CAT_PREFIX) :]
+    category_data = query.data[len(SPENDING_CAT_PREFIX) :]
+    offset = 0
+    if ":" in category_data:
+        maybe_offset, category_data = category_data.split(":", 1)
+        if maybe_offset.isdigit():
+            offset = int(maybe_offset)
+    category = category_data
     try:
         data = ctx.user_data.get("spending_data") or await asyncio.to_thread(
-            get_spending_summary
+            get_spending_summary, offset
         )
         ctx.user_data["spending_data"] = data
         text = format_spending_category(data, category)
+        offset = int(data.get("offset", 0))
         back_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("← Spending", callback_data=SPENDING_CALLBACK)]
+            [
+                InlineKeyboardButton(
+                    "← Spending", callback_data=f"{SPENDING_CALLBACK}:{offset}"
+                )
+            ]
         ])
         await _edit(query, text, parse_mode=PARSE_MODE, reply_markup=back_kb)
     except Exception as e:
@@ -337,10 +360,14 @@ async def callback_subs(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     try:
-        data = await asyncio.to_thread(get_subscriptions)
+        offset = _callback_offset(query.data)
+        data = await asyncio.to_thread(get_subscriptions, offset)
         text = format_subscriptions(data)
         await _edit(
-            query, text, parse_mode=PARSE_MODE, reply_markup=_balance_keyboard()
+            query,
+            text,
+            parse_mode=PARSE_MODE,
+            reply_markup=_spending_keyboard({"rows": [], "offset": offset}),
         )
     except Exception as e:
         log.error("subs_callback_failed", error=str(e))
@@ -371,7 +398,7 @@ async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             query,
             f"🔄 Syncing…  ~{est_min} min",
             parse_mode=PARSE_MODE,
-            reply_markup=_balance_keyboard(),
+            reply_markup=_main_keyboard(0),
         )
         return
     _sync_running = True
@@ -380,9 +407,9 @@ async def callback_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             query,
             f"🔄 Syncing…  ~{est_min} min",
             parse_mode=PARSE_MODE,
-            reply_markup=_balance_keyboard(),
+            reply_markup=_main_keyboard(0),
         )
-        asyncio.create_task(_sync_then_edit(query.message))  # noqa: RUF006
+        asyncio.create_task(_sync_then_edit(query.message))
     except Exception as e:
         _sync_running = False
         log.error("sync_callback_failed", error=str(e))

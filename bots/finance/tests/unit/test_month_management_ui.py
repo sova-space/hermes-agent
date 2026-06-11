@@ -7,7 +7,7 @@ def test_balance_keyboard_has_month_management_button():
     keyboard = ui.balance_keyboard()["inline_keyboard"]
 
     assert any(
-        button.get("callback_data") == "month" for row in keyboard for button in row
+        button.get("callback_data") == "month:0" for row in keyboard for button in row
     )
 
 
@@ -79,7 +79,7 @@ def test_balance_formats_configured_month():
     assert "5 Jun-4 Jul" in text
 
 
-def test_month_keyboard_has_previous_next_year_and_back_navigation():
+def test_month_keyboard_has_previous_next_and_back_navigation():
     keyboard = ui.month_keyboard({
         "offset": 12,
         "has_previous": True,
@@ -88,7 +88,6 @@ def test_month_keyboard_has_previous_next_year_and_back_navigation():
 
     callbacks = [button["callback_data"] for row in keyboard for button in row]
     assert "month:13" in callbacks
+    assert "month:12" in callbacks
     assert "month:11" in callbacks
-    assert "month:24" in callbacks
-    assert "month:0" in callbacks
-    assert "balance_cb" in callbacks
+    assert "balance_cb:12" in callbacks

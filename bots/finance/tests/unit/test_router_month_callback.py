@@ -10,6 +10,9 @@ def test_hermes_plugin_routes_month_callback():
 
     assert '"month": "month"' in text
     assert "_FINANCE_MONTH_PREFIX" in text
+    assert "_FINANCE_BALANCE_PREFIX" in text
+    assert "_FINANCE_SUBS_PREFIX" in text
+    assert 'data.startswith("spending:")' in text
 
 
 def test_railway_gateway_patch_allows_month_callback():
@@ -18,3 +21,6 @@ def test_railway_gateway_patch_allows_month_callback():
     assert '"month"' in text
     assert '"month": "month"' in text
     assert '"month:"' in text
+    assert '"balance_cb:"' in text
+    assert '"spending:"' in text
+    assert '"subs:"' in text

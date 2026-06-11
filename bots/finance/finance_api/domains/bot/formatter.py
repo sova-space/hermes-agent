@@ -171,12 +171,18 @@ def format_balance(
     )
     cycle_line = _format_cycle_line(month)
     cycle_block = f"\n{cycle_line}\n" if cycle_line else "\n"
+    income_block = ""
+    if month and month.get("income"):
+        income_text = format_income_summary(month["income"])
+        if income_text:
+            income_block = f"\n\n{income_text}"
     return (
         f"💳 {bold('Mono')}\n"
         + cycle_block
         + "\n".join(total_lines)
         + "\n\n"
         + expandable_blockquote("\n".join(breakdown_lines))
+        + income_block
         + f"\n\n🕐 {_fmt_ago(latest_sync)}"
     )
 
