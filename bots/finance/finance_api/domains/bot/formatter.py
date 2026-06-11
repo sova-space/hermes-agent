@@ -279,7 +279,7 @@ def format_income_summary(summary: dict[str, Any]) -> str:
 
     # Balance: "X of TOTAL · spent Y%", skip negligible balances
     NEGLIGIBLE = {"UAH": 50, "USD": 5, "EUR": 5, "GBP": 5}
-    balance_lines: list[str] = []
+    balance_rows: list[tuple[str, str, str]] = []
     for currency in sorted(income_by_cur):
         bal = balances.get(currency, 0)
         if bal < NEGLIGIBLE.get(currency, 5):
@@ -292,14 +292,20 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         else:
             received = income_by_cur[currency]
         flag = _CURRENCY_FLAG.get(currency, "💱")
-        sal_str = _fmt_amount(round(received), currency)
-        bal_str = bold(_fmt_amount(round(bal), currency))
         pct = round((received - bal) / received * 100) if received else 0
-        balance_lines.append(f"  {flag} {bal_str} of {sal_str}  · spent {pct}%")
+        balance_rows.append((
+            flag,
+            _fmt_amount(round(bal), currency),
+            f"of {_fmt_amount(round(received), currency)} · spent {pct}%",
+        ))
 
     body = f"💰 {bold('Income')}\n{received_block}"
-    if balance_lines:
-        body += f"\n\n💳 {bold('Balance now')}\n" + "\n".join(balance_lines)
+    if balance_rows:
+        bal_w = max(len(row[1]) for row in balance_rows)
+        balance_table = "\n".join(
+            f"{flag} {balance:>{bal_w}}  {note}" for flag, balance, note in balance_rows
+        )
+        body += f"\n\n💳 {bold('Balance now')}\n" + pre(balance_table)
 
     return body
 
@@ -364,7 +370,7 @@ def format_spending_summary(data: dict[str, Any]) -> str:
     return header + "\n\n" + pre("\n".join(summary_lines))
 
 
-_MAX_DETAIL_ROWS = 15
+_MAX_DETAIL_ROWS = 50
 
 
 def format_spending_category(data: dict[str, Any], category: str) -> str:

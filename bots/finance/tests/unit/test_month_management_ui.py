@@ -96,14 +96,30 @@ def test_income_summary_uses_short_heading():
                         "description": "Salary",
                     }
                 ],
-            }
+            },
+            "USD": {
+                "fop": 500,
+                "personal": 0,
+                "fop_txns": [
+                    {
+                        "date": "2026-06-01",
+                        "amount": 500,
+                        "description": "Salary USD",
+                    }
+                ],
+                "personal_txns": [],
+            },
         },
-        "balances": {"UAH": 10000},
+        "balances": {"UAH": 10000, "USD": 120},
+        "usd_uah_rate": 40,
     })
 
     assert text.startswith("💰 <b>Income</b>")
     assert "Income ·" not in text
     assert "Received" not in text
+    assert "🇺🇸" in text
+    assert "$120" in text
+    assert "<pre>" in text
 
 
 def test_month_keyboard_has_previous_next_and_back_navigation():

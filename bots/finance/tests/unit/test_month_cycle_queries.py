@@ -103,6 +103,7 @@ def test_previous_month_uses_calendar_month_start_and_end(session):
 
 def test_previous_month_balance_is_as_of_selected_calendar_month_end(session):
     account = _account(session, balance=57_700)
+    fop_usd = _account(session, is_fop=True, balance=700, currency="USD")
     today = date.today()
     current_start = today.replace(day=1)
     previous_end = current_start - timedelta(days=1)
@@ -135,13 +136,31 @@ def test_previous_month_balance_is_as_of_selected_calendar_month_end(session):
             description="After food",
             category=cat.FOOD_AND_DRINK,
         ),
+        Transaction(
+            account_id=fop_usd.id,
+            monobank_id="salary-prev-usd",
+            amount=500,
+            currency="USD",
+            date=previous_start,
+            description="USD salary previous",
+            category=cat.INCOME,
+        ),
+        Transaction(
+            account_id=fop_usd.id,
+            monobank_id="after-usd-spend",
+            amount=-100,
+            currency="USD",
+            date=current_start,
+            description="After USD spend",
+            category=cat.FINANCE,
+        ),
     ])
     session.commit()
 
     summary = queries.get_month_cycle_summary(offset=1)
 
     assert summary["spending"]["period_end"] == previous_end.isoformat()
-    assert summary["income"]["balances"] == {"UAH": 50_400}
+    assert summary["income"]["balances"] == {"UAH": 50_400, "USD": 800}
 
 
 def test_month_income_uses_income_rules_and_exchange_rate(session):

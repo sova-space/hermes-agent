@@ -464,10 +464,12 @@ def get_spending_summary(offset: int = 0) -> dict[str, Any]:
             .where(Transaction.date >= start)
             .where(Transaction.date <= end)
             .where(Transaction.is_pending == False)  # noqa: E712
-            .where(Transaction.category.isnot(None))  # type: ignore[union-attr]
             .where(
-                Transaction.category.notin_(  # type: ignore[union-attr]
-                    ["Couple Transfer", "Cashback"]
+                or_(
+                    Transaction.category.is_(None),
+                    Transaction.category.notin_(  # type: ignore[union-attr]
+                        ["Couple Transfer", "Cashback"]
+                    ),
                 )
             )
             .order_by(Transaction.category, Transaction.amount)
@@ -494,9 +496,10 @@ def get_spending_summary(offset: int = 0) -> dict[str, Any]:
 
         by_cat: dict[str, list[dict[str, Any]]] = {}
         for cat_name, desc, amt, dt, currency in detail_rows:
-            by_cat.setdefault(cat_name, []).append({
+            category = cat_name or "Uncategorized"
+            by_cat.setdefault(category, []).append({
                 "description": desc,
-                "label": _label(cat_name, desc, dt),
+                "label": _label(category, desc, dt),
                 "amount": round(abs(amt), 2),
                 "currency": currency,
                 "date": dt.isoformat(),
@@ -699,8 +702,8 @@ def _salary_cycle_dates(session: Session) -> list[date]:
 def _personal_balances_as_of(session: Session, end: date) -> dict[str, int]:
     accounts = session.exec(
         select(Account).where(
-            Account.is_fop == False,  # noqa: E712
             Account.hidden == False,  # noqa: E712
+            or_(Account.is_fop == False, Account.currency == "USD"),  # noqa: E712
         )
     ).all()
     if not accounts:
