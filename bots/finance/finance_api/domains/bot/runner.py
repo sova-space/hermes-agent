@@ -52,7 +52,9 @@ def create_bot(token: str) -> Application:
     app.add_handler(
         CallbackQueryHandler(callback_income, pattern=f"^{INCOME_CALLBACK}$")
     )
-    app.add_handler(CallbackQueryHandler(callback_month, pattern=f"^{MONTH_CALLBACK}$"))
+    app.add_handler(
+        CallbackQueryHandler(callback_month, pattern=f"^{MONTH_CALLBACK}(:\\d+)?$")
+    )
     app.add_handler(
         CallbackQueryHandler(callback_skipped, pattern=f"^{SKIPPED_CALLBACK}$")
     )

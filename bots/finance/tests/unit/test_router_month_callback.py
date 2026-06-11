@@ -9,6 +9,7 @@ def test_hermes_plugin_routes_month_callback():
     text = (REPO_ROOT / "hermes/plugins/agent-silence/commands.py").read_text()
 
     assert '"month": "month"' in text
+    assert "_FINANCE_MONTH_PREFIX" in text
 
 
 def test_railway_gateway_patch_allows_month_callback():
@@ -16,3 +17,4 @@ def test_railway_gateway_patch_allows_month_callback():
 
     assert '"month"' in text
     assert '"month": "month"' in text
+    assert '"month:"' in text

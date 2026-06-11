@@ -640,3 +640,141 @@ def get_income_summary() -> dict[str, Any]:
                 for c in all_currencies
             },
         }
+
+
+_BIG_INCOME_SALARY_THRESHOLD = 20_000
+
+
+def _is_salary_like(tx: Transaction, account: Account) -> bool:
+    """Return True for transactions that should start a salary-cycle month."""
+    if tx.amount <= 0 or tx.is_pending or tx.category == cat.CASHBACK:
+        return False
+    return bool(
+        account.is_fop
+        or tx.category == cat.INCOME
+        or tx.amount >= _BIG_INCOME_SALARY_THRESHOLD
+    )
+
+
+def _salary_cycle_dates(session: Session) -> list[date]:
+    rows = session.exec(
+        select(Transaction, Account)
+        .join(Account, Transaction.account_id == Account.id)
+        .where(Transaction.amount > 0)
+        .where(Transaction.is_pending == False)  # noqa: E712
+        .where(Transaction.date <= date.today())
+        .order_by(Transaction.date.desc())
+    ).all()
+    dates = {tx.date for tx, account in rows if _is_salary_like(tx, account)}
+    return sorted(dates, reverse=True)
+
+
+def _income_summary_between(start: date, end: date) -> dict[str, Any]:
+    with Session(engine) as session:
+        rows = session.exec(
+            select(Transaction, Account)
+            .join(Account, Transaction.account_id == Account.id)
+            .where(Transaction.amount > 0)
+            .where(Transaction.date >= start)
+            .where(Transaction.date <= end)
+            .where(Transaction.is_pending == False)  # noqa: E712
+            .where(
+                or_(
+                    Transaction.category.is_(None), Transaction.category != cat.CASHBACK
+                )
+            )
+            .order_by(Transaction.date)
+        ).all()
+        personal_ids = session.exec(
+            select(Account.id).where(Account.is_fop == False)  # noqa: E712
+        ).all()
+        balance_rows = session.exec(
+            select(Account.currency, func.sum(Account.balance))
+            .where(Account.id.in_(personal_ids))
+            .where(Account.hidden == False)  # noqa: E712
+            .group_by(Account.currency)
+        ).all()
+
+    fop_txns: list[dict[str, Any]] = []
+    personal_txns: list[dict[str, Any]] = []
+    for tx, account in rows:
+        item = {
+            "date": tx.date.isoformat(),
+            "amount": tx.amount,
+            "currency": tx.currency,
+            "description": tx.description,
+        }
+        if account.is_fop:
+            fop_txns.append(item)
+        else:
+            personal_txns.append(item)
+
+    def _totals(txns: list[dict[str, Any]]) -> dict[str, float]:
+        totals: dict[str, float] = {}
+        for tx in txns:
+            totals[tx["currency"]] = totals.get(tx["currency"], 0) + tx["amount"]
+        return totals
+
+    fop = _totals(fop_txns)
+    personal = _totals(personal_txns)
+    currencies = sorted(set(fop) | set(personal))
+    return {
+        "period": start.strftime("%b %Y"),
+        "period_start": start.isoformat(),
+        "period_end": end.isoformat(),
+        "balances": {
+            currency: round(value) for currency, value in balance_rows if value
+        },
+        "usd_uah_rate": None,
+        "by_currency": {
+            currency: {
+                "fop": fop.get(currency, 0),
+                "personal": personal.get(currency, 0),
+                "fop_txns": [tx for tx in fop_txns if tx["currency"] == currency],
+                "personal_txns": [
+                    tx for tx in personal_txns if tx["currency"] == currency
+                ],
+            }
+            for currency in currencies
+        },
+    }
+
+
+def _spending_summary_between(start: date, end: date) -> dict[str, Any]:
+    return {
+        "rows": get_spending_by_category(start=start, end=end),
+        "period_start": start.isoformat(),
+        "period_end": end.isoformat(),
+        "details": {},
+    }
+
+
+def get_month_cycle_summary(offset: int = 0) -> dict[str, Any]:
+    """Return one salary-to-salary month report.
+
+    offset=0 is the current/latest salary cycle. offset=1 is the previous cycle.
+    """
+    offset = max(0, offset)
+    today = date.today()
+    with Session(engine) as session:
+        salary_dates = _salary_cycle_dates(session)
+
+    if not salary_dates:
+        return {
+            "offset": 0,
+            "has_previous": False,
+            "has_next": False,
+            "income": get_income_summary(),
+            "spending": get_spending_summary(),
+        }
+
+    index = min(offset, len(salary_dates) - 1)
+    start = salary_dates[index]
+    end = salary_dates[index - 1] - timedelta(days=1) if index > 0 else today
+    return {
+        "offset": index,
+        "has_previous": index < len(salary_dates) - 1,
+        "has_next": index > 0,
+        "income": _income_summary_between(start, end),
+        "spending": _spending_summary_between(start, end),
+    }

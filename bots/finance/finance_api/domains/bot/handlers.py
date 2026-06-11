@@ -24,6 +24,7 @@ from finance_api.domains.insights.queries import (
     get_account_balances,
     get_hidden_account_balances,
     get_income_summary,
+    get_month_cycle_summary,
     get_spending_summary,
     get_subscriptions,
     get_sync_health,
@@ -60,6 +61,35 @@ def _balance_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🔄 Sync", callback_data=SYNC_CALLBACK),
         ],
     ])
+
+
+def _month_keyboard(summary: dict) -> InlineKeyboardMarkup:
+    offset = int(summary.get("offset", 0))
+    keyboard = []
+    month_row = []
+    if summary.get("has_previous"):
+        month_row.append(
+            InlineKeyboardButton("← Prev", callback_data=f"month:{offset + 1}")
+        )
+    if summary.get("has_next"):
+        month_row.append(
+            InlineKeyboardButton("Next →", callback_data=f"month:{offset - 1}")
+        )
+    if month_row:
+        keyboard.append(month_row)
+    year_row = []
+    if summary.get("has_previous"):
+        year_row.append(
+            InlineKeyboardButton("← Year", callback_data=f"month:{offset + 12}")
+        )
+    if offset >= 12:
+        year_row.append(
+            InlineKeyboardButton("Year →", callback_data=f"month:{offset - 12}")
+        )
+    if year_row:
+        keyboard.append(year_row)
+    keyboard.append([InlineKeyboardButton("← Back", callback_data=BALANCE_CALLBACK)])
+    return InlineKeyboardMarkup(keyboard)
 
 
 def _thread_id(message) -> int | None:
@@ -264,15 +294,14 @@ async def callback_month(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     query = update.callback_query
     await query.answer()
     try:
-        income, spending = await asyncio.gather(
-            asyncio.to_thread(get_income_summary),
-            asyncio.to_thread(get_spending_summary),
-        )
+        raw = str(query.data or MONTH_CALLBACK)
+        offset = int(raw.split(":", 1)[1]) if ":" in raw else 0
+        summary = await asyncio.to_thread(get_month_cycle_summary, offset)
         await _edit(
             query,
-            format_month_report(income, spending),
+            format_month_report(summary["income"], summary["spending"]),
             parse_mode=PARSE_MODE,
-            reply_markup=_balance_keyboard(),
+            reply_markup=_month_keyboard(summary),
         )
     except Exception as e:
         log.error("month_callback_failed", error=str(e))

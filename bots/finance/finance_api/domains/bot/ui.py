@@ -30,6 +30,7 @@ from finance_api.domains.insights.queries import (
     get_account_balances,
     get_hidden_account_balances,
     get_income_summary,
+    get_month_cycle_summary,
     get_spending_summary,
     get_subscriptions,
     get_sync_health,
@@ -115,6 +116,28 @@ def back_to_spending_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     }
 
 
+def month_keyboard(summary: dict[str, Any]) -> dict[str, list[list[dict[str, str]]]]:
+    """Month navigation buttons + main menu back button."""
+    offset = int(summary.get("offset", 0))
+    rows: list[list[dict[str, str]]] = []
+    month_row: list[dict[str, str]] = []
+    if summary.get("has_previous"):
+        month_row.append(_button("← Prev", callback_data=f"month:{offset + 1}"))
+    if summary.get("has_next"):
+        month_row.append(_button("Next →", callback_data=f"month:{offset - 1}"))
+    if month_row:
+        rows.append(month_row)
+    year_row: list[dict[str, str]] = []
+    if summary.get("has_previous"):
+        year_row.append(_button("← Year", callback_data=f"month:{offset + 12}"))
+    if offset >= 12:
+        year_row.append(_button("Year →", callback_data=f"month:{offset - 12}"))
+    if year_row:
+        rows.append(year_row)
+    rows.append([_button("← Back", callback_data=BALANCE_CALLBACK)])
+    return {"inline_keyboard": rows}
+
+
 def view_payload(view: str = "balance", category: str | None = None) -> dict[str, Any]:
     """Return a Telegram-ready UI payload for one finance view."""
     if view == "balance":
@@ -146,10 +169,19 @@ def view_payload(view: str = "balance", category: str | None = None) -> dict[str
         }
 
     if view == "month":
+        summary = get_month_cycle_summary()
         return {
-            "text": format_month_report(get_income_summary(), get_spending_summary()),
+            "text": format_month_report(summary["income"], summary["spending"]),
             "parse_mode": PARSE_MODE,
-            "reply_markup": balance_keyboard(),
+            "reply_markup": month_keyboard(summary),
+        }
+
+    if view.startswith("month:"):
+        summary = get_month_cycle_summary(int(view.split(":", 1)[1]))
+        return {
+            "text": format_month_report(summary["income"], summary["spending"]),
+            "parse_mode": PARSE_MODE,
+            "reply_markup": month_keyboard(summary),
         }
 
     if view == "spending":

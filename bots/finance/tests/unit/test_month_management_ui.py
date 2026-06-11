@@ -53,3 +53,18 @@ def test_month_report_formats_income_and_spending_html():
     assert "Income" in text
     assert "Spending" in text
     assert "Food & Drink" in text
+
+
+def test_month_keyboard_has_previous_next_year_and_back_navigation():
+    keyboard = ui.month_keyboard({
+        "offset": 12,
+        "has_previous": True,
+        "has_next": True,
+    })["inline_keyboard"]
+
+    callbacks = [button["callback_data"] for row in keyboard for button in row]
+    assert "month:13" in callbacks
+    assert "month:11" in callbacks
+    assert "month:24" in callbacks
+    assert "month:0" in callbacks
+    assert "balance_cb" in callbacks
