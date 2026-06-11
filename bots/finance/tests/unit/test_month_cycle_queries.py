@@ -208,3 +208,37 @@ def test_month_income_uses_income_rules_and_exchange_rate(session):
     )
     assert "UAH FOP internal transfer" not in str(summary)
     assert "USD FOP internal transfer" not in str(summary)
+
+
+def test_spending_summary_excludes_fop_card_expenses(session):
+    personal = _account(session)
+    fop = _account(session, is_fop=True)
+    start = date.today().replace(day=1)
+    session.add_all([
+        Transaction(
+            account_id=personal.id,
+            monobank_id="personal-finance",
+            amount=-60_000,
+            currency="UAH",
+            date=start,
+            description="Personal transfer",
+            category=cat.FINANCE,
+        ),
+        Transaction(
+            account_id=fop.id,
+            monobank_id="fop-finance",
+            amount=-117_928,
+            currency="UAH",
+            date=start,
+            description="FOP transfer",
+            category=cat.FINANCE,
+        ),
+    ])
+    session.commit()
+
+    summary = queries.get_spending_summary(offset=0)
+
+    assert summary["rows"] == [
+        {"category": cat.FINANCE, "currency": "UAH", "amount": 60_000.0}
+    ]
+    assert [tx["amount"] for tx in summary["details"][cat.FINANCE]] == [60_000.0]

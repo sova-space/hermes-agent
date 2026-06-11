@@ -421,7 +421,30 @@ def get_spending_summary(offset: int = 0) -> dict[str, Any]:
     """Return UAH spending by category for the selected calendar month."""
     start, end = _calendar_month_for_offset(offset)
     with Session(engine) as session:
-        rows = get_spending_by_category(start=start, end=end)
+        personal_ids = session.exec(
+            select(Account.id).where(Account.is_fop == False)  # noqa: E712
+        ).all()
+        summary_rows = session.exec(
+            select(
+                Transaction.category,
+                Transaction.currency,
+                func.sum(Transaction.amount),
+            )
+            .where(Transaction.account_id.in_(personal_ids))
+            .where(Transaction.date >= start)
+            .where(Transaction.date <= end)
+            .where(Transaction.amount < 0)
+            .where(Transaction.is_pending == False)  # noqa: E712
+            .group_by(Transaction.category, Transaction.currency)
+        ).all()
+        rows = [
+            {
+                "category": category or "Uncategorized",
+                "currency": currency,
+                "amount": round(abs(total), 2),
+            }
+            for category, currency, total in summary_rows
+        ]
 
         # Per-category transaction details for drill-down (all currencies)
         detail_rows = session.exec(

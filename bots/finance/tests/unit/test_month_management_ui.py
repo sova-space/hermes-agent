@@ -77,6 +77,33 @@ def test_balance_formats_configured_month():
 
     assert "<b>Month · June</b>" in text
     assert "5 Jun-4 Jul" in text
+    assert "Breakdown" not in text
+    assert "Black" not in text
+
+
+def test_income_summary_uses_short_heading():
+    text = formatter.format_income_summary({
+        "period_start": "2026-06-01",
+        "by_currency": {
+            "UAH": {
+                "fop": 0,
+                "personal": 40000,
+                "fop_txns": [],
+                "personal_txns": [
+                    {
+                        "date": "2026-06-02",
+                        "amount": 40000,
+                        "description": "Salary",
+                    }
+                ],
+            }
+        },
+        "balances": {"UAH": 10000},
+    })
+
+    assert text.startswith("💰 <b>Income</b>")
+    assert "Income ·" not in text
+    assert "Received" not in text
 
 
 def test_month_keyboard_has_previous_next_and_back_navigation():

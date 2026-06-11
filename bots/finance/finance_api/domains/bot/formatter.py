@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime
 from typing import Any
 
-from finance_api.bot.telegram_fmt import bold, code, expandable_blockquote, italic, pre
+from finance_api.bot.telegram_fmt import bold, code, italic, pre
 from finance_api.domains.transactions import categories as cat
 
 CATEGORY_EMOJI: dict[str, str] = {
@@ -133,12 +133,6 @@ def format_balance(
     for a in accounts:
         by_currency[a["currency"]].append(a)
 
-    short: dict[str, str] = {
-        a["name"]: _short_name(a["name"], a["currency"]) for a in accounts
-    }
-    fmt: dict[str, str] = {
-        a["name"]: _fmt_amount(round(a["balance"]), a["currency"]) for a in accounts
-    }
     group_totals: dict[str, float] = {
         currency: round(sum(a["balance"] for a in group))
         for currency, group in by_currency.items()
@@ -150,20 +144,6 @@ def format_balance(
         flag = _CURRENCY_FLAG.get(currency, "💱")
         total_str = _fmt_amount(group_totals[currency], currency)
         total_lines.append(f"{flag} {currency}  {bold(total_str)}")
-
-    # Breakdown section — collapsed by default
-    name_w = max(len(s) for s in short.values())
-    amount_w = max(len(s) for s in fmt.values())
-    breakdown_lines: list[str] = [bold("Breakdown")]
-    for i, (_currency, group) in enumerate(by_currency.items()):
-        if i > 0:
-            breakdown_lines.append("")
-        fops = [a for a in group if a.get("is_fop")]
-        cards = [a for a in group if not a.get("is_fop")]
-        for a in fops + cards:
-            breakdown_lines.append(
-                f"{short[a['name']]:<{name_w}}  {fmt[a['name']]:>{amount_w}}"
-            )
 
     latest_sync = max(
         (a["synced_at"] for a in accounts if a.get("synced_at")),
@@ -180,8 +160,6 @@ def format_balance(
         f"💳 {bold('Mono')}\n"
         + cycle_block
         + "\n".join(total_lines)
-        + "\n\n"
-        + expandable_blockquote("\n".join(breakdown_lines))
         + income_block
         + f"\n\n🕐 {_fmt_ago(latest_sync)}"
     )
@@ -199,8 +177,6 @@ def format_income_summary(summary: dict[str, Any]) -> str:
     by_cur = summary.get("by_currency", {})
     if not by_cur:
         return ""
-
-    period = _fmt_income_period(summary)
 
     # Validate there's something to show
     has_data = any(v["fop"] or v["personal"] for v in by_cur.values())
@@ -321,11 +297,11 @@ def format_income_summary(summary: dict[str, Any]) -> str:
         pct = round((received - bal) / received * 100) if received else 0
         balance_lines.append(f"  {flag} {bal_str} of {sal_str}  · spent {pct}%")
 
-    body = f"💵 {bold('Received')}\n{received_block}"
+    body = f"💰 {bold('Income')}\n{received_block}"
     if balance_lines:
         body += f"\n\n💳 {bold('Balance now')}\n" + "\n".join(balance_lines)
 
-    return f"💰 {bold(f'Income · {period}')}\n\n" + body
+    return body
 
 
 def format_month_report(income: dict[str, Any], spending: dict[str, Any]) -> str:
