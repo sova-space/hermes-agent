@@ -699,35 +699,77 @@ def _personal_balances_as_of(session: Session, end: date) -> dict[str, int]:
 
 def _income_summary_between(start: date, end: date) -> dict[str, Any]:
     with Session(engine) as session:
-        rows = session.exec(
-            select(Transaction, Account)
-            .join(Account, Transaction.account_id == Account.id)
+        fop_usd_ids = session.exec(
+            select(Account.id).where(
+                Account.is_fop == True,  # noqa: E712
+                Account.currency == "USD",
+            )
+        ).all()
+        personal_ids = session.exec(
+            select(Account.id).where(Account.is_fop == False)  # noqa: E712
+        ).all()
+        income_rules = _selected_rules(session, "personal_income")
+        income_patterns = [pattern for pattern, _label in income_rules]
+        not_cashback = or_(
+            Transaction.category.is_(None), Transaction.category != cat.CASHBACK
+        )
+
+        fop_rows = session.exec(
+            select(Transaction)
+            .where(Transaction.account_id.in_(fop_usd_ids))
             .where(Transaction.amount > 0)
             .where(Transaction.date >= start)
             .where(Transaction.date <= end)
             .where(Transaction.is_pending == False)  # noqa: E712
-            .where(
-                or_(
-                    Transaction.category.is_(None), Transaction.category != cat.CASHBACK
-                )
-            )
+            .where(not_cashback)
             .order_by(Transaction.date)
+        ).all()
+        personal_rows = session.exec(
+            select(Transaction)
+            .where(Transaction.account_id.in_(personal_ids))
+            .where(Transaction.amount > 0)
+            .where(Transaction.date >= start)
+            .where(Transaction.date <= end)
+            .where(Transaction.is_pending == False)  # noqa: E712
+            .where(not_cashback)
+            .order_by(Transaction.date)
+        ).all()
+        rate_rows = session.exec(
+            select(Transaction.extra)
+            .where(Transaction.date >= start)
+            .where(Transaction.date <= end)
+            .where(Transaction.extra.isnot(None))  # type: ignore[union-attr]
         ).all()
         balance_rows = _personal_balances_as_of(session, end)
 
-    fop_txns: list[dict[str, Any]] = []
-    personal_txns: list[dict[str, Any]] = []
-    for tx, account in rows:
-        item = {
+    fop_txns = [
+        {
             "date": tx.date.isoformat(),
             "amount": tx.amount,
             "currency": tx.currency,
             "description": tx.description,
         }
-        if account.is_fop:
-            fop_txns.append(item)
-        else:
-            personal_txns.append(item)
+        for tx in fop_rows
+    ]
+    personal_txns = [
+        {
+            "date": tx.date.isoformat(),
+            "amount": tx.amount,
+            "currency": tx.currency,
+            "description": match_label(tx.description, income_rules) or tx.description,
+        }
+        for tx in personal_rows
+        if matches_any(tx.description, income_patterns)
+    ]
+
+    usd_uah_rate: float | None = None
+    for row in rate_rows:
+        try:
+            er = float(row["exchange_rate"])  # type: ignore[index]
+            if er > 1 and (usd_uah_rate is None or er > usd_uah_rate):
+                usd_uah_rate = er
+        except (KeyError, TypeError, ValueError):
+            pass
 
     def _totals(txns: list[dict[str, Any]]) -> dict[str, float]:
         totals: dict[str, float] = {}
@@ -743,7 +785,7 @@ def _income_summary_between(start: date, end: date) -> dict[str, Any]:
         "period_start": start.isoformat(),
         "period_end": end.isoformat(),
         "balances": balance_rows,
-        "usd_uah_rate": None,
+        "usd_uah_rate": usd_uah_rate,
         "by_currency": {
             currency: {
                 "fop": fop.get(currency, 0),

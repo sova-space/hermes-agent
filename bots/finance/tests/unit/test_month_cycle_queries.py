@@ -2,17 +2,20 @@
 
 from datetime import date, timedelta
 
+import pytest
+
 from finance_api.domains.accounts.models import Account
 from finance_api.domains.insights import queries
+from finance_api.domains.rules.models import TransactionRule
 from finance_api.domains.transactions import categories as cat
 from finance_api.domains.transactions.models import Transaction
 
 
-def _account(session, *, is_fop=False, balance=0):
+def _account(session, *, is_fop=False, balance=0, currency="UAH"):
     account = Account(
-        monobank_id=f"acc-{is_fop}-{balance}",
+        monobank_id=f"acc-{is_fop}-{balance}-{currency}",
         name="Card",
-        currency="UAH",
+        currency=currency,
         account_type="black",
         is_fop=is_fop,
         balance=balance,
@@ -139,3 +142,69 @@ def test_previous_month_balance_is_as_of_selected_calendar_month_end(session):
 
     assert summary["spending"]["period_end"] == previous_end.isoformat()
     assert summary["income"]["balances"] == {"UAH": 50_400}
+
+
+def test_month_income_uses_income_rules_and_exchange_rate(session):
+    personal = _account(session)
+    fop_usd = _account(session, is_fop=True, currency="USD")
+    fop_uah = _account(session, is_fop=True, currency="UAH")
+    start = date.today().replace(day=1)
+    session.add(
+        TransactionRule(
+            rule_type="personal_income",
+            pattern="STABIL GLOBAL",
+            label="Stabil Global",
+        )
+    )
+    session.add_all([
+        Transaction(
+            account_id=personal.id,
+            monobank_id="internal-uah",
+            amount=22_108.08,
+            currency="UAH",
+            date=start,
+            description="UAH FOP internal transfer",
+            category=cat.INCOME,
+        ),
+        Transaction(
+            account_id=fop_uah.id,
+            monobank_id="internal-fop-uah",
+            amount=22_108.08,
+            currency="UAH",
+            date=start,
+            description="USD FOP internal transfer",
+            category=cat.INCOME,
+        ),
+        Transaction(
+            account_id=fop_usd.id,
+            monobank_id="salary-usd",
+            amount=500,
+            currency="USD",
+            date=start,
+            description="From: STABIL GLOBAL LLC",
+            category=cat.INCOME,
+            extra={"exchange_rate": 44.21616},
+        ),
+        Transaction(
+            account_id=personal.id,
+            monobank_id="salary-personal",
+            amount=22_108.08,
+            currency="UAH",
+            date=start + timedelta(days=1),
+            description="STABIL GLOBAL LLC",
+            category=cat.INCOME,
+        ),
+    ])
+    session.commit()
+
+    summary = queries.get_month_cycle_summary(offset=0)["income"]
+
+    assert summary["usd_uah_rate"] == pytest.approx(44.21616)
+    assert summary["by_currency"]["USD"]["fop"] == 500
+    assert summary["by_currency"]["UAH"]["personal"] == pytest.approx(22_108.08)
+    assert (
+        summary["by_currency"]["UAH"]["personal_txns"][0]["description"]
+        == "Stabil Global"
+    )
+    assert "UAH FOP internal transfer" not in str(summary)
+    assert "USD FOP internal transfer" not in str(summary)
