@@ -63,7 +63,7 @@ Copy `infra/.env.finance.local.example` → `infra/.env.finance.local` and fill 
 
 ## Guardrails
 
-- Pushing directly to `main` is allowed when Nazar explicitly asks to deploy.
+- Push verified deployable changes directly to `main` automatically; Railway deploys from `main`.
 - Never hardcode secrets, tokens, or API keys in source.
 - Required config fails loud if missing (no silent defaults in `Settings`).
 - Owner-gate every Telegram handler via `TELEGRAM_OWNER_ID`.
